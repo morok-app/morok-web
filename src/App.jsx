@@ -160,7 +160,7 @@ export default function App() {
     case 'login': return <LoginByMnemonic onNavigate={navigate} />;
     case 'claim': return <ClaimUsername onNavigate={navigate} />;
     case 'chats': return <ChatsList onNavigate={navigate} />;
-    case 'newchat': return <NewChat onNavigate={navigate} />;
+    case 'newchat': return <NewChat onNavigate={navigate} routeArg={routeArg} />;
     case 'profile': return <Profile onNavigate={navigate} />;
     case 'chat':
       if (!routeArg) { navigate('chats'); return <Splash />; }

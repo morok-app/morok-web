@@ -1,29 +1,29 @@
-# Morok Web Client — День 2
+# Morok Web Client — День 3
 
-Реальні 1-on-1 чати з E2E шифруванням і WebSocket real-time.
+Federation cross-relay + QR-код + кеш контактів.
 
 ## Що нового
 
-**Crypto:**
-- X25519 key exchange (виводимо з того ж Ed25519 seed)
-- XChaCha20-Poly1305 шифрування blob'ів
-- Двосторонній E2E test passed
+**Federation в NewChat:**
+- Підтримка повної адреси `@username@relay2.morok.app`
+- Локальний пошук → 404? Підказка "спробуйте з @relay"
+- Cross-relay lookup через `?relay=hostname`
+- Розрізняє 404 (немає юзера) і 503 (relay мертвий)
 
-**Екрани:**
-- `NewChat` — пошук юзера за @username
-- `ChatRoom` — повідомлення + композер + TTL селектор
-- `Profile` — share-link, mnemonic backup, logout
-- `ChatsList` — реальний список з останнім повідомленням і часом
+**QR-код на профілі:**
+- Згенерований QR з share-лінком
+- Кнопка "Завантажити" → PNG
+- Кнопка "Копіювати лінк"
 
-**WebSocket inbox:**
-- Підключається після login
-- Catchup pending + real-time `{type:"new"}`
-- Auto-reconnect з backoff (1s→2s→5s→10s→30s)
-- Pong на ping
+**Кеш контактів:**
+- Знайдені юзери зберігаються локально
+- На NewChat показується "Нещодавні" — повторний пошук миттєвий
+- При logout — кеш чиститься
 
-**Share links:**
-- На профілі: `https://relay1.morok.app/web/#newchat?u=username`
-- Хто перейде — одразу відкриється форма щоб написати
+**Парсер адрес:**
+- `addr.js` з валідацією
+- Приймає: `vasya`, `@vasya`, `vasya@host`, `@vasya@host`
+- Case-insensitive
 
 ## Деплой
 
@@ -32,43 +32,58 @@
 cd C:\Users\1\Desktop\morok-web
 ```
 
-Розпакуй ZIP сюди — замінить всі файли. **Видаль попередньо `node_modules` і `dist`** (вони будуть створені знову).
+Видаль `node_modules` і `dist` (через провідник або rmdir).
 
+Розпакуй ZIP сюди — замінить файли. Потім:
 ```
 npm install
 npm run build
 scp -r dist/* root@62.238.28.107:/var/www/morok-web/
 ```
 
-На relay1 як root:
+**На relay1:**
+```
+ssh root@62.238.28.107
+rm /var/www/morok-web/assets/index-*.js
+rm /var/www/morok-web/assets/index-*.css
+```
+
+Потім **знов** з ПК:
+```
+scp -r dist/* root@62.238.28.107:/var/www/morok-web/
+```
+
+**На relay1:**
 ```
 chmod -R 755 /var/www/morok-web/
 ```
 
-**Готово.** Перевантажуй `https://relay1.morok.app/web` у браузері (Ctrl+Shift+R щоб без кешу).
+Відкривай `https://relay1.morok.app/web` з **Ctrl+Shift+R**.
 
 ## Як тестувати
 
-1. **Створи другий акаунт** в incognito-вікні. Запам'ятай юзернейм.
-2. У першому вікні (твій основний): натисни `+` → введи юзернейм другого → знайти
-3. Напиши повідомлення → надіслати
-4. Перевір incognito-вікно: має з'явитись чат і повідомлення в межах ~2 секунд
+**Тест 1 — Federation:**
+1. На relay1 (звичайне вікно) — твій акаунт `@satoshi`
+2. У incognito — створи акаунт на relay2: натисни шестерню для зміни сервера (це поки нема... TODO?), або просто заплануй коли буде налаштування. Поки роби тест 2.
 
-**Очікувано:**
-- ✓ зеленим у тебе після успішної відправки
-- TTL індикатор показує час життя
-- При перезавантаженні сторінки чат залишається (localStorage)
-- Через TTL хвилин повідомлення зникне з обох сторін
+**Тест 2 — QR:**
+1. На профілі побачиш QR
+2. Завантаж PNG → відкривається картинка
+3. Скопіюй лінк → у incognito-вікні встав в адресу
+4. Має одразу відкритись форма з вже введеним юзернеймом
+
+**Тест 3 — Cache:**
+1. Знайди юзера через NewChat
+2. Вернись назад → на NewChat внизу побачиш "Нещодавні"
+3. Натисни на нього → одразу чат відкривається (без relay-запиту)
 
 ## Що НЕ зробив (свідомо)
 
-- **Federation routing.** Зараз lookup йде тільки по локальному relay'ю. Якщо юзер на relay2 — не знайдеш. Виправлю у Дні 3 разом з cross-relay UX.
-- **Burn-on-read.** Ми погодились робити TTL only. Burn-on-read окрема фіча на потім.
-- **PIN для localStorage.** День 4.
-- **Групи UI.** День 5+.
+- **Зміна relay в settings** — щоб юзер міг реєструватись не тільки на relay1. День 4 разом з settings UI.
+- **Сканер QR** — занадто важко на веб, потрібен мобайл.
+- **Federation routing для sendDM** — federation отримує message коли home_relay не наш, але **сервер сам це робить** через outbound queue. Клієнт нічого не міняє.
 
 ## Що далі — План
 
-**День 3:** Federation lookup (cross-relay), QR-код на профілі, контакти.
-**День 4:** PIN-шифрування seed у localStorage + backup/restore flow.
-**День 5+:** Групи UI, DMS, settings.
+**День 4:** PIN-захист localStorage + Encrypted backup/restore flow + Settings UI (зміна relay).
+**День 5+:** Групи UI, DMS, верифікація номерів безпеки.

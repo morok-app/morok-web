@@ -1,63 +1,130 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import * as convs from '../lib/conversations.js';
+import * as contacts from '../lib/contacts.js';
 import * as store from '../lib/storage.js';
+import { parseAddress } from '../lib/addr.js';
 
-export default function NewChat({ onNavigate }) {
+export default function NewChat({ onNavigate, routeArg }) {
+  const me = store.loadProfile();
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [hint, setHint] = useState(null); // for "try @user@relay2" suggestions
+
+  // Preload from share-link ?u=username
+  useEffect(() => {
+    if (!routeArg) return;
+    // routeArg might be like "u=satoshi" (from #newchat?u=satoshi)
+    const m = String(routeArg).match(/^u=([\w.@-]+)$/);
+    if (m) setValue(m[1]);
+  }, [routeArg]);
 
   function onInput(e) {
-    let v = e.target.value.toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9_]/g, '');
-    if (v.length > 20) v = v.slice(0, 20);
+    // Accept @ and . and -, lowercase, strip everything else
+    let v = e.target.value.toLowerCase().replace(/[^a-z0-9_@.-]/g, '');
     setValue(v);
     setError(null);
+    setHint(null);
   }
 
   async function findClicked() {
     if (!value || busy) return;
     setBusy(true);
     setError(null);
-    try {
-      const me = store.loadProfile();
+    setHint(null);
 
-      // Try local lookup first; if user is on another relay, the server returns 404
-      // and the client needs to retry with ?relay=. For now MVP: try local, if 404 try with their home relay (we'd need to ask user)
-      // For simplicity, just lookup locally. Cross-relay will need a hostname hint later.
-      let user;
+    let parsed;
+    try {
+      parsed = parseAddress(value);
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+      return;
+    }
+
+    // 0. Check contacts cache first
+    const cached = contacts.findByUsername(parsed.username, parsed.relay);
+    if (cached) {
+      openChat(cached);
+      return;
+    }
+
+    // 1. Try locally if no relay specified, OR matching local relay
+    if (!parsed.relay || parsed.relay === me.home_relay) {
       try {
-        user = await api.lookupUsername(value);
+        const user = await api.lookupUsername(parsed.username);
+        const contact = contacts.upsert({
+          pubkey_hex: user.pubkey_hex,
+          username: user.username,
+          home_relay: user.home_relay,
+        });
+        if (contact.pubkey_hex === me.pubkey_hex) {
+          setError('Це ви самі.');
+          setBusy(false);
+          return;
+        }
+        openChat(contact);
+        return;
+      } catch (e) {
+        if (e.status === 404 && !parsed.relay) {
+          // Not on local relay — show federation hint
+          setHint(`Юзера немає на цьому сервері. Спробуйте написати повну адресу типу @${parsed.username}@relay2.morok.app`);
+          setBusy(false);
+          return;
+        }
+        if (e.status !== 404) {
+          setError(e.message);
+          setBusy(false);
+          return;
+        }
+        // 404 on local with relay hint — fall through (shouldn't happen but safe)
+      }
+    }
+
+    // 2. Federation lookup with explicit ?relay=
+    if (parsed.relay && parsed.relay !== me.home_relay) {
+      try {
+        const user = await api.lookupUsername(parsed.username, parsed.relay);
+        const contact = contacts.upsert({
+          pubkey_hex: user.pubkey_hex,
+          username: user.username,
+          home_relay: user.home_relay,
+        });
+        if (contact.pubkey_hex === me.pubkey_hex) {
+          setError('Це ви самі.');
+          setBusy(false);
+          return;
+        }
+        openChat(contact);
+        return;
       } catch (e) {
         if (e.status === 404) {
-          setError(`Юзер @${value} не знайдений на цьому сервері`);
+          setError(`Юзер @${parsed.username} не знайдений на ${parsed.relay}`);
         } else if (e.status === 503) {
-          setError('Сервер тимчасово недоступний, спробуйте пізніше');
+          setError(`Сервер ${parsed.relay} тимчасово недоступний. Спробуйте пізніше.`);
         } else {
           setError(e.message || 'Помилка пошуку');
         }
         setBusy(false);
         return;
       }
-
-      if (user.pubkey_hex === me?.pubkey_hex) {
-        setError('Це ви самі. Не можна писати собі.');
-        setBusy(false);
-        return;
-      }
-
-      // Open conversation
-      convs.ensureConversation({
-        peerPubkey: user.pubkey_hex,
-        peerUsername: user.username,
-        peerHomeRelay: user.home_relay,
-      });
-      onNavigate(`chat/${user.pubkey_hex}`);
-    } catch (e) {
-      setError(e.message || 'Помилка');
-      setBusy(false);
     }
+
+    setError('Юзера не знайдено');
+    setBusy(false);
   }
+
+  function openChat(contact) {
+    convs.ensureConversation({
+      peerPubkey: contact.pubkey_hex,
+      peerUsername: contact.username,
+      peerHomeRelay: contact.home_relay,
+    });
+    onNavigate(`chat/${contact.pubkey_hex}`);
+  }
+
+  const knownContacts = contacts.listContacts();
 
   return (
     <div className="screen">
@@ -70,17 +137,19 @@ export default function NewChat({ onNavigate }) {
         <div className="title">Новий чат</div>
       </div>
 
-      <div style={{ padding: '24px 24px', display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+      <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <p className="hint">
-          Введіть юзернейм людини з якою хочете зв'язатись.
+          Юзернейм людини або повна адреса якщо вона на іншому сервері:<br/>
+          <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-faint)' }}>
+            @vasya · @vasya@relay2.morok.app
+          </span>
         </p>
 
         <div className="input-wrap">
-          <span className="input-prefix">@</span>
           <input
-            className="input with-prefix"
+            className="input"
             type="text"
-            placeholder="username"
+            placeholder="@username[@relay]"
             value={value}
             onChange={onInput}
             onKeyDown={(e) => e.key === 'Enter' && findClicked()}
@@ -92,6 +161,17 @@ export default function NewChat({ onNavigate }) {
         </div>
 
         {error && <div className="error-text">{error}</div>}
+        {hint && (
+          <div style={{
+            background: 'rgba(107, 138, 254, 0.08)',
+            border: '1px solid rgba(107, 138, 254, 0.25)',
+            color: 'var(--text)',
+            padding: '10px 12px',
+            borderRadius: 10,
+            fontSize: 12.5,
+            lineHeight: 1.5,
+          }}>{hint}</div>
+        )}
 
         <button
           className="btn btn-primary"
@@ -101,6 +181,50 @@ export default function NewChat({ onNavigate }) {
           {busy ? 'Шукаємо...' : 'Знайти'}
         </button>
       </div>
+
+      {knownContacts.length > 0 && (
+        <div style={{ marginTop: 24, flex: 1, overflowY: 'auto' }}>
+          <div style={{
+            fontSize: 11, color: 'var(--text-faint)',
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            padding: '4px 20px 10px', fontWeight: 600,
+          }}>
+            Нещодавні
+          </div>
+          {knownContacts.slice(0, 30).map((c) => {
+            const hue = parseInt(c.pubkey_hex.slice(0, 6), 16) % 360;
+            return (
+              <div
+                key={c.pubkey_hex}
+                onClick={() => openChat(c)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 20px', cursor: 'pointer',
+                }}
+              >
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: `hsl(${hue}, 45%, 45%)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700, fontSize: 14, color: '#fff',
+                }}>
+                  {(c.username?.[0] || '?').toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                    @{c.username || c.pubkey_hex.slice(0, 8)}
+                    {c.home_relay !== me.home_relay && (
+                      <span style={{ fontSize: 10.5, color: 'var(--text-faint)', fontFamily: 'var(--mono)', fontWeight: 400 }}>
+                        @{c.home_relay}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
