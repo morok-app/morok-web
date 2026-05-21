@@ -1,145 +1,74 @@
-# Morok Web Client — День 1
+# Morok Web Client — День 2
 
-Простий React+Vite додаток, мобайл-фірст. 6 екранів: Splash, Welcome,
-CreateAccount, LoginByMnemonic, ClaimUsername, ChatsList (empty state).
+Реальні 1-on-1 чати з E2E шифруванням і WebSocket real-time.
 
-Crypto: Ed25519 (signing) + BIP39 (24-словна mnemonic phrase) через
-перевірені бібліотеки `@noble/curves` і `@scure/bip39`.
+## Що нового
 
----
+**Crypto:**
+- X25519 key exchange (виводимо з того ж Ed25519 seed)
+- XChaCha20-Poly1305 шифрування blob'ів
+- Двосторонній E2E test passed
 
-## Локально на ПК — побудувати
+**Екрани:**
+- `NewChat` — пошук юзера за @username
+- `ChatRoom` — повідомлення + композер + TTL селектор
+- `Profile` — share-link, mnemonic backup, logout
+- `ChatsList` — реальний список з останнім повідомленням і часом
 
-Потрібен Node.js 18+. Якщо немає — встанови з https://nodejs.org
+**WebSocket inbox:**
+- Підключається після login
+- Catchup pending + real-time `{type:"new"}`
+- Auto-reconnect з backoff (1s→2s→5s→10s→30s)
+- Pong на ping
 
+**Share links:**
+- На профілі: `https://relay1.morok.app/web/#newchat?u=username`
+- Хто перейде — одразу відкриється форма щоб написати
+
+## Деплой
+
+**На ПК (PowerShell):**
 ```
 cd C:\Users\1\Desktop\morok-web
+```
+
+Розпакуй ZIP сюди — замінить всі файли. **Видаль попередньо `node_modules` і `dist`** (вони будуть створені знову).
+
+```
 npm install
 npm run build
+scp -r dist/* root@62.238.28.107:/var/www/morok-web/
 ```
 
-Це створить папку `dist/` з готовими статичними файлами.
-
-**Тест локально (опційно):**
+На relay1 як root:
 ```
-npm run preview
-```
-Відкривається на http://localhost:4173/web/
-
-Перші запуски — створиш тестовий акаунт через `Створити аккаунт`, переконаєшся
-що mnemonic генерується і claim username проходить.
-
----
-
-## Деплой на relay1
-
-### 1. Завантаж dist на сервер
-
-З PowerShell на ПК:
-```
-scp -r dist root@62.238.28.107:/var/www/morok-web/
+chmod -R 755 /var/www/morok-web/
 ```
 
-Запитає пароль root.
+**Готово.** Перевантажуй `https://relay1.morok.app/web` у браузері (Ctrl+Shift+R щоб без кешу).
 
-### 2. Налаштувати nginx
+## Як тестувати
 
-На relay1 як root, додай location-блок у конфіг:
+1. **Створи другий акаунт** в incognito-вікні. Запам'ятай юзернейм.
+2. У першому вікні (твій основний): натисни `+` → введи юзернейм другого → знайти
+3. Напиши повідомлення → надіслати
+4. Перевір incognito-вікно: має з'явитись чат і повідомлення в межах ~2 секунд
 
-```
-nano /etc/nginx/sites-available/morok-relay
-```
+**Очікувано:**
+- ✓ зеленим у тебе після успішної відправки
+- TTL індикатор показує час життя
+- При перезавантаженні сторінки чат залишається (localStorage)
+- Через TTL хвилин повідомлення зникне з обох сторін
 
-Знайди блок `server { server_name relay1.morok.app; ...` і **перед** блоком
-`location / { proxy_pass http://morok_relay_backend; ... }` додай:
+## Що НЕ зробив (свідомо)
 
-```nginx
-location /web/ {
-    alias /var/www/morok-web/;
-    try_files $uri $uri/ /web/index.html;
-    index index.html;
-}
-```
+- **Federation routing.** Зараз lookup йде тільки по локальному relay'ю. Якщо юзер на relay2 — не знайдеш. Виправлю у Дні 3 разом з cross-relay UX.
+- **Burn-on-read.** Ми погодились робити TTL only. Burn-on-read окрема фіча на потім.
+- **PIN для localStorage.** День 4.
+- **Групи UI.** День 5+.
 
-Перевір і застосуй:
-```
-nginx -t
-systemctl reload nginx
-```
+## Що далі — План
 
-### 3. Перевір
-
-Відкрий https://relay1.morok.app/web у браузері.
-
-Має з'явитись Splash → Welcome → "Створити аккаунт".
-
-Створи тестовий акаунт, перевір що:
-- 24 слова згенерувались
-- "Продовжити" робить auth і веде до claim username
-- Username резервується успішно
-- Виводить empty state з твоїм юзернеймом
-
----
-
-## Що в коді
-
-```
-src/
-├── App.jsx                    # хеш-роутер
-├── main.jsx                   # entry
-├── lib/
-│   ├── crypto.js              # Ed25519, BIP39, signing
-│   ├── api.js                 # relay HTTP client
-│   └── storage.js             # localStorage
-├── screens/
-│   ├── Splash.jsx
-│   ├── Welcome.jsx
-│   ├── CreateAccount.jsx      # generate + display mnemonic
-│   ├── LoginByMnemonic.jsx    # restore from 24 words
-│   ├── ClaimUsername.jsx
-│   └── ChatsList.jsx          # empty state, logout
-└── styles/global.css          # mobile-first, темна тема
-```
-
----
-
-## Безпека на День 1
-
-**Що захищено:**
-- Ed25519 signing через перевірений `@noble/curves`
-- BIP39 mnemonic — стандартний словник (як у Bitcoin)
-- HTTPS до relay'я
-- Сесія expires через 7 днів
-
-**Що **ПОКИ НЕ** захищено (буде у Дні 4):**
-- Seed зберігається в localStorage у відкритому вигляді
-- Хто має доступ до браузера — має доступ до акаунта
-- PIN-захист додам у Дні 4 разом з backup feature
-
-Це нормально для розробки. Не використовуй цю версію на основному акаунті.
-
----
-
-## Що далі — План на дні
-
-**День 1 — ✅ ТУТ ЗАРАЗ**
-- Auth + claim username + базовий layout
-
-**День 2 — наступний**
-- Список чатів реальний (з контактами через `/users/lookup`)
-- WebSocket inbox для real-time повідомлень
-- Контакти UI
-
-**День 3**
-- 1-on-1 чат повний з композером
-- Шифрування blob'ів (X25519 + ChaCha20-Poly1305)
-- Burn-on-read клієнтський
-
-**День 4**
-- PIN захист seed у localStorage
-- Encrypted backup flow (створення + відновлення через `/api/v1/backup`)
-
-**День 5+**
-- Групи UI
-- DMS UI
-- Settings, профіль, верифікація номерів безпеки
+**День 3:** Federation lookup (cross-relay), QR-код на профілі, контакти.
+**День 4:** PIN-шифрування seed у localStorage + backup/restore flow.
+**День 5+:** Групи UI, DMS, settings.

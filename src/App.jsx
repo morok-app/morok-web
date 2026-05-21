@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as api from './lib/api.js';
 import * as store from './lib/storage.js';
+import * as msgs from './lib/messages.js';
+import * as convs from './lib/conversations.js';
 import { hexToBytes } from './lib/crypto.js';
+import { InboxClient } from './lib/inbox.js';
 
 import Splash from './screens/Splash.jsx';
 import Welcome from './screens/Welcome.jsx';
@@ -9,46 +12,48 @@ import CreateAccount from './screens/CreateAccount.jsx';
 import LoginByMnemonic from './screens/LoginByMnemonic.jsx';
 import ClaimUsername from './screens/ClaimUsername.jsx';
 import ChatsList from './screens/ChatsList.jsx';
+import NewChat from './screens/NewChat.jsx';
+import ChatRoom from './screens/ChatRoom.jsx';
+import Profile from './screens/Profile.jsx';
 
 /**
- * Routes (using hash-based routing, no react-router for now):
- *   #splash       — initial loading screen
- *   #welcome      — pre-auth landing
- *   #create       — generate new identity
- *   #login        — restore identity from 24-word mnemonic
- *   #claim        — first-time username claim
- *   #chats        — main app, post-auth
+ * Routes (hash-based):
+ *   #splash, #welcome, #create, #login, #claim, #chats, #newchat,
+ *   #profile, #chat/<peer_pubkey>
+ *
+ * The #newchat route accepts ?u=username for share-link autoload.
  */
 
 export default function App() {
   const [route, setRoute] = useState('splash');
+  const [routeArg, setRouteArg] = useState(null);
   const [bootError, setBootError] = useState(null);
+  const inboxRef = useRef(null);
 
-  // Hash-based router
+  // Parse hash
   useEffect(() => {
-    function onHashChange() {
-      const h = (window.location.hash || '#splash').slice(1).split('?')[0];
-      setRoute(h || 'splash');
+    function parseHash() {
+      const raw = (window.location.hash || '#splash').slice(1);
+      const [path, qs] = raw.split('?');
+      const parts = path.split('/');
+      setRoute(parts[0] || 'splash');
+      setRouteArg(parts[1] || qs || null);
     }
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
+    parseHash();
+    window.addEventListener('hashchange', parseHash);
+    return () => window.removeEventListener('hashchange', parseHash);
   }, []);
 
-  // Boot: try to restore session; if no identity → welcome
+  // Boot: restore session, fetch profile, set route
   useEffect(() => {
     (async () => {
       try {
         const identity = store.loadIdentity();
-        if (!identity) {
-          navigate('welcome');
-          return;
-        }
+        if (!identity) { navigate('welcome'); return; }
 
-        // We have an identity. Try to re-login and fetch profile.
         const seed = hexToBytes(identity.seed_hex);
         const session = await api.login({
-          seed,
-          pubkeyHex: identity.pubkey_hex,
+          seed, pubkeyHex: identity.pubkey_hex,
         });
         store.saveSession({
           token: session.session_token,
@@ -59,38 +64,63 @@ export default function App() {
 
         const me = await api.getMe();
         store.saveProfile({
-          username: me.username,
-          tier: me.tier,
-          homeRelay: me.home_relay,
+          username: me.username, tier: me.tier, homeRelay: me.home_relay,
         });
 
         if (!me.username) {
           navigate('claim');
         } else {
+          startInbox(seed, identity.pubkey_hex);
           navigate('chats');
         }
       } catch (e) {
         console.error('Boot failed:', e);
         setBootError(e.message || String(e));
-        // If auth specifically failed (401/403), wipe and start over.
         if (e.status === 401 || e.status === 403) {
           store.clearSession();
           navigate('welcome');
-        } else {
-          // Network error: stay on splash with retry button
-          // (handled below in render)
         }
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function navigate(to) {
-    window.location.hash = `#${to}`;
-    setRoute(to);
+  // Cleanup inbox on unmount
+  useEffect(() => () => inboxRef.current?.stop(), []);
+
+  function startInbox(seed, myPubkeyHex) {
+    if (inboxRef.current) inboxRef.current.stop();
+    const client = new InboxClient({
+      onCatchup: async (envelopes) => {
+        for (const env of envelopes) {
+          try {
+            await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
+            client.ack(env.envelope_id);
+          } catch (e) {
+            console.warn('catchup processing failed:', e);
+          }
+        }
+      },
+      onNew: async (env) => {
+        try {
+          await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
+          client.ack(env.envelope_id);
+        } catch (e) {
+          console.warn('new processing failed:', e);
+        }
+      },
+      onStateChange: (s) => console.info('inbox state:', s),
+    });
+    client.start();
+    inboxRef.current = client;
   }
 
-  // Boot error → show splash with retry
+  function navigate(to) {
+    window.location.hash = `#${to}`;
+    // parseHash will fire via hashchange event
+  }
+
+  // Error UI
   if (bootError && route === 'splash') {
     return (
       <div className="screen splash">
@@ -110,20 +140,31 @@ export default function App() {
     );
   }
 
+  // Special: starting inbox if we just claimed username
+  if (route === 'chats' && !inboxRef.current) {
+    const identity = store.loadIdentity();
+    if (identity?.seed_hex && identity?.pubkey_hex) {
+      // Defer the start to avoid double-start on first render
+      Promise.resolve().then(() => {
+        if (!inboxRef.current) {
+          startInbox(hexToBytes(identity.seed_hex), identity.pubkey_hex);
+        }
+      });
+    }
+  }
+
   switch (route) {
-    case 'splash':
-      return <Splash />;
-    case 'welcome':
-      return <Welcome onNavigate={navigate} />;
-    case 'create':
-      return <CreateAccount onNavigate={navigate} />;
-    case 'login':
-      return <LoginByMnemonic onNavigate={navigate} />;
-    case 'claim':
-      return <ClaimUsername onNavigate={navigate} />;
-    case 'chats':
-      return <ChatsList onNavigate={navigate} />;
-    default:
-      return <Splash />;
+    case 'splash': return <Splash />;
+    case 'welcome': return <Welcome onNavigate={navigate} />;
+    case 'create': return <CreateAccount onNavigate={navigate} />;
+    case 'login': return <LoginByMnemonic onNavigate={navigate} />;
+    case 'claim': return <ClaimUsername onNavigate={navigate} />;
+    case 'chats': return <ChatsList onNavigate={navigate} />;
+    case 'newchat': return <NewChat onNavigate={navigate} />;
+    case 'profile': return <Profile onNavigate={navigate} />;
+    case 'chat':
+      if (!routeArg) { navigate('chats'); return <Splash />; }
+      return <ChatRoom peerPubkey={routeArg} onNavigate={navigate} />;
+    default: return <Splash />;
   }
 }

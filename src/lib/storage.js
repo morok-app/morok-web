@@ -1,14 +1,7 @@
 /**
  * localStorage persistence.
  *
- * Day 1: we store the seed in plaintext. In Day 4, we'll switch to a
- * PIN-encrypted blob (this is also what the encrypted backup feature
- * uses, so it's a coordinated change).
- *
- * Keys:
- *   morok.identity.v1 — JSON {seed_hex, pubkey_hex, mnemonic, created_at}
- *   morok.session.v1  — JSON {token, pubkey_hex, expires_at, relay_url}
- *   morok.profile.v1  — JSON {username, tier, home_relay} (cache)
+ * Day 1: seed stored in plaintext. PIN-encrypted in Day 4.
  */
 
 const K_IDENTITY = 'morok.identity.v1';
@@ -25,17 +18,11 @@ function readJSON(key) {
 }
 
 function writeJSON(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn('localStorage write failed:', e);
-  }
+  try { localStorage.setItem(key, JSON.stringify(value)); }
+  catch (e) { console.warn('localStorage write failed:', e); }
 }
 
-export function loadIdentity() {
-  return readJSON(K_IDENTITY);
-}
-
+export function loadIdentity() { return readJSON(K_IDENTITY); }
 export function saveIdentity({ seedHex, pubkeyHex, mnemonic }) {
   writeJSON(K_IDENTITY, {
     seed_hex: seedHex,
@@ -44,15 +31,9 @@ export function saveIdentity({ seedHex, pubkeyHex, mnemonic }) {
     created_at: Math.floor(Date.now() / 1000),
   });
 }
+export function clearIdentity() { localStorage.removeItem(K_IDENTITY); }
 
-export function clearIdentity() {
-  localStorage.removeItem(K_IDENTITY);
-}
-
-export function loadSession() {
-  return readJSON(K_SESSION);
-}
-
+export function loadSession() { return readJSON(K_SESSION); }
 export function saveSession({ token, pubkeyHex, expiresAt, relayUrl }) {
   writeJSON(K_SESSION, {
     token,
@@ -61,29 +42,17 @@ export function saveSession({ token, pubkeyHex, expiresAt, relayUrl }) {
     relay_url: relayUrl,
   });
 }
+export function clearSession() { localStorage.removeItem(K_SESSION); }
 
-export function clearSession() {
-  localStorage.removeItem(K_SESSION);
-}
-
-export function loadProfile() {
-  return readJSON(K_PROFILE);
-}
-
+export function loadProfile() { return readJSON(K_PROFILE); }
 export function saveProfile({ username, tier, homeRelay }) {
-  writeJSON(K_PROFILE, {
-    username,
-    tier,
-    home_relay: homeRelay,
-  });
+  writeJSON(K_PROFILE, { username, tier, home_relay: homeRelay });
 }
-
-export function clearProfile() {
-  localStorage.removeItem(K_PROFILE);
-}
+export function clearProfile() { localStorage.removeItem(K_PROFILE); }
 
 export function wipeAll() {
   clearIdentity();
   clearSession();
   clearProfile();
+  localStorage.removeItem('morok.conv.v1');
 }

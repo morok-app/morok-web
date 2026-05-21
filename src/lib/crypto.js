@@ -1,20 +1,28 @@
 /**
  * Morok client crypto.
  *
- * - Seed: 256 bits of CSPRNG-generated entropy. This IS the private key.
- * - Mnemonic: standard BIP39 (English wordlist) over the seed.
- * - Identity: Ed25519 key derived from the seed.
- * - Signing: server-issued challenge bytes; we sign with Ed25519.
+ * Identity:
+ * - Seed: 256 bits CSPRNG.
+ * - Mnemonic: BIP39 English wordlist, 24 words.
+ * - Ed25519 keypair (signing).
  *
- * Why BIP39: standard library means we're not the source of any
- * mnemonic-related bug. Same wordlist as Bitcoin/Ethereum hardware
- * wallets. 24 words = 256 bits entropy = uncrackable.
+ * Encryption (1-on-1 DM):
+ * - X25519 keypair derived from same seed.
+ * - ECDH → shared secret.
+ * - HKDF-SHA256 → 32-byte symmetric key.
+ * - XChaCha20-Poly1305 with random 24-byte nonce.
+ * - Format: nonce(24) ‖ ciphertext+tag → base64.
+ *
+ * Forward secrecy: NOT YET — same DH key per peer-pair. OK for MVP because
+ * relay holds messages only 24h.
  */
 
-import { ed25519 } from '@noble/curves/ed25519';
+import { ed25519, edwardsToMontgomeryPub, x25519 } from '@noble/curves/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
+import { sha512 } from '@noble/hashes/sha512';
 import { hkdf } from '@noble/hashes/hkdf';
 import { randomBytes } from '@noble/hashes/utils';
+import { xchacha20poly1305 } from '@noble/ciphers/chacha';
 import {
   entropyToMnemonic,
   mnemonicToEntropy,
@@ -22,7 +30,9 @@ import {
 } from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 
-// --- Bytes utilities ---
+// ────────────────────────────────────────────────────────────
+// Bytes / encoding helpers
+// ────────────────────────────────────────────────────────────
 
 export function bytesToHex(bytes) {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -39,31 +49,33 @@ export function hexToBytes(hex) {
   return out;
 }
 
-export function utf8(s) {
-  return new TextEncoder().encode(s);
+export function bytesToBase64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
 }
 
-// --- Seed / Mnemonic ---
+export function base64ToBytes(b64) {
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
 
-/**
- * Generate a brand new identity. Returns { seed, mnemonic, pubkeyHex }.
- * Seed is 32 bytes (256 bits) of CSPRNG entropy.
- * Mnemonic is 24 BIP39 words.
- */
+export function utf8(s) { return new TextEncoder().encode(s); }
+export function utf8Decode(b) { return new TextDecoder().decode(b); }
+
+// ────────────────────────────────────────────────────────────
+// Identity (Day 1)
+// ────────────────────────────────────────────────────────────
+
 export function generateIdentity() {
   const seed = randomBytes(32);
   const mnemonic = entropyToMnemonic(seed, wordlist);
   const pubkey = ed25519.getPublicKey(seed);
-  return {
-    seed,
-    mnemonic,
-    pubkeyHex: bytesToHex(pubkey),
-  };
+  return { seed, mnemonic, pubkeyHex: bytesToHex(pubkey) };
 }
 
-/**
- * Restore identity from a 24-word mnemonic. Throws if mnemonic is invalid.
- */
 export function identityFromMnemonic(mnemonic) {
   const cleaned = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!validateMnemonic(cleaned, wordlist)) {
@@ -71,36 +83,21 @@ export function identityFromMnemonic(mnemonic) {
   }
   const seed = mnemonicToEntropy(cleaned, wordlist);
   const pubkey = ed25519.getPublicKey(seed);
-  return {
-    seed,
-    mnemonic: cleaned,
-    pubkeyHex: bytesToHex(pubkey),
-  };
+  return { seed, mnemonic: cleaned, pubkeyHex: bytesToHex(pubkey) };
 }
 
-// --- Signing ---
+// ────────────────────────────────────────────────────────────
+// Signing (Ed25519)
+// ────────────────────────────────────────────────────────────
 
-/**
- * Sign a message with the seed. Returns hex string of 64-byte signature.
- */
 export function sign(seed, messageBytes) {
-  const sig = ed25519.sign(messageBytes, seed);
-  return bytesToHex(sig);
+  return bytesToHex(ed25519.sign(messageBytes, seed));
 }
 
-/**
- * Canonical JSON encoding — sorted keys, no whitespace.
- * Must match server's `crypto.canonical_json`.
- */
 export function canonicalJson(obj) {
   return utf8(JSON.stringify(obj, Object.keys(obj).sort()));
 }
 
-/**
- * Sign the relay-issued auth challenge.
- * Server expects sig over canonical JSON:
- *   {"morok_auth":"v1","challenge":<hex>,"pubkey":<hex>,"timestamp":<int>}
- */
 export function signAuthChallenge({ seed, pubkeyHex, challengeHex, timestamp }) {
   const msg = canonicalJson({
     morok_auth: 'v1',
@@ -109,4 +106,96 @@ export function signAuthChallenge({ seed, pubkeyHex, challengeHex, timestamp }) 
     timestamp,
   });
   return sign(seed, msg);
+}
+
+/**
+ * Sign the envelope per server's expected canonical form:
+ *   {"blob":..., "from":..., "to":..., "ts":..., "ttl":...}
+ * (sorted-keys JSON, exactly what the relay's crypto.canonical_json produces).
+ */
+export function signEnvelope({ seed, fromHex, toHex, ts, ttl, blobB64 }) {
+  const msg = canonicalJson({
+    blob: blobB64,
+    from: fromHex,
+    to: toHex,
+    ts,
+    ttl,
+  });
+  return sign(seed, msg);
+}
+
+// ────────────────────────────────────────────────────────────
+// Key derivation (X25519 from Ed25519 seed)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Convert an Ed25519 seed → X25519 private key.
+ * Per RFC 8032 / RFC 7748: the X25519 scalar is the first 32 bytes of
+ * SHA-512(seed) with clamp bits applied.
+ */
+function x25519PrivFromSeed(seed) {
+  const h = sha512(seed);
+  const k = h.slice(0, 32);
+  k[0] &= 248;
+  k[31] &= 127;
+  k[31] |= 64;
+  return k;
+}
+
+/**
+ * Convert a peer's Ed25519 pubkey → X25519 pubkey.
+ * @noble provides this conversion directly.
+ */
+function x25519PubFromEd25519Pub(edPubBytes) {
+  return edwardsToMontgomeryPub(edPubBytes);
+}
+
+/**
+ * Compute a 32-byte symmetric key shared with a peer.
+ *
+ * Both sides must derive the same key. We use sorted concatenation of
+ * the two Ed25519 pubkeys as HKDF salt, so order doesn't matter.
+ */
+export function deriveSharedKey({ seed, myPubkeyHex, peerPubkeyHex }) {
+  const myX25519Priv = x25519PrivFromSeed(seed);
+  const peerEdPub = hexToBytes(peerPubkeyHex);
+  const peerX25519Pub = x25519PubFromEd25519Pub(peerEdPub);
+  const sharedSecret = x25519.getSharedSecret(myX25519Priv, peerX25519Pub);
+
+  // Canonical salt: sorted pair of Ed25519 pubkeys
+  const myEd = hexToBytes(myPubkeyHex);
+  const meFirst = myPubkeyHex < peerPubkeyHex;
+  const a = meFirst ? myEd : peerEdPub;
+  const b = meFirst ? peerEdPub : myEd;
+  const salt = new Uint8Array(64);
+  salt.set(a, 0);
+  salt.set(b, 32);
+
+  return hkdf(sha256, sharedSecret, salt, utf8('morok-dm-v1'), 32);
+}
+
+// ────────────────────────────────────────────────────────────
+// Encrypt / Decrypt (XChaCha20-Poly1305)
+// ────────────────────────────────────────────────────────────
+
+export function encryptForPeer({ seed, myPubkeyHex, peerPubkeyHex, plaintext }) {
+  const key = deriveSharedKey({ seed, myPubkeyHex, peerPubkeyHex });
+  const nonce = randomBytes(24);
+  const cipher = xchacha20poly1305(key, nonce);
+  const ct = cipher.encrypt(utf8(plaintext));
+  const out = new Uint8Array(24 + ct.length);
+  out.set(nonce, 0);
+  out.set(ct, 24);
+  return bytesToBase64(out);
+}
+
+export function decryptFromPeer({ seed, myPubkeyHex, peerPubkeyHex, blobB64 }) {
+  const raw = base64ToBytes(blobB64);
+  if (raw.length < 40) throw new Error('blob too short');
+  const nonce = raw.slice(0, 24);
+  const ct = raw.slice(24);
+  const key = deriveSharedKey({ seed, myPubkeyHex, peerPubkeyHex });
+  const cipher = xchacha20poly1305(key, nonce);
+  const pt = cipher.decrypt(ct);
+  return utf8Decode(pt);
 }
