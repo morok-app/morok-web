@@ -20,7 +20,10 @@ export default function Welcome({ onNavigate }) {
           Створити аккаунт
         </button>
         <button className="btn btn-secondary" onClick={() => onNavigate('login')}>
-          Увійти за ключем
+          Увійти за 24 словами
+        </button>
+        <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => onNavigate('restore')}>
+          Або відновити через @username + passphrase
         </button>
       </div>
     </div>

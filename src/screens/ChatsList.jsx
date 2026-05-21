@@ -84,7 +84,13 @@ export default function ChatsList({ onNavigate }) {
     <div className="screen">
       <div className="topbar">
         <div className="title">Чати</div>
-        <div className="actions">
+        <div className="actions" style={{ display: 'flex', gap: 4 }}>
+          <button
+            className="btn btn-ghost"
+            style={{ width: 'auto', height: 36, padding: '0 8px', fontSize: 18 }}
+            onClick={() => onNavigate('settings')}
+            title="Налаштування"
+          >⚙</button>
           <button
             className="btn btn-ghost"
             style={{ width: 'auto', height: 36, padding: '0 12px', fontSize: 12 }}
@@ -94,6 +100,34 @@ export default function ChatsList({ onNavigate }) {
           </button>
         </div>
       </div>
+
+      {/* PIN banner for unprotected accounts */}
+      {profile?.username && !store.isIdentityEncrypted() && (
+        <div
+          onClick={() => onNavigate('pin-setup-existing')}
+          style={{
+            margin: '8px 14px 0',
+            background: 'rgba(255, 107, 122, 0.08)',
+            border: '1px solid rgba(255, 107, 122, 0.25)',
+            borderRadius: 10,
+            padding: '10px 12px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            cursor: 'pointer',
+            fontSize: 12.5,
+          }}
+        >
+          <span style={{ color: 'var(--danger)', fontSize: 16 }}>⚠</span>
+          <div style={{ flex: 1 }}>
+            <strong>Захистіть акаунт PIN-кодом</strong>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+              Хто має доступ до браузера — може прочитати ваші повідомлення
+            </div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </div>
+      )}
 
       {isEmpty ? (
         <div className="empty-state">

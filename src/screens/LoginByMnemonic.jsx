@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { identityFromMnemonic, bytesToHex } from '../lib/crypto.js';
-import * as api from '../lib/api.js';
-import * as store from '../lib/storage.js';
+import { identityFromMnemonic } from '../lib/crypto.js';
 
-export default function LoginByMnemonic({ onNavigate }) {
+export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
   const [mnemonic, setMnemonic] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -11,42 +9,19 @@ export default function LoginByMnemonic({ onNavigate }) {
   const wordCount = mnemonic.trim().split(/\s+/).filter(Boolean).length;
   const ready = wordCount === 24;
 
-  async function loginClicked() {
+  function loginClicked() {
     if (!ready || busy) return;
     setBusy(true);
     setError(null);
     try {
       const id = identityFromMnemonic(mnemonic);
-
-      store.saveIdentity({
-        seedHex: bytesToHex(id.seed),
+      onSeedReady?.({
+        seed: id.seed,
         pubkeyHex: id.pubkeyHex,
         mnemonic: id.mnemonic,
       });
-
-      const session = await api.login({
-        seed: id.seed,
-        pubkeyHex: id.pubkeyHex,
-      });
-      store.saveSession({
-        token: session.session_token,
-        pubkeyHex: session.pubkey_hex,
-        expiresAt: session.expires_at,
-        relayUrl: api.getRelayUrl(),
-      });
-
-      const me = await api.getMe();
-      store.saveProfile({
-        username: me.username,
-        tier: me.tier,
-        homeRelay: me.home_relay,
-      });
-
-      if (!me.username) onNavigate('claim');
-      else onNavigate('chats');
     } catch (e) {
-      console.error(e);
-      setError(e.message || 'Не вдалось увійти');
+      setError(e.message || 'Не вдалось');
       setBusy(false);
     }
   }
@@ -55,7 +30,9 @@ export default function LoginByMnemonic({ onNavigate }) {
     <div className="onb">
       <div className="onb-header">
         <div className="back" onClick={() => onNavigate('welcome')}>
-          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
         </div>
       </div>
 

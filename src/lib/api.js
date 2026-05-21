@@ -179,3 +179,44 @@ export function openInboxSocket(onMessage, onOpen, onClose, onError) {
   ws.onerror = (ev) => onError?.(ev);
   return ws;
 }
+
+// ────────────────────────────────────────────────────────────
+// Encrypted backup
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Upload an encrypted seed backup. Premium-only on the server side.
+ * encryptedSeedB64 — full vault blob (salt+nonce+ciphertext, base64).
+ * kdfSaltB64       — the 16-byte salt used; passed so server records it.
+ *                    (For our scheme the salt is already inside the blob,
+ *                     but the server schema requires it as a separate field.)
+ */
+export async function uploadBackup({ encryptedSeedB64, kdfSaltB64, kdfParams }) {
+  return http('POST', '/api/v1/backup', {
+    body: {
+      encrypted_seed_b64: encryptedSeedB64,
+      kdf_salt_b64: kdfSaltB64,
+      kdf_params: kdfParams || { alg: 'pbkdf2', hash: 'sha256', iter: 200000 },
+      schema_version: 1,
+    },
+    auth: true,
+  });
+}
+
+export async function getMyBackup() {
+  return http('GET', '/api/v1/backup', { auth: true });
+}
+
+export async function deleteMyBackup() {
+  return http('DELETE', '/api/v1/backup', { auth: true });
+}
+
+/**
+ * Public restore lookup — no auth required.
+ * Returns { encrypted_seed_b64, kdf_salt_b64, kdf_params, schema_version,
+ *           username_at_backup } or throws 404 if no backup / unknown user.
+ */
+export async function restoreBackupByUsername(username) {
+  return http('GET', `/api/v1/backup/by-username/${encodeURIComponent(username)}`);
+}
+

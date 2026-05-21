@@ -1,66 +1,35 @@
 import { useMemo, useState } from 'react';
 import { generateIdentity, bytesToHex } from '../lib/crypto.js';
-import * as api from '../lib/api.js';
-import * as store from '../lib/storage.js';
 
-export default function CreateAccount({ onNavigate }) {
-  // Generate once on mount and keep stable until "Continue"
+export default function CreateAccount({ onNavigate, onSeedReady }) {
   const identity = useMemo(() => generateIdentity(), []);
   const words = identity.mnemonic.split(' ');
 
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
 
   function copyToClipboard() {
     navigator.clipboard?.writeText(identity.mnemonic).catch(() => {});
   }
 
-  async function continueClicked() {
+  function continueClicked() {
     if (!confirmed || busy) return;
     setBusy(true);
-    setError(null);
-    try {
-      // Persist identity locally
-      store.saveIdentity({
-        seedHex: bytesToHex(identity.seed),
-        pubkeyHex: identity.pubkeyHex,
-        mnemonic: identity.mnemonic,
-      });
-
-      // Auth with relay
-      const session = await api.login({
-        seed: identity.seed,
-        pubkeyHex: identity.pubkeyHex,
-      });
-      store.saveSession({
-        token: session.session_token,
-        pubkeyHex: session.pubkey_hex,
-        expiresAt: session.expires_at,
-        relayUrl: api.getRelayUrl(),
-      });
-
-      // Pull initial profile, then go claim username
-      const me = await api.getMe();
-      store.saveProfile({
-        username: me.username,
-        tier: me.tier,
-        homeRelay: me.home_relay,
-      });
-
-      onNavigate('claim');
-    } catch (e) {
-      console.error(e);
-      setError(e.message || 'Помилка з\'єднання з сервером');
-      setBusy(false);
-    }
+    // Hand the freshly-generated seed to App; App will route to PIN setup.
+    onSeedReady?.({
+      seed: identity.seed,
+      pubkeyHex: identity.pubkeyHex,
+      mnemonic: identity.mnemonic,
+    });
   }
 
   return (
     <div className="onb">
       <div className="onb-header">
         <div className="back" onClick={() => onNavigate('welcome')}>
-          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
         </div>
       </div>
 
@@ -108,8 +77,6 @@ export default function CreateAccount({ onNavigate }) {
           />
           <span style={{ fontSize: 13.5 }}>Я зберіг(ла) фразу в безпечному місці</span>
         </label>
-
-        {error && <div className="error-text">{error}</div>}
       </div>
 
       <div className="onb-footer">
@@ -118,7 +85,7 @@ export default function CreateAccount({ onNavigate }) {
           disabled={!confirmed || busy}
           onClick={continueClicked}
         >
-          {busy ? 'Підключаюсь...' : 'Продовжити'}
+          {busy ? '...' : 'Продовжити — створити PIN'}
         </button>
       </div>
     </div>
