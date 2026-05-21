@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as convs from '../lib/conversations.js';
 import * as msgs from '../lib/messages.js';
 import * as store from '../lib/storage.js';
+import * as vault from '../lib/vault.js';
 import { hexToBytes } from '../lib/crypto.js';
 
 const TTL_OPTIONS = [
@@ -26,17 +27,35 @@ function fmtTTLLeft(expires_at) {
   return `${Math.floor(left / 86400)}д`;
 }
 
+/**
+ * Get the current Ed25519 seed bytes, regardless of whether identity is
+ * PIN-encrypted (use vault session) or stored unlocked (legacy).
+ * Returns null if neither is available.
+ */
+function getSeedBytes() {
+  // PIN-protected path: use the cached unlocked seed from the vault session
+  const fromVault = vault.getUnlockedSeed();
+  if (fromVault) return fromVault;
+
+  // Legacy/unlocked path: read seed_hex directly from identity
+  const id = store.loadIdentity();
+  if (id && !id.encrypted && id.seed_hex) {
+    return hexToBytes(id.seed_hex);
+  }
+  return null;
+}
+
 export default function ChatRoom({ peerPubkey, onNavigate }) {
-  const me = store.loadIdentity();
-  const profile = store.loadProfile();
+  const myProfile = store.loadProfile();
+  const myPubkeyHex = myProfile?.pubkey_hex || store.loadIdentity()?.pubkey_hex;
+
   const [conv, setConv] = useState(() => convs.getConversation(peerPubkey));
   const [draft, setDraft] = useState('');
-  const [ttlSeconds, setTtlSeconds] = useState(86400); // default 24h
+  const [ttlSeconds, setTtlSeconds] = useState(86400);
   const [sending, setSending] = useState(false);
   const [showTtlMenu, setShowTtlMenu] = useState(false);
   const messagesEnd = useRef(null);
 
-  // Refresh every 2s — picks up incoming messages stored by App-level WS handler
   useEffect(() => {
     const id = setInterval(() => {
       setConv(convs.getConversation(peerPubkey));
@@ -44,22 +63,34 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     return () => clearInterval(id);
   }, [peerPubkey]);
 
-  // Auto-scroll on new messages
   useEffect(() => {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conv?.messages?.length]);
 
   async function sendClicked() {
     if (!draft.trim() || sending) return;
+
+    const seed = getSeedBytes();
+    if (!seed) {
+      alert('Сеанс закінчився. Перезавантажте сторінку щоб ввести PIN.');
+      return;
+    }
+    if (!myPubkeyHex) {
+      alert('Не знайдено мій pubkey. Спробуйте перезавантажити.');
+      return;
+    }
+
     setSending(true);
     try {
       await msgs.sendDM({
-        seed: hexToBytes(me.seed_hex),
-        myPubkeyHex: me.pubkey_hex,
+        seed,
+        myPubkeyHex,
         peerPubkeyHex: peerPubkey,
         plaintext: draft.trim(),
         ttlSeconds,
       });
+      // Refresh PIN session expiry on activity
+      vault.refreshSession();
       setDraft('');
       setConv(convs.getConversation(peerPubkey));
     } catch (e) {
@@ -160,7 +191,6 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
         <div ref={messagesEnd} />
       </div>
 
-      {/* TTL selector */}
       {showTtlMenu && (
         <div
           onClick={() => setShowTtlMenu(false)}
@@ -201,7 +231,6 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
         </div>
       )}
 
-      {/* Composer */}
       <div style={{
         padding: '10px 10px',
         display: 'flex', gap: 7, alignItems: 'flex-end',
