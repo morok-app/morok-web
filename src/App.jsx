@@ -16,13 +16,27 @@ import NewChat from './screens/NewChat.jsx';
 import ChatRoom from './screens/ChatRoom.jsx';
 import Profile from './screens/Profile.jsx';
 
+const PENDING_KEY = 'morok.pending_route.v1';
+
 /**
- * Routes (hash-based):
- *   #splash, #welcome, #create, #login, #claim, #chats, #newchat,
- *   #profile, #chat/<peer_pubkey>
- *
- * The #newchat route accepts ?u=username for share-link autoload.
+ * If user lands on a deep-link like #newchat?u=kaban@relay1.morok.app but
+ * isn't authed yet, save the intent and restore after claim.
  */
+function savePendingIfDeepLink(hash) {
+  if (!hash) return;
+  const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (cleaned.startsWith('newchat?')) {
+    try { sessionStorage.setItem(PENDING_KEY, cleaned); } catch {}
+  }
+}
+
+function consumePending() {
+  try {
+    const v = sessionStorage.getItem(PENDING_KEY);
+    if (v) sessionStorage.removeItem(PENDING_KEY);
+    return v;
+  } catch { return null; }
+}
 
 export default function App() {
   const [route, setRoute] = useState('splash');
@@ -46,6 +60,9 @@ export default function App() {
 
   // Boot: restore session, fetch profile, set route
   useEffect(() => {
+    // Capture pending deep-link BEFORE we overwrite the hash
+    savePendingIfDeepLink(window.location.hash);
+
     (async () => {
       try {
         const identity = store.loadIdentity();
@@ -71,7 +88,13 @@ export default function App() {
           navigate('claim');
         } else {
           startInbox(seed, identity.pubkey_hex);
-          navigate('chats');
+          // Restore deep-link if any
+          const pending = consumePending();
+          if (pending) {
+            window.location.hash = `#${pending}`;
+          } else {
+            navigate('chats');
+          }
         }
       } catch (e) {
         console.error('Boot failed:', e);
@@ -85,7 +108,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cleanup inbox on unmount
   useEffect(() => () => inboxRef.current?.stop(), []);
 
   function startInbox(seed, myPubkeyHex) {
@@ -117,10 +139,17 @@ export default function App() {
 
   function navigate(to) {
     window.location.hash = `#${to}`;
-    // parseHash will fire via hashchange event
   }
 
-  // Error UI
+  // After ClaimUsername redirects to 'chats', honor pending deep-link instead
+  useEffect(() => {
+    if (route !== 'chats') return;
+    const pending = consumePending();
+    if (pending) {
+      window.location.hash = `#${pending}`;
+    }
+  }, [route]);
+
   if (bootError && route === 'splash') {
     return (
       <div className="screen splash">
@@ -140,11 +169,10 @@ export default function App() {
     );
   }
 
-  // Special: starting inbox if we just claimed username
+  // Defer inbox start if just landed on chats
   if (route === 'chats' && !inboxRef.current) {
     const identity = store.loadIdentity();
     if (identity?.seed_hex && identity?.pubkey_hex) {
-      // Defer the start to avoid double-start on first render
       Promise.resolve().then(() => {
         if (!inboxRef.current) {
           startInbox(hexToBytes(identity.seed_hex), identity.pubkey_hex);
