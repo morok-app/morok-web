@@ -3,7 +3,9 @@ import * as api from './lib/api.js';
 import * as store from './lib/storage.js';
 import * as msgs from './lib/messages.js';
 import * as vault from './lib/vault.js';
-import { hexToBytes, bytesToHex } from './lib/crypto.js';
+import * as notif from './lib/notifications.js';
+import * as convs from './lib/conversations.js';
+import { hexToBytes } from './lib/crypto.js';
 import { InboxClient } from './lib/inbox.js';
 
 import Splash from './screens/Splash.jsx';
@@ -38,14 +40,22 @@ function consumePending() {
   } catch { return null; }
 }
 
+/**
+ * Broadcast inbox-state changes to other components via a custom event.
+ * ChatsList listens for this to render the online/offline badge.
+ */
+function broadcastInboxState(state) {
+  window.__morok_inbox_state = state;
+  try {
+    window.dispatchEvent(new CustomEvent('morok-inbox-state', { detail: state }));
+  } catch {}
+}
+
 export default function App() {
   const [route, setRoute] = useState('splash');
   const [routeArg, setRouteArg] = useState(null);
   const [bootError, setBootError] = useState(null);
   const inboxRef = useRef(null);
-
-  // Buffer for a freshly-generated seed during create-account flow,
-  // before PIN is set and identity is persisted.
   const [pendingSeed, setPendingSeed] = useState(null);
 
   useEffect(() => {
@@ -61,24 +71,17 @@ export default function App() {
     return () => window.removeEventListener('hashchange', parseHash);
   }, []);
 
-  // Boot
   useEffect(() => {
     savePendingIfDeepLink(window.location.hash);
 
     (async () => {
       try {
         const identity = store.loadIdentity();
-        if (!identity) {
-          navigate('welcome');
-          return;
-        }
+        if (!identity) { navigate('welcome'); return; }
 
-        // If identity is encrypted, we need PIN to unlock
         if (identity.encrypted) {
-          // Check if we already have a valid PIN session
           const unlockedSeed = vault.getUnlockedSeed();
           if (unlockedSeed) {
-            // Session still valid — proceed to auth
             await loginAndRoute(unlockedSeed, identity.pubkey_hex);
           } else {
             navigate('pin-unlock');
@@ -86,7 +89,6 @@ export default function App() {
           return;
         }
 
-        // Identity is unlocked (legacy or just-after-restore) — log in directly
         const seed = hexToBytes(identity.seed_hex);
         await loginAndRoute(seed, identity.pubkey_hex);
       } catch (e) {
@@ -146,11 +148,27 @@ export default function App() {
       },
       onNew: async (env) => {
         try {
-          await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
+          const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
           client.ack(env.envelope_id);
+          // Notify if applicable
+          if (newMsg && newMsg.text && newMsg.direction === 'in') {
+            const conv = convs.getConversation(newMsg.peer_pubkey);
+            const peerName = conv?.peer_username
+              ? `@${conv.peer_username}`
+              : newMsg.peer_pubkey.slice(0, 12);
+            notif.notify({
+              title: peerName,
+              body: newMsg.text.length > 100 ? newMsg.text.slice(0, 100) + '…' : newMsg.text,
+              peerPubkey: newMsg.peer_pubkey,
+              onClick: () => { window.location.hash = `#chat/${newMsg.peer_pubkey}`; },
+            });
+          }
         } catch (e) { console.warn('new failed:', e); }
       },
-      onStateChange: (s) => console.info('inbox state:', s),
+      onStateChange: (s) => {
+        console.info('inbox state:', s);
+        broadcastInboxState(s);
+      },
     });
     client.start();
     inboxRef.current = client;
@@ -160,28 +178,17 @@ export default function App() {
     window.location.hash = `#${to}`;
   }
 
-  // After ClaimUsername → 'chats', honor pending deep-link
   useEffect(() => {
     if (route !== 'chats') return;
     const pending = consumePending();
     if (pending) window.location.hash = `#${pending}`;
   }, [route]);
 
-  // ── Flow callbacks ──────────────────────────────────────
-
-  /**
-   * Called from CreateAccount or LoginByMnemonic when user has confirmed
-   * their seed. We hold it in state and route to PIN setup.
-   */
   function onSeedReady({ seed, pubkeyHex, mnemonic }) {
     setPendingSeed({ seed, pubkeyHex, mnemonic });
     navigate('pin-setup');
   }
 
-  /**
-   * PinSetup gives us back the seed bytes after locking identity.
-   * Now we proceed with auth.
-   */
   async function onPinSet(seedBytes) {
     vault.markUnlocked(seedBytes);
     setPendingSeed(null);
@@ -194,13 +201,7 @@ export default function App() {
     }
   }
 
-  /**
-   * PinSetup for existing user (from Settings → "Поставити PIN").
-   * Just lock and go back to settings.
-   */
-  function onPinSetExisting() {
-    navigate('settings');
-  }
+  function onPinSetExisting() { navigate('settings'); }
 
   function onPinUnlocked(seedBytes) {
     const id = store.loadIdentity();
@@ -216,8 +217,6 @@ export default function App() {
     vault.lockNow();
     navigate('welcome');
   }
-
-  // ── Render ──────────────────────────────────────────────
 
   if (bootError && route === 'splash') {
     return (
@@ -238,7 +237,6 @@ export default function App() {
     );
   }
 
-  // Defer inbox start if just landed on chats
   if (route === 'chats' && !inboxRef.current) {
     const seed = vault.getUnlockedSeed();
     const id = store.loadIdentity();
@@ -247,7 +245,6 @@ export default function App() {
         if (!inboxRef.current) startInbox(seed, id.pubkey_hex);
       });
     } else if (id && !id.encrypted && id.seed_hex) {
-      // Legacy unlocked
       Promise.resolve().then(() => {
         if (!inboxRef.current) startInbox(hexToBytes(id.seed_hex), id.pubkey_hex);
       });
@@ -271,12 +268,7 @@ export default function App() {
         />
       );
     case 'pin-setup-existing':
-      return (
-        <PinSetup
-          onNavigate={navigate}
-          onDone={onPinSetExisting}
-        />
-      );
+      return <PinSetup onNavigate={navigate} onDone={onPinSetExisting} />;
     case 'pin-unlock':
       return <PinUnlock onUnlocked={onPinUnlocked} onForgotPin={onForgotPin} />;
     case 'claim': return <ClaimUsername onNavigate={navigate} />;

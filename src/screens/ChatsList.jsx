@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
+
+const LONG_PRESS_MS = 500;
 
 function formatTime(unix) {
   if (!unix) return '';
@@ -26,12 +28,10 @@ function formatTTL(seconds) {
 }
 
 function Avatar({ username, pubkey, size = 40 }) {
-  // Color from pubkey hex
   const hue = pubkey ? parseInt(pubkey.slice(0, 6), 16) % 360 : 0;
   const initial = (username?.[0] || '?').toUpperCase();
   return (
     <div
-      className="avatar"
       style={{
         width: size, height: size, borderRadius: '50%',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -43,11 +43,28 @@ function Avatar({ username, pubkey, size = 40 }) {
   );
 }
 
+/**
+ * Subscribe to a global inbox state.
+ * App.jsx exposes it via window.__morok_inbox_state if available.
+ * Falls back to "open" if absent (boot).
+ */
+function useInboxState() {
+  const [state, setState] = useState(window.__morok_inbox_state || 'open');
+  useEffect(() => {
+    const handler = (e) => setState(e.detail);
+    window.addEventListener('morok-inbox-state', handler);
+    return () => window.removeEventListener('morok-inbox-state', handler);
+  }, []);
+  return state;
+}
+
 export default function ChatsList({ onNavigate }) {
   const [profile, setProfile] = useState(store.loadProfile());
   const [conversations, setConversations] = useState(() => convs.listConversations());
+  const [actionConv, setActionConv] = useState(null);
+  const longPressTimer = useRef(null);
+  const inboxState = useInboxState();
 
-  // Refresh profile
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -56,6 +73,7 @@ export default function ChatsList({ onNavigate }) {
         if (cancelled) return;
         store.saveProfile({
           username: me.username, tier: me.tier, homeRelay: me.home_relay,
+          pubkeyHex: store.loadIdentity()?.pubkey_hex,
         });
         setProfile({ username: me.username, tier: me.tier, home_relay: me.home_relay });
       } catch (e) { console.warn('Profile refresh failed:', e); }
@@ -63,27 +81,56 @@ export default function ChatsList({ onNavigate }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Refresh conversation list every 5s (in case of inbox activity from App-level)
   useEffect(() => {
     const id = setInterval(() => {
       setConversations(convs.listConversations());
-    }, 5000);
+    }, 3000);
     return () => clearInterval(id);
   }, []);
 
-  async function logoutClicked() {
-    if (!confirm('Вийти з акаунта? Локальні дані видаляться.')) return;
-    await api.logout();
-    store.wipeAll();
-    onNavigate('welcome');
+  function startLongPress(conv) {
+    cancelLongPress();
+    longPressTimer.current = setTimeout(() => {
+      if (navigator.vibrate) try { navigator.vibrate(15); } catch {}
+      setActionConv(conv);
+    }, LONG_PRESS_MS);
+  }
+  function cancelLongPress() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
+  function deleteConvClicked() {
+    if (!actionConv) return;
+    const peer = actionConv.peer_pubkey;
+    setActionConv(null);
+    convs.deleteConversation(peer);
+    setConversations(convs.listConversations());
   }
 
   const isEmpty = conversations.length === 0;
 
+  const stateBadge = (() => {
+    if (inboxState === 'connecting') return { text: 'підключення', color: 'var(--text-dim)' };
+    if (inboxState === 'closed' || inboxState === 'error') return { text: 'офлайн', color: 'var(--danger)' };
+    return null;
+  })();
+
   return (
     <div className="screen">
       <div className="topbar">
-        <div className="title">Чати</div>
+        <div className="title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          Чати
+          {stateBadge && (
+            <span style={{
+              fontSize: 10, fontWeight: 500, padding: '2px 7px',
+              borderRadius: 8, background: 'var(--surface)',
+              color: stateBadge.color, letterSpacing: '0.02em',
+            }}>{stateBadge.text}</span>
+          )}
+        </div>
         <div className="actions" style={{ display: 'flex', gap: 4 }}>
           <button
             className="btn btn-ghost"
@@ -101,7 +148,6 @@ export default function ChatsList({ onNavigate }) {
         </div>
       </div>
 
-      {/* PIN banner for unprotected accounts */}
       {profile?.username && !store.isIdentityEncrypted() && (
         <div
           onClick={() => onNavigate('pin-setup-existing')}
@@ -137,25 +183,29 @@ export default function ChatsList({ onNavigate }) {
             </svg>
           </div>
           <div className="title">Поки немає чатів</div>
-          <div className="desc">
-            Натисніть кнопку нижче щоб почати новий чат
-          </div>
+          <div className="desc">Натисніть кнопку нижче щоб почати новий чат</div>
         </div>
       ) : (
         <div className="chats-list">
           {conversations.map((conv) => {
             const last = conv.messages[conv.messages.length - 1];
-            const unreadIn = conv.messages.some((m) => m.direction === 'in' && !m.read_at);
+            const unread = (conv.messages || []).filter((m) => m.direction === 'in' && !m.read_at).length;
             return (
               <div
                 key={conv.peer_pubkey}
-                className="chat-item"
                 onClick={() => onNavigate(`chat/${conv.peer_pubkey}`)}
+                onMouseDown={() => startLongPress(conv)}
+                onMouseUp={cancelLongPress}
+                onMouseLeave={cancelLongPress}
+                onTouchStart={() => startLongPress(conv)}
+                onTouchEnd={cancelLongPress}
+                onTouchCancel={cancelLongPress}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   padding: '12px 14px',
                   borderBottom: '1px solid rgba(46,46,56,0.4)',
                   cursor: 'pointer',
+                  userSelect: 'none', WebkitUserSelect: 'none',
                 }}
               >
                 <Avatar username={conv.peer_username} pubkey={conv.peer_pubkey} />
@@ -190,12 +240,59 @@ export default function ChatsList({ onNavigate }) {
                         ⏱ {formatTTL(last.ttl)}
                       </div>
                     )}
-                    {unreadIn && <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)' }} />}
+                    {unread > 0 && (
+                      <div style={{
+                        minWidth: 18, height: 18, borderRadius: 9,
+                        background: 'var(--accent)', color: '#fff',
+                        fontSize: 10.5, fontWeight: 700,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '0 5px',
+                      }}>
+                        {unread > 99 ? '99+' : unread}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Conversation action sheet */}
+      {actionConv && (
+        <div
+          onClick={() => setActionConv(null)}
+          style={{
+            position: 'absolute', inset: 0,
+            background: 'rgba(0,0,0,0.5)', zIndex: 60,
+            display: 'flex', alignItems: 'flex-end',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', background: 'var(--surface)',
+              borderTopLeftRadius: 22, borderTopRightRadius: 22,
+              padding: '12px 0 28px',
+            }}
+          >
+            <div style={{ width: 32, height: 4, background: 'var(--text-faint)', borderRadius: 2, margin: '6px auto 14px', opacity: 0.4 }} />
+            <div style={{
+              fontSize: 13, color: 'var(--text-dim)',
+              padding: '0 18px 14px',
+              borderBottom: '1px solid var(--border)',
+            }}>
+              @{actionConv.peer_username || actionConv.peer_pubkey.slice(0, 12)}
+            </div>
+            <div
+              onClick={deleteConvClicked}
+              style={{
+                padding: '14px 18px', cursor: 'pointer',
+                color: 'var(--danger)',
+              }}
+            >Видалити чат</div>
+          </div>
         </div>
       )}
 

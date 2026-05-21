@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
+import * as notif from '../lib/notifications.js';
 import { encryptWithSecret, decryptWithSecret } from '../lib/vault.js';
 import { utf8, utf8Decode, bytesToBase64, base64ToBytes } from '../lib/crypto.js';
 
@@ -13,7 +14,10 @@ export default function Settings({ onNavigate }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // Check server backup status
+  // Notifications state
+  const [notifEnabled, setNotifEnabled] = useState(notif.isPreferenceEnabled());
+  const [notifPermission, setNotifPermission] = useState(notif.getPermission());
+
   useEffect(() => {
     (async () => {
       try {
@@ -25,32 +29,46 @@ export default function Settings({ onNavigate }) {
           setServerBackup({ exists: false });
           store.saveBackupHas({ has: false, updatedAt: 0 });
         } else {
-          // backup is premium-only — 403 means free tier
           setServerBackup({ exists: false, error: e.message });
         }
       }
     })();
   }, []);
 
-  async function setupPinClicked() {
-    onNavigate('pin-setup-existing');
+  async function toggleNotifications() {
+    if (!notif.isSupported()) {
+      setMessage('Браузер не підтримує сповіщення.');
+      return;
+    }
+    if (notifEnabled) {
+      notif.setPreferenceEnabled(false);
+      setNotifEnabled(false);
+      setMessage('Сповіщення вимкнено.');
+      return;
+    }
+    // Ask permission if needed
+    const perm = await notif.requestPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      notif.setPreferenceEnabled(true);
+      setNotifEnabled(true);
+      setMessage('Сповіщення увімкнено.');
+    } else if (perm === 'denied') {
+      setMessage('Доступ заблокований браузером. Дозвольте в налаштуваннях сайту.');
+    }
   }
+
+  function setupPinClicked() { onNavigate('pin-setup-existing'); }
 
   async function removePinClicked() {
     if (!confirm('Видалити PIN? Доведеться знову захищати акаунт після перезавантаження.')) return;
-
-    // Need to unlock first to get seed
     const seed = vault.getUnlockedSeed();
     if (!seed) {
       alert('Сеанс закінчився. Перезавантажте сторінку щоб ввести PIN знову.');
       return;
     }
-
     setBusy(true);
     try {
-      // Decrypt mnemonic from blob using a currently-unlocked PIN session
-      // — but we only kept seed in memory, not the PIN. So we cannot
-      // re-encrypt the mnemonic without a PIN. Instead we ask:
       const pin = prompt('Введіть PIN ще раз щоб видалити захист:');
       if (!pin || pin.length !== 6) { setBusy(false); return; }
 
@@ -72,7 +90,6 @@ export default function Settings({ onNavigate }) {
       vault.lockNow();
       setMessage('PIN видалено. Перезавантажте сторінку.');
     } catch (e) {
-      console.error(e);
       setMessage('Помилка: ' + e.message);
     } finally {
       setBusy(false);
@@ -99,27 +116,20 @@ export default function Settings({ onNavigate }) {
       return;
     }
 
-    // Need unlocked seed
     let seed = vault.getUnlockedSeed();
+    if (!seed && identity?.encrypted === false && identity?.seed_hex) {
+      seed = new Uint8Array(identity.seed_hex.match(/.{2}/g).map((b) => parseInt(b, 16)));
+    }
     if (!seed) {
-      // try to read from unlocked identity
-      if (identity?.encrypted === false && identity?.seed_hex) {
-        seed = new Uint8Array(identity.seed_hex.match(/.{2}/g).map((b) => parseInt(b, 16)));
-      } else {
-        alert('Сеанс закінчився. Перезавантажте сторінку.');
-        return;
-      }
+      alert('Сеанс закінчився. Перезавантажте сторінку.');
+      return;
     }
 
     setBusy(true);
     try {
       const encryptedBlob = encryptWithSecret(seed, passphrase);
-      // Server schema wants salt+params separately; we encode our salt
-      // inside the blob already (first 16 bytes). Re-encode it for the
-      // server's `kdf_salt_b64` field by extracting.
       const blobBytes = base64ToBytes(encryptedBlob);
       const saltB64 = bytesToBase64(blobBytes.slice(0, 16));
-
       await api.uploadBackup({
         encryptedSeedB64: encryptedBlob,
         kdfSaltB64: saltB64,
@@ -129,7 +139,6 @@ export default function Settings({ onNavigate }) {
       setServerBackup({ exists: true });
       store.saveBackupHas({ has: true, updatedAt: Math.floor(Date.now() / 1000) });
     } catch (e) {
-      console.error(e);
       setMessage('Помилка: ' + (e.message || 'не вдалось створити backup'));
     } finally {
       setBusy(false);
@@ -151,6 +160,20 @@ export default function Settings({ onNavigate }) {
     }
   }
 
+  const Section = ({ title, children }) => (
+    <>
+      <div style={{
+        fontSize: 11, color: 'var(--text-faint)',
+        textTransform: 'uppercase', letterSpacing: '0.08em',
+        marginBottom: 10,
+      }}>{title}</div>
+      <div style={{
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: 14, marginBottom: 24,
+      }}>{children}</div>
+    </>
+  );
+
   return (
     <div className="screen">
       <div className="topbar">
@@ -170,36 +193,20 @@ export default function Settings({ onNavigate }) {
             color: 'var(--success)',
             padding: '10px 12px',
             borderRadius: 10,
-            fontSize: 13,
-            marginBottom: 16,
+            fontSize: 13, marginBottom: 16,
           }}>{message}</div>
         )}
 
-        {/* PIN section */}
-        <div style={{
-          fontSize: 11, color: 'var(--text-faint)',
-          textTransform: 'uppercase', letterSpacing: '0.08em',
-          marginBottom: 10,
-        }}>
-          Захист на цьому пристрої
-        </div>
-        <div style={{
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 12, padding: 14, marginBottom: 24,
-        }}>
+        <Section title="Захист на цьому пристрої">
           {hasPin ? (
             <>
-              <div style={{ fontSize: 13.5, marginBottom: 6 }}>
-                ✓ PIN встановлено
-              </div>
+              <div style={{ fontSize: 13.5, marginBottom: 6 }}>✓ PIN встановлено</div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
                 Питається раз на годину при відкритті додатку.
               </div>
-              <button
-                className="btn btn-danger"
-                onClick={removePinClicked}
-                disabled={busy}
-              >Видалити PIN</button>
+              <button className="btn btn-danger" onClick={removePinClicked} disabled={busy}>
+                Видалити PIN
+              </button>
             </>
           ) : (
             <>
@@ -209,27 +216,36 @@ export default function Settings({ onNavigate }) {
               <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
                 Хто має доступ до браузера — може прочитати ваші повідомлення.
               </div>
-              <button
-                className="btn btn-primary"
-                onClick={setupPinClicked}
-                disabled={busy}
-              >Поставити PIN</button>
+              <button className="btn btn-primary" onClick={setupPinClicked} disabled={busy}>
+                Поставити PIN
+              </button>
             </>
           )}
-        </div>
+        </Section>
 
-        {/* Server backup */}
-        <div style={{
-          fontSize: 11, color: 'var(--text-faint)',
-          textTransform: 'uppercase', letterSpacing: '0.08em',
-          marginBottom: 10,
-        }}>
-          Backup на сервері (опційно)
-        </div>
-        <div style={{
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 12, padding: 14, marginBottom: 24,
-        }}>
+        <Section title="Сповіщення">
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
+            Системні сповіщення коли вкладка не в фокусі і прийшло повідомлення.
+          </div>
+          {!notif.isSupported() ? (
+            <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
+              Браузер не підтримує сповіщення.
+            </div>
+          ) : notifPermission === 'denied' ? (
+            <div style={{ fontSize: 12, color: 'var(--danger)' }}>
+              Заблоковано браузером. Дозвольте в налаштуваннях сайту.
+            </div>
+          ) : (
+            <button
+              className={notifEnabled ? 'btn btn-danger' : 'btn btn-primary'}
+              onClick={toggleNotifications}
+            >
+              {notifEnabled ? 'Вимкнути сповіщення' : 'Увімкнути сповіщення'}
+            </button>
+          )}
+        </Section>
+
+        <Section title="Backup на сервері (опційно)">
           <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
             {profile?.tier === 'free'
               ? 'Доступно для premium. Дозволяє відновитись через @username + passphrase, без 24 слів.'
@@ -242,34 +258,30 @@ export default function Settings({ onNavigate }) {
               <div style={{ fontSize: 13, color: 'var(--success)', marginBottom: 12 }}>
                 ✓ Backup активний
               </div>
-              <button
-                className="btn btn-danger"
-                onClick={deleteServerBackupClicked}
-                disabled={busy}
-              >Видалити backup</button>
+              <button className="btn btn-danger" onClick={deleteServerBackupClicked} disabled={busy}>
+                Видалити backup
+              </button>
             </>
           ) : (
             <button
               className="btn btn-primary"
               onClick={createServerBackupClicked}
               disabled={busy || profile?.tier === 'free'}
-            >Створити backup</button>
+            >
+              Створити backup
+            </button>
           )}
-        </div>
+        </Section>
 
-        {/* Profile shortcut */}
-        <div style={{
-          fontSize: 11, color: 'var(--text-faint)',
-          textTransform: 'uppercase', letterSpacing: '0.08em',
-          marginBottom: 10,
-        }}>
-          Акаунт
-        </div>
-        <button
-          className="btn btn-secondary"
-          style={{ marginBottom: 12 }}
-          onClick={() => onNavigate('profile')}
-        >Профіль і ключ відновлення</button>
+        <Section title="Акаунт">
+          <button
+            className="btn btn-secondary"
+            style={{ marginBottom: 0 }}
+            onClick={() => onNavigate('profile')}
+          >
+            Профіль і ключ відновлення
+          </button>
+        </Section>
       </div>
     </div>
   );
