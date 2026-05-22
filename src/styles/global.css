@@ -24,10 +24,13 @@ html, body, #root {
   color: var(--text);
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
-  min-height: 100dvh;
 }
 
-body { overflow: hidden; }
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
 
 #root {
   display: flex;
@@ -41,15 +44,14 @@ body { overflow: hidden; }
 
 /* Mobile-first layout. On larger screens we cap at 480px and center. */
 @media (min-width: 600px) {
-  body {
-    background: #08080B;
-    padding: 20px;
-  }
+  html, body { background: #08080B; }
+  body { padding: 20px; }
   #root {
     border: 1px solid var(--border);
     border-radius: 16px;
     box-shadow: 0 20px 60px -15px rgba(0, 0, 0, 0.7);
     height: calc(100dvh - 40px);
+    background: var(--bg);
   }
 }
 
@@ -63,16 +65,19 @@ body { overflow: hidden; }
   flex-direction: column;
   overflow: hidden;
   position: relative;
+  background: var(--bg);
 }
 
 .topbar {
-  height: 56px;
+  min-height: 56px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   padding: 0 14px;
+  padding-top: env(safe-area-inset-top, 0);
   gap: 10px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg);
 }
 .topbar .back {
   width: 36px; height: 36px;
@@ -80,11 +85,21 @@ body { overflow: hidden; }
   border-radius: 50%;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 .topbar .back:active { background: var(--surface-2); }
 .topbar .back svg { width: 20px; height: 20px; stroke: var(--text); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.topbar .title { font-size: 17px; font-weight: 700; flex: 1; letter-spacing: -0.01em; }
-.topbar .actions { display: flex; gap: 4px; }
+.topbar .title {
+  font-size: 17px;
+  font-weight: 700;
+  flex: 1;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar .actions { display: flex; gap: 4px; flex-shrink: 0; }
 
 .bottom-nav {
   height: 60px;
@@ -189,6 +204,7 @@ body { overflow: hidden; }
   align-items: center;
   justify-content: center;
   gap: 24px;
+  background: var(--bg);
 }
 .splash .logo {
   width: 80px; height: 80px;
@@ -215,11 +231,15 @@ body { overflow: hidden; }
   display: flex;
   flex-direction: column;
   padding: 24px 24px 32px;
+  padding-top: calc(24px + env(safe-area-inset-top, 0));
+  background: var(--bg);
+  overflow: hidden;
 }
 .onb-header {
   display: flex; align-items: center;
   gap: 10px;
   margin-bottom: 32px;
+  flex-shrink: 0;
 }
 .onb-header .back {
   width: 36px; height: 36px;
@@ -237,6 +257,7 @@ body { overflow: hidden; }
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  min-height: 0;
 }
 .onb-content::-webkit-scrollbar { width: 0; }
 
@@ -257,6 +278,7 @@ body { overflow: hidden; }
   flex-direction: column;
   gap: 10px;
   padding-top: 16px;
+  flex-shrink: 0;
 }
 
 /* ====================================================================
@@ -318,6 +340,7 @@ body { overflow: hidden; }
 .chats-list {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .empty-state {
