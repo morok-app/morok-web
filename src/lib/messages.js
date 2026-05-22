@@ -9,10 +9,11 @@
  *     → store in local conversation as 'sent' status
  *
  * Receive flow (from WS or polling):
- *   server gives us envelope_id + metadata
+ *   server gives us envelope_id + metadata (now includes from_username!)
  *     → fetch blob bytes (GET /api/v1/messages/{id})
  *     → decrypt with sender's pubkey
  *     → store in local conversation as 'received'
+ *     → backfill peer_username on the conversation if we didn't know it
  *     → ack to server
  */
 
@@ -20,17 +21,6 @@ import * as api from './api.js';
 import * as crypto from './crypto.js';
 import * as convs from './conversations.js';
 
-/**
- * Send a plaintext DM to a peer. Returns the created local message.
- *
- * Params:
- *   seed            — my Ed25519 seed (Uint8Array)
- *   myPubkeyHex     — my Ed25519 pubkey hex
- *   peerPubkeyHex   — recipient's pubkey hex
- *   peerHomeRelay   — recipient's home_relay (for federation routing — not used yet on send side; server figures it out)
- *   plaintext       — UTF-8 text
- *   ttlSeconds      — TTL the user picked (1h/1d/7d/30d)
- */
 export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds }) {
   const ts = Math.floor(Date.now() / 1000);
   const blob = crypto.encryptForPeer({
@@ -48,7 +38,6 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
     blobB64: blob,
   });
 
-  // Optimistically store as 'sending'
   const localMsg = {
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
@@ -70,7 +59,6 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
       blob,
       sig,
     });
-    // Promote to 'sent'; remember the envelope_id
     convs.updateMessage(peerPubkeyHex, localMsg.id, {
       envelope_id: ack.envelope_id,
       status: 'sent',
@@ -88,13 +76,21 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
 
 /**
  * Process an incoming envelope (from WS or catchup).
- * Returns the local message (or null if it was a duplicate or undecryptable).
  *
- * envMeta = { envelope_id, from_pubkey, to_pubkey, ts, ttl, expires_at, ... }
+ * envMeta now may contain:
+ *   from               — sender pubkey hex
+ *   from_username      — sender's username snapshot (NEW)
+ *   to                 — recipient pubkey hex
+ *   ts, ttl, sig, expires_at, envelope_id
+ *
+ * If `from_username` is present and we don't have it cached on the
+ * conversation, we backfill it.
  */
 export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   const envelopeId = envMeta.envelope_id;
   const peer = envMeta.sender_pubkey_hex || envMeta.from_pubkey || envMeta.from;
+  const senderUsername = envMeta.from_username || null;
+
   if (!peer) {
     console.warn('Envelope without sender field:', envMeta);
     return null;
@@ -126,7 +122,13 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     });
   } catch (e) {
     console.warn('Decrypt failed:', e);
-    // Store undecryptable as a stub so user sees something is wrong
+    // Backfill username even on undecryptable so it shows in list
+    if (senderUsername) {
+      convs.ensureConversation({
+        peerPubkey: peer,
+        peerUsername: senderUsername,
+      });
+    }
     const stub = {
       id: `recv-${envelopeId.slice(0, 16)}`,
       envelope_id: envelopeId,
@@ -141,6 +143,14 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     };
     convs.appendMessage(peer, stub);
     return stub;
+  }
+
+  // Backfill peer_username on the conversation if the envelope brought one
+  if (senderUsername) {
+    convs.ensureConversation({
+      peerPubkey: peer,
+      peerUsername: senderUsername,
+    });
   }
 
   const msg = {
