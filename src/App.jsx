@@ -5,6 +5,7 @@ import * as msgs from './lib/messages.js';
 import * as vault from './lib/vault.js';
 import * as notif from './lib/notifications.js';
 import * as convs from './lib/conversations.js';
+import * as gstore from './lib/group_storage.js';
 import { hexToBytes } from './lib/crypto.js';
 import { InboxClient } from './lib/inbox.js';
 
@@ -21,13 +22,21 @@ import NewChat from './screens/NewChat.jsx';
 import ChatRoom from './screens/ChatRoom.jsx';
 import Profile from './screens/Profile.jsx';
 import Settings from './screens/Settings.jsx';
+import NewGroup from './screens/NewGroup.jsx';
+import GroupChat from './screens/GroupChat.jsx';
+import GroupInfo from './screens/GroupInfo.jsx';
+import JoinGroup from './screens/JoinGroup.jsx';
 
 const PENDING_KEY = 'morok.pending_route.v1';
 
+/**
+ * Save deep-link routes (newchat?u=..., join?t=...) so that if user lands
+ * here unauthenticated, we replay them after sign-up/in.
+ */
 function savePendingIfDeepLink(hash) {
   if (!hash) return;
   const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
-  if (cleaned.startsWith('newchat?')) {
+  if (cleaned.startsWith('newchat?') || cleaned.startsWith('join?')) {
     try { sessionStorage.setItem(PENDING_KEY, cleaned); } catch {}
   }
 }
@@ -40,10 +49,6 @@ function consumePending() {
   } catch { return null; }
 }
 
-/**
- * Broadcast inbox-state changes to other components via a custom event.
- * ChatsList listens for this to render the online/offline badge.
- */
 function broadcastInboxState(state) {
   window.__morok_inbox_state = state;
   try {
@@ -150,18 +155,33 @@ export default function App() {
         try {
           const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
           client.ack(env.envelope_id);
-          // Notify if applicable
+          // Notify if applicable (DM only — groups will get a follow-up)
           if (newMsg && newMsg.text && newMsg.direction === 'in') {
-            const conv = convs.getConversation(newMsg.peer_pubkey);
-            const peerName = conv?.peer_username
-              ? `@${conv.peer_username}`
-              : newMsg.peer_pubkey.slice(0, 12);
-            notif.notify({
-              title: peerName,
-              body: newMsg.text.length > 100 ? newMsg.text.slice(0, 100) + '…' : newMsg.text,
-              peerPubkey: newMsg.peer_pubkey,
-              onClick: () => { window.location.hash = `#chat/${newMsg.peer_pubkey}`; },
-            });
+            if (newMsg.peer_pubkey) {
+              // DM
+              const conv = convs.getConversation(newMsg.peer_pubkey);
+              const peerName = conv?.peer_username
+                ? `@${conv.peer_username}`
+                : newMsg.peer_pubkey.slice(0, 12);
+              notif.notify({
+                title: peerName,
+                body: newMsg.text.length > 100 ? newMsg.text.slice(0, 100) + '…' : newMsg.text,
+                peerPubkey: newMsg.peer_pubkey,
+                onClick: () => { window.location.hash = `#chat/${newMsg.peer_pubkey}`; },
+              });
+            } else if (env.group_id) {
+              // Group message
+              const g = gstore.getGroup(env.group_id);
+              const senderName = newMsg.sender_username
+                ? `@${newMsg.sender_username}`
+                : (newMsg.sender_pubkey?.slice(0, 8) || 'хтось');
+              notif.notify({
+                title: `${g?.name || 'Група'} · ${senderName}`,
+                body: newMsg.text.length > 100 ? newMsg.text.slice(0, 100) + '…' : newMsg.text,
+                peerPubkey: env.group_id,
+                onClick: () => { window.location.hash = `#group/${env.group_id}`; },
+              });
+            }
           }
         } catch (e) { console.warn('new failed:', e); }
       },
@@ -274,11 +294,20 @@ export default function App() {
     case 'claim': return <ClaimUsername onNavigate={navigate} />;
     case 'chats': return <ChatsList onNavigate={navigate} />;
     case 'newchat': return <NewChat onNavigate={navigate} routeArg={routeArg} />;
+    case 'newgroup': return <NewGroup onNavigate={navigate} />;
     case 'profile': return <Profile onNavigate={navigate} />;
     case 'settings': return <Settings onNavigate={navigate} />;
     case 'chat':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <ChatRoom peerPubkey={routeArg} onNavigate={navigate} />;
+    case 'group':
+      if (!routeArg) { navigate('chats'); return <Splash />; }
+      return <GroupChat groupId={routeArg} onNavigate={navigate} />;
+    case 'groupinfo':
+      if (!routeArg) { navigate('chats'); return <Splash />; }
+      return <GroupInfo groupId={routeArg} onNavigate={navigate} />;
+    case 'join':
+      return <JoinGroup routeArg={routeArg} onNavigate={navigate} />;
     default: return <Splash />;
   }
 }

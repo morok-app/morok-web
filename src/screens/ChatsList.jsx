@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
+import * as gstore from '../lib/group_storage.js';
 
 const LONG_PRESS_MS = 500;
 
@@ -27,27 +28,30 @@ function formatTTL(seconds) {
   return `${Math.floor(seconds / 86400)}д`;
 }
 
-function Avatar({ username, pubkey, size = 40 }) {
+function Avatar({ username, pubkey, size = 40, isGroup }) {
+  if (isGroup) {
+    return (
+      <div style={{
+        width: size, height: size, borderRadius: '50%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(135deg, var(--accent) 0%, #4A5FB0 100%)',
+        color: '#fff', fontSize: size * 0.5, flexShrink: 0,
+      }}>👥</div>
+    );
+  }
   const hue = pubkey ? parseInt(pubkey.slice(0, 6), 16) % 360 : 0;
   const initial = (username?.[0] || '?').toUpperCase();
   return (
-    <div
-      style={{
-        width: size, height: size, borderRadius: '50%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: `hsl(${hue}, 45%, 45%)`,
-        color: '#fff', fontWeight: 700, fontSize: size * 0.4,
-        flexShrink: 0,
-      }}
-    >{initial}</div>
+    <div style={{
+      width: size, height: size, borderRadius: '50%',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: `hsl(${hue}, 45%, 45%)`,
+      color: '#fff', fontWeight: 700, fontSize: size * 0.4,
+      flexShrink: 0,
+    }}>{initial}</div>
   );
 }
 
-/**
- * Subscribe to a global inbox state.
- * App.jsx exposes it via window.__morok_inbox_state if available.
- * Falls back to "open" if absent (boot).
- */
 function useInboxState() {
   const [state, setState] = useState(window.__morok_inbox_state || 'open');
   useEffect(() => {
@@ -58,12 +62,54 @@ function useInboxState() {
   return state;
 }
 
+/**
+ * Build a unified, sorted list mixing DMs and groups.
+ * Each item has shape: { kind: 'dm'|'group', id, title, last, unread, ts }
+ */
+function buildMixedList() {
+  const items = [];
+
+  for (const c of convs.listConversations()) {
+    const last = c.messages?.[c.messages.length - 1];
+    const unread = (c.messages || []).filter((m) => m.direction === 'in' && !m.read_at).length;
+    items.push({
+      kind: 'dm',
+      id: c.peer_pubkey,
+      title: `@${c.peer_username || c.peer_pubkey.slice(0, 8)}`,
+      pubkey: c.peer_pubkey,
+      username: c.peer_username,
+      last,
+      unread,
+      ts: c.updated_at || last?.ts || 0,
+      raw: c,
+    });
+  }
+
+  for (const g of gstore.listGroups()) {
+    const last = g.messages?.[g.messages.length - 1];
+    const unread = (g.messages || []).filter((m) => m.direction === 'in' && !m.read_at).length;
+    items.push({
+      kind: 'group',
+      id: g.group_id,
+      title: g.name || 'Група без назви',
+      last,
+      unread,
+      ts: g.updated_at || last?.ts || 0,
+      raw: g,
+    });
+  }
+
+  items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  return items;
+}
+
 export default function ChatsList({ onNavigate }) {
   const [profile, setProfile] = useState(store.loadProfile());
-  const [conversations, setConversations] = useState(() => convs.listConversations());
-  const [actionConv, setActionConv] = useState(null);
+  const [items, setItems] = useState(() => buildMixedList());
+  const [actionItem, setActionItem] = useState(null);
   const longPressTimer = useRef(null);
   const inboxState = useInboxState();
+  const [showNewMenu, setShowNewMenu] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,35 +128,41 @@ export default function ChatsList({ onNavigate }) {
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setConversations(convs.listConversations());
-    }, 3000);
+    const id = setInterval(() => setItems(buildMixedList()), 3000);
     return () => clearInterval(id);
   }, []);
 
-  function startLongPress(conv) {
+  function startLongPress(item) {
     cancelLongPress();
     longPressTimer.current = setTimeout(() => {
       if (navigator.vibrate) try { navigator.vibrate(15); } catch {}
-      setActionConv(conv);
+      setActionItem(item);
     }, LONG_PRESS_MS);
   }
   function cancelLongPress() {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
+  function deleteItemClicked() {
+    if (!actionItem) return;
+    if (actionItem.kind === 'dm') {
+      convs.deleteConversation(actionItem.id);
+    } else {
+      // For groups — "delete from list" means remove locally only.
+      // To actually leave/delete the group on the server, use GroupInfo.
+      gstore.removeGroup(actionItem.id);
     }
+    setActionItem(null);
+    setItems(buildMixedList());
   }
 
-  function deleteConvClicked() {
-    if (!actionConv) return;
-    const peer = actionConv.peer_pubkey;
-    setActionConv(null);
-    convs.deleteConversation(peer);
-    setConversations(convs.listConversations());
+  function openItem(item) {
+    if (item.kind === 'dm') onNavigate(`chat/${item.id}`);
+    else onNavigate(`group/${item.id}`);
   }
 
-  const isEmpty = conversations.length === 0;
+  const isEmpty = items.length === 0;
 
   const stateBadge = (() => {
     if (inboxState === 'connecting') return { text: 'підключення', color: 'var(--text-dim)' };
@@ -183,21 +235,21 @@ export default function ChatsList({ onNavigate }) {
             </svg>
           </div>
           <div className="title">Поки немає чатів</div>
-          <div className="desc">Натисніть кнопку нижче щоб почати новий чат</div>
+          <div className="desc">Натисніть кнопку нижче щоб почати новий чат або групу</div>
         </div>
       ) : (
         <div className="chats-list">
-          {conversations.map((conv) => {
-            const last = conv.messages[conv.messages.length - 1];
-            const unread = (conv.messages || []).filter((m) => m.direction === 'in' && !m.read_at).length;
+          {items.map((item) => {
+            const last = item.last;
+            const isGroup = item.kind === 'group';
             return (
               <div
-                key={conv.peer_pubkey}
-                onClick={() => onNavigate(`chat/${conv.peer_pubkey}`)}
-                onMouseDown={() => startLongPress(conv)}
+                key={`${item.kind}-${item.id}`}
+                onClick={() => openItem(item)}
+                onMouseDown={() => startLongPress(item)}
                 onMouseUp={cancelLongPress}
                 onMouseLeave={cancelLongPress}
-                onTouchStart={() => startLongPress(conv)}
+                onTouchStart={() => startLongPress(item)}
                 onTouchEnd={cancelLongPress}
                 onTouchCancel={cancelLongPress}
                 style={{
@@ -208,7 +260,11 @@ export default function ChatsList({ onNavigate }) {
                   userSelect: 'none', WebkitUserSelect: 'none',
                 }}
               >
-                <Avatar username={conv.peer_username} pubkey={conv.peer_pubkey} />
+                <Avatar
+                  username={item.username}
+                  pubkey={item.pubkey}
+                  isGroup={isGroup}
+                />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                     <div style={{
@@ -216,7 +272,7 @@ export default function ChatsList({ onNavigate }) {
                       letterSpacing: '-0.01em',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
-                      @{conv.peer_username || conv.peer_pubkey.slice(0, 8)}
+                      {item.title}
                     </div>
                     <div style={{
                       fontSize: 11, color: 'var(--text-faint)',
@@ -232,7 +288,8 @@ export default function ChatsList({ onNavigate }) {
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       flex: 1,
                     }}>
-                      {last?.direction === 'out' ? 'Ви: ' : ''}
+                      {isGroup && last?.sender_username ? `@${last.sender_username}: ` :
+                       (last?.direction === 'out' ? 'Ви: ' : '')}
                       {last?.text || (last?.status === 'undecryptable' ? '⚠ не вдалось розшифрувати' : '...')}
                     </div>
                     {last?.ttl && (
@@ -240,7 +297,7 @@ export default function ChatsList({ onNavigate }) {
                         ⏱ {formatTTL(last.ttl)}
                       </div>
                     )}
-                    {unread > 0 && (
+                    {item.unread > 0 && (
                       <div style={{
                         minWidth: 18, height: 18, borderRadius: 9,
                         background: 'var(--accent)', color: '#fff',
@@ -248,7 +305,7 @@ export default function ChatsList({ onNavigate }) {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         padding: '0 5px',
                       }}>
-                        {unread > 99 ? '99+' : unread}
+                        {item.unread > 99 ? '99+' : item.unread}
                       </div>
                     )}
                   </div>
@@ -259,10 +316,10 @@ export default function ChatsList({ onNavigate }) {
         </div>
       )}
 
-      {/* Conversation action sheet */}
-      {actionConv && (
+      {/* Action sheet */}
+      {actionItem && (
         <div
-          onClick={() => setActionConv(null)}
+          onClick={() => setActionItem(null)}
           style={{
             position: 'absolute', inset: 0,
             background: 'rgba(0,0,0,0.5)', zIndex: 60,
@@ -283,21 +340,64 @@ export default function ChatsList({ onNavigate }) {
               padding: '0 18px 14px',
               borderBottom: '1px solid var(--border)',
             }}>
-              @{actionConv.peer_username || actionConv.peer_pubkey.slice(0, 12)}
+              {actionItem.title}
             </div>
+            {actionItem.kind === 'group' && (
+              <div
+                onClick={() => { onNavigate(`groupinfo/${actionItem.id}`); setActionItem(null); }}
+                style={{ padding: '14px 18px', cursor: 'pointer' }}
+              >Інфо групи</div>
+            )}
             <div
-              onClick={deleteConvClicked}
+              onClick={deleteItemClicked}
               style={{
                 padding: '14px 18px', cursor: 'pointer',
                 color: 'var(--danger)',
               }}
-            >Видалити чат</div>
+            >{actionItem.kind === 'group' ? 'Прибрати зі списку' : 'Видалити чат'}</div>
+          </div>
+        </div>
+      )}
+
+      {/* New menu (DM / Group) */}
+      {showNewMenu && (
+        <div
+          onClick={() => setShowNewMenu(false)}
+          style={{
+            position: 'absolute', inset: 0,
+            background: 'rgba(0,0,0,0.5)', zIndex: 70,
+            display: 'flex', alignItems: 'flex-end',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', background: 'var(--surface)',
+              borderTopLeftRadius: 22, borderTopRightRadius: 22,
+              padding: '12px 0 28px',
+            }}
+          >
+            <div style={{ width: 32, height: 4, background: 'var(--text-faint)', borderRadius: 2, margin: '6px auto 14px', opacity: 0.4 }} />
+            <div
+              onClick={() => { setShowNewMenu(false); onNavigate('newchat'); }}
+              style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center' }}
+            >
+              <span style={{ fontSize: 18 }}>💬</span>
+              <span>Новий чат</span>
+            </div>
+            <div
+              onClick={() => { setShowNewMenu(false); onNavigate('newgroup'); }}
+              style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center' }}
+            >
+              <span style={{ fontSize: 18 }}>👥</span>
+              <span>Нова група</span>
+            </div>
           </div>
         </div>
       )}
 
       <button
-        onClick={() => onNavigate('newchat')}
+        onClick={() => setShowNewMenu(true)}
         style={{
           position: 'absolute', bottom: 24, right: 16,
           width: 56, height: 56, borderRadius: '50%',

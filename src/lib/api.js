@@ -105,32 +105,17 @@ export async function lookupUsername(username, relay) {
 }
 
 // ────────────────────────────────────────────────────────────
-// Messages
+// Messages (1-on-1)
 // ────────────────────────────────────────────────────────────
 
-/**
- * POST a signed envelope to the relay for delivery.
- * envelope = { from, to, ts, ttl, blob, sig }  (sig is hex string)
- */
 export async function sendEnvelope(envelope) {
-  return http('POST', '/api/v1/messages', {
-    body: envelope,
-    auth: true,
-  });
+  return http('POST', '/api/v1/messages', { body: envelope, auth: true });
 }
 
-/**
- * List pending envelopes addressed to me. Limit 1-200.
- * Returns { envelopes: [...], count: N }
- */
 export async function listInbox(limit = 50) {
   return http('GET', `/api/v1/messages?limit=${limit}`, { auth: true });
 }
 
-/**
- * Fetch the blob bytes for an envelope. Returns Uint8Array.
- * Server returns application/octet-stream (raw bytes).
- */
 export async function fetchBlob(envelopeId) {
   const resp = await fetch(`${_relayUrl}/api/v1/messages/${envelopeId}`, {
     headers: { 'Authorization': `Bearer ${_sessionToken}` },
@@ -144,9 +129,6 @@ export async function fetchBlob(envelopeId) {
   return new Uint8Array(buf);
 }
 
-/**
- * Acknowledge receipt of an envelope (removes from inbox).
- */
 export async function ackEnvelope(envelopeId) {
   return http('DELETE', `/api/v1/messages/${envelopeId}`, { auth: true });
 }
@@ -155,14 +137,6 @@ export async function ackEnvelope(envelopeId) {
 // WebSocket inbox
 // ────────────────────────────────────────────────────────────
 
-/**
- * Open a WebSocket connection to the inbox stream.
- *
- * Server: ws(s)://host/ws/v1/inbox?token=<session_token>
- * On open: server pushes catchup of pending, then real-time as new envelopes arrive.
- *
- * Returns the WebSocket object; caller wires up listeners.
- */
 export function openInboxSocket(onMessage, onOpen, onClose, onError) {
   const wsUrl = _relayUrl.replace(/^http/, 'ws') + `/ws/v1/inbox?token=${encodeURIComponent(_sessionToken)}`;
   const ws = new WebSocket(wsUrl);
@@ -184,13 +158,6 @@ export function openInboxSocket(onMessage, onOpen, onClose, onError) {
 // Encrypted backup
 // ────────────────────────────────────────────────────────────
 
-/**
- * Upload an encrypted seed backup. Premium-only on the server side.
- * encryptedSeedB64 — full vault blob (salt+nonce+ciphertext, base64).
- * kdfSaltB64       — the 16-byte salt used; passed so server records it.
- *                    (For our scheme the salt is already inside the blob,
- *                     but the server schema requires it as a separate field.)
- */
 export async function uploadBackup({ encryptedSeedB64, kdfSaltB64, kdfParams }) {
   return http('POST', '/api/v1/backup', {
     body: {
@@ -211,12 +178,97 @@ export async function deleteMyBackup() {
   return http('DELETE', '/api/v1/backup', { auth: true });
 }
 
-/**
- * Public restore lookup — no auth required.
- * Returns { encrypted_seed_b64, kdf_salt_b64, kdf_params, schema_version,
- *           username_at_backup } or throws 404 if no backup / unknown user.
- */
 export async function restoreBackupByUsername(username) {
   return http('GET', `/api/v1/backup/by-username/${encodeURIComponent(username)}`);
 }
 
+// ────────────────────────────────────────────────────────────
+// Groups (Day 6Б)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Create a new group. `nameEncryptedB64` — base64 of XChaCha20-Poly1305
+ * ciphertext of the group name encrypted with the freshly-generated group_key.
+ *
+ * Returns the full group info INCLUDING members (the creator becomes the
+ * sole admin).
+ */
+export async function createGroup({
+  nameEncryptedB64,
+  isChannel = false,
+  defaultTtlSeconds = 86400,
+  anonymousSenders = false,
+  expiresAt = null,
+  slug = null,
+}) {
+  return http('POST', '/api/v1/groups', {
+    body: {
+      name_encrypted: nameEncryptedB64,
+      is_channel: isChannel,
+      default_ttl_seconds: defaultTtlSeconds,
+      anonymous_senders: anonymousSenders,
+      expires_at: expiresAt,
+      slug,
+    },
+    auth: true,
+  });
+}
+
+export async function listMyGroups() {
+  return http('GET', '/api/v1/groups', { auth: true });
+}
+
+export async function getGroupInfo(groupId) {
+  return http('GET', `/api/v1/groups/${groupId}`, { auth: true });
+}
+
+export async function deleteGroup(groupId) {
+  return http('DELETE', `/api/v1/groups/${groupId}`, { auth: true });
+}
+
+export async function addGroupMember(groupId, pubkeyHex) {
+  return http('POST', `/api/v1/groups/${groupId}/members`, {
+    body: { pubkey_hex: pubkeyHex },
+    auth: true,
+  });
+}
+
+export async function removeGroupMember(groupId, pubkeyHex) {
+  return http('DELETE', `/api/v1/groups/${groupId}/members/${pubkeyHex}`, { auth: true });
+}
+
+/**
+ * Broadcast a signed envelope to all group members.
+ * envelope = { from, to (=group_id), ts, ttl, blob, sig }
+ */
+export async function sendGroupMessage(groupId, envelope) {
+  return http('POST', `/api/v1/groups/${groupId}/messages`, {
+    body: envelope,
+    auth: true,
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// Group invite tokens (Day 6Б — variant B)
+// ────────────────────────────────────────────────────────────
+
+export async function createInviteToken(groupId, ttlSeconds) {
+  return http('POST', `/api/v1/groups/${groupId}/invites`, {
+    body: ttlSeconds ? { ttl_seconds: ttlSeconds } : {},
+    auth: true,
+  });
+}
+
+export async function listInviteTokens(groupId) {
+  return http('GET', `/api/v1/groups/${groupId}/invites`, { auth: true });
+}
+
+export async function revokeInviteToken(groupId, token) {
+  return http('DELETE', `/api/v1/groups/${groupId}/invites/${token}`, { auth: true });
+}
+
+export async function joinGroupViaToken(token) {
+  return http('POST', `/api/v1/groups/join?token=${encodeURIComponent(token)}`, {
+    auth: true,
+  });
+}

@@ -1,20 +1,21 @@
 /**
  * Message pipeline.
  *
- * Send flow:
- *   plaintext + peer pubkey
- *     → encrypt with shared key
- *     → wrap in envelope {from, to, ts, ttl, blob, sig}
- *     → POST /api/v1/messages
- *     → store in local conversation as 'sent' status
+ * Two distinct kinds of envelopes arrive:
  *
- * Receive flow (from WS or polling):
- *   server gives us envelope_id + metadata (now includes from_username!)
- *     → fetch blob bytes (GET /api/v1/messages/{id})
- *     → decrypt with sender's pubkey
- *     → store in local conversation as 'received'
- *     → backfill peer_username on the conversation if we didn't know it
- *     → ack to server
+ *   1. DM envelopes (1-on-1)
+ *      meta.to is a 64-hex pubkey, no group_id
+ *      blob is XChaCha20-Poly1305 with DH-derived key
+ *
+ *   2. Group envelopes (broadcast to group members)
+ *      meta.to is a UUID-string, meta.group_id is set
+ *      blob is XChaCha20-Poly1305 with the group's symmetric group_key
+ *
+ * processIncoming dispatches based on meta.group_id.
+ *
+ * For DMs we also detect "kind=group_key" plaintext after decryption and
+ * route it to groups.processIncomingGroupKey() instead of storing as a
+ * regular message.
  */
 
 import * as api from './api.js';
@@ -75,33 +76,52 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
 }
 
 /**
- * Process an incoming envelope (from WS or catchup).
+ * Try parsing a DM plaintext as a control message ({"kind":...,...}).
+ * Returns null if it's a plain text message.
+ */
+function tryParseControl(plaintext) {
+  if (!plaintext || plaintext.length < 2) return null;
+  if (plaintext[0] !== '{') return null;
+  try {
+    const obj = JSON.parse(plaintext);
+    if (obj && typeof obj === 'object' && typeof obj.kind === 'string') {
+      return obj;
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Process an incoming envelope.
  *
- * envMeta now may contain:
- *   from               — sender pubkey hex
- *   from_username      — sender's username snapshot (NEW)
- *   to                 — recipient pubkey hex
- *   ts, ttl, sig, expires_at, envelope_id
+ * If meta.group_id is present → dispatch to groups module.
+ * Else → DM. Decrypt with peer key. If plaintext is {"kind":"group_key",...},
+ *        dispatch to groups module and DO NOT store as a regular message.
  *
- * If `from_username` is present and we don't have it cached on the
- * conversation, we backfill it.
+ * Returns the message object stored (or null).
  */
 export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   const envelopeId = envMeta.envelope_id;
+
+  // ── GROUP envelope ──────────────────────────────────────
+  if (envMeta.group_id) {
+    // Lazy import to avoid circular dependency with groups.js
+    const groupsMod = await import('./groups.js');
+    return await groupsMod.processIncomingGroupEnvelope({
+      envMeta, myPubkeyHex,
+    });
+  }
+
+  // ── DM envelope ─────────────────────────────────────────
   const peer = envMeta.sender_pubkey_hex || envMeta.from_pubkey || envMeta.from;
   const senderUsername = envMeta.from_username || null;
-
   if (!peer) {
     console.warn('Envelope without sender field:', envMeta);
     return null;
   }
 
-  // De-dup by envelope_id in conversation
-  if (convs.hasEnvelope(peer, envelopeId)) {
-    return null;
-  }
+  if (convs.hasEnvelope(peer, envelopeId)) return null;
 
-  // Fetch encrypted blob bytes from server
   let blobBytes;
   try {
     blobBytes = await api.fetchBlob(envelopeId);
@@ -109,25 +129,19 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     console.warn('fetchBlob failed for', envelopeId, e);
     return null;
   }
-
-  // Decrypt
   const blobB64 = crypto.bytesToBase64(blobBytes);
+
   let plaintext;
   try {
     plaintext = crypto.decryptFromPeer({
-      seed,
-      myPubkeyHex,
+      seed, myPubkeyHex,
       peerPubkeyHex: peer,
       blobB64,
     });
   } catch (e) {
     console.warn('Decrypt failed:', e);
-    // Backfill username even on undecryptable so it shows in list
     if (senderUsername) {
-      convs.ensureConversation({
-        peerPubkey: peer,
-        peerUsername: senderUsername,
-      });
+      convs.ensureConversation({ peerPubkey: peer, peerUsername: senderUsername });
     }
     const stub = {
       id: `recv-${envelopeId.slice(0, 16)}`,
@@ -145,12 +159,25 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     return stub;
   }
 
-  // Backfill peer_username on the conversation if the envelope brought one
+  // Backfill peer_username if envelope brought one
   if (senderUsername) {
-    convs.ensureConversation({
-      peerPubkey: peer,
-      peerUsername: senderUsername,
-    });
+    convs.ensureConversation({ peerPubkey: peer, peerUsername: senderUsername });
+  }
+
+  // Control message?
+  const control = tryParseControl(plaintext);
+  if (control) {
+    if (control.kind === 'group_key') {
+      try {
+        const groupsMod = await import('./groups.js');
+        await groupsMod.processIncomingGroupKey({ payload: control });
+      } catch (e) {
+        console.warn('group_key processing failed:', e);
+      }
+      // Don't store as a visible DM message — just dedup it
+      return null;
+    }
+    // Unknown control kind → fall through to display as text
   }
 
   const msg = {
