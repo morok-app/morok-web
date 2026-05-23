@@ -273,6 +273,19 @@ export default function Settings({ onNavigate }) {
           )}
         </Section>
 
+        <Section title="Цифровий заповіт">
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
+            Dead Man's Switch — якщо не зайдете в Morok протягом обраного
+            періоду, заздалегідь обране повідомлення доставиться отримувачу.
+          </div>
+          <button
+            className="btn btn-secondary"
+            onClick={() => onNavigate('dms')}
+          >
+            Керувати заповітами
+          </button>
+        </Section>
+
         <Section title="Акаунт">
           <button
             className="btn btn-secondary"

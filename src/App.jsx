@@ -6,6 +6,7 @@ import * as vault from './lib/vault.js';
 import * as notif from './lib/notifications.js';
 import * as convs from './lib/conversations.js';
 import * as gstore from './lib/group_storage.js';
+import * as dms from './lib/dms.js';
 import { formatPeerHandle } from './lib/display.js';
 import { hexToBytes } from './lib/crypto.js';
 import { InboxClient } from './lib/inbox.js';
@@ -27,6 +28,9 @@ import NewGroup from './screens/NewGroup.jsx';
 import GroupChat from './screens/GroupChat.jsx';
 import GroupInfo from './screens/GroupInfo.jsx';
 import JoinGroup from './screens/JoinGroup.jsx';
+import DMSList from './screens/DMSList.jsx';
+import DMSCreate from './screens/DMSCreate.jsx';
+import DMSDetail from './screens/DMSDetail.jsx';
 
 const PENDING_KEY = 'morok.pending_route.v1';
 
@@ -107,6 +111,17 @@ export default function App() {
 
   useEffect(() => () => inboxRef.current?.stop(), []);
 
+  // Periodic DMS check-in: every 6 hours while the tab is open.
+  // Combined with the on-login check-in, this means active users never
+  // accidentally trigger their own DMS.
+  useEffect(() => {
+    const SIX_HOURS_MS = 6 * 3600 * 1000;
+    const tid = setInterval(() => {
+      dms.checkInAllArmed().catch((e) => console.warn('Periodic DMS check-in failed:', e));
+    }, SIX_HOURS_MS);
+    return () => clearInterval(tid);
+  }, []);
+
   async function loginAndRoute(seed, pubkeyHex) {
     const session = await api.login({ seed, pubkeyHex });
     store.saveSession({
@@ -126,6 +141,12 @@ export default function App() {
 
     // Anonymous accounts go straight to chats — no forced claim.
     startInbox(seed, pubkeyHex);
+
+    // Auto check-in for any armed DMS (fire-and-forget — don't block login)
+    dms.checkInAllArmed().then((r) => {
+      if (r.checkedIn > 0) console.info('DMS auto check-in:', r);
+    }).catch((e) => console.warn('DMS auto check-in failed:', e));
+
     const pending = consumePending();
     if (pending) {
       window.location.hash = `#${pending}`;
@@ -303,6 +324,11 @@ export default function App() {
       return <GroupInfo groupId={routeArg} onNavigate={navigate} />;
     case 'join':
       return <JoinGroup routeArg={routeArg} onNavigate={navigate} />;
+    case 'dms': return <DMSList onNavigate={navigate} />;
+    case 'dms-create': return <DMSCreate onNavigate={navigate} />;
+    case 'dms-detail':
+      if (!routeArg) { navigate('dms'); return <Splash />; }
+      return <DMSDetail dmsId={routeArg} onNavigate={navigate} />;
     default: return <Splash />;
   }
 }

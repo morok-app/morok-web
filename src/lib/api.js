@@ -272,3 +272,62 @@ export async function joinGroupViaToken(token) {
     auth: true,
   });
 }
+// ───────────────────────────────────────────────────────────
+// Dead Man's Switch (Day 7)
+// ───────────────────────────────────────────────────────────
+
+/**
+ * Create a DMS armed for `trigger_seconds` of inactivity.
+ *
+ * payloadEncryptedB64 is base64 ciphertext (encrypted FOR the recipient
+ * with a regular DM-style DH key, same as a normal DM blob). The relay
+ * will deliver this exact blob to the recipient when the switch fires.
+ *
+ * recipientPubkeysHex — array of pubkey hex strings. We pass exactly 1
+ * in the MVP (UI enforces this).
+ */
+export async function createDMS({
+  triggerSeconds,
+  payloadEncryptedB64,
+  recipientPubkeysHex,
+  label = null,
+}) {
+  return http('POST', '/api/v1/dms', {
+    body: {
+      trigger_seconds: triggerSeconds,
+      payload_encrypted: payloadEncryptedB64,
+      recipient_pubkeys_hex: recipientPubkeysHex,
+      label,
+    },
+    auth: true,
+  });
+}
+
+/**
+ * List all my DMS (any status).
+ */
+export async function listMyDMS() {
+  return http('GET', '/api/v1/dms', { auth: true });
+}
+
+/**
+ * Get details of one DMS.
+ */
+export async function getDMS(dmsId) {
+  return http('GET', `/api/v1/dms/${dmsId}`, { auth: true });
+}
+
+/**
+ * Check in — resets the inactivity timer to "now".
+ * Only valid for ARMED switches; CANCELLED/TRIGGERED → 409.
+ */
+export async function checkInDMS(dmsId) {
+  return http('POST', `/api/v1/dms/${dmsId}/check-in`, { auth: true });
+}
+
+/**
+ * Cancel a DMS. Idempotent.
+ */
+export async function cancelDMS(dmsId) {
+  return http('DELETE', `/api/v1/dms/${dmsId}`, { auth: true });
+}
