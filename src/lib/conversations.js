@@ -48,7 +48,26 @@ export function getConversation(peerPubkey) {
   return state[peerPubkey] || null;
 }
 
-export function ensureConversation({ peerPubkey, peerUsername, peerHomeRelay }) {
+/**
+ * Create or update a conversation.
+ *
+ * If peerUsername is passed:
+ *   - It REPLACES the stored peer_username (even if one was already set).
+ *   - This is so that when an anonymous peer later claims a username, the
+ *     conversation reflects the new identity. Same in reverse: a peer who
+ *     released their username (became anon) will be re-displayed correctly.
+ *
+ * To avoid clobbering a known username with a stale null, callers should
+ * only pass peerUsername when they actually have one (either fresh from
+ * server lookup or from envelope `from_username`). Don't pass `null`
+ * to force an update; in that case omit the field.
+ *
+ * peerUsername === null + flag `explicitNull: true` does reset it back
+ * to null (when the peer has demonstrably released their username).
+ */
+export function ensureConversation({
+  peerPubkey, peerUsername, peerHomeRelay, explicitNull = false,
+}) {
   const state = load();
   if (!state[peerPubkey]) {
     state[peerPubkey] = {
@@ -59,10 +78,30 @@ export function ensureConversation({ peerPubkey, peerUsername, peerHomeRelay }) 
       updated_at: Math.floor(Date.now() / 1000),
     };
     save(state);
-  } else if (peerUsername && !state[peerPubkey].peer_username) {
-    state[peerPubkey].peer_username = peerUsername;
-    save(state);
+    return state[peerPubkey];
   }
+
+  let changed = false;
+  if (peerUsername !== undefined) {
+    if (peerUsername) {
+      // Always update with a fresh username
+      if (state[peerPubkey].peer_username !== peerUsername) {
+        state[peerPubkey].peer_username = peerUsername;
+        changed = true;
+      }
+    } else if (explicitNull) {
+      // Peer reset their username back to anonymous
+      if (state[peerPubkey].peer_username !== null) {
+        state[peerPubkey].peer_username = null;
+        changed = true;
+      }
+    }
+  }
+  if (peerHomeRelay && !state[peerPubkey].peer_home_relay) {
+    state[peerPubkey].peer_home_relay = peerHomeRelay;
+    changed = true;
+  }
+  if (changed) save(state);
   return state[peerPubkey];
 }
 
@@ -97,10 +136,6 @@ export function updateMessage(peerPubkey, messageId, updates) {
   }
 }
 
-/**
- * Remove a single message from a conversation locally.
- * Returns the deleted message, or null if not found.
- */
 export function deleteMessage(peerPubkey, messageId) {
   const state = load();
   const conv = state[peerPubkey];
@@ -119,9 +154,6 @@ export function hasEnvelope(peerPubkey, envelopeId) {
   return conv.messages.some((m) => m.envelope_id === envelopeId);
 }
 
-/**
- * Delete an entire conversation (and all messages in it) locally.
- */
 export function deleteConversation(peerPubkey) {
   const state = load();
   delete state[peerPubkey];
@@ -134,10 +166,6 @@ export function getLastMessage(peerPubkey) {
   return conv.messages[conv.messages.length - 1];
 }
 
-/**
- * Mark all incoming messages in a conversation as read.
- * Called when user opens the chat.
- */
 export function markConversationRead(peerPubkey) {
   const state = load();
   const conv = state[peerPubkey];
@@ -153,9 +181,6 @@ export function markConversationRead(peerPubkey) {
   if (changed) save(state);
 }
 
-/**
- * Count unread incoming messages in a conversation.
- */
 export function countUnread(peerPubkey) {
   const conv = getConversation(peerPubkey);
   if (!conv) return 0;

@@ -4,28 +4,60 @@ import * as convs from '../lib/conversations.js';
 import * as contacts from '../lib/contacts.js';
 import * as store from '../lib/storage.js';
 import { parseAddress } from '../lib/addr.js';
+import { formatPeerName } from '../lib/display.js';
 
 export default function NewChat({ onNavigate, routeArg }) {
   const me = store.loadProfile();
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [hint, setHint] = useState(null); // for "try @user@relay2" suggestions
+  const [hint, setHint] = useState(null);
 
-  // Preload from share-link ?u=username
+  // Preload from share-link:
+  //   ?u=username[@relay]   — named user
+  //   ?p=<64hex>            — anonymous user (pubkey-only contact)
   useEffect(() => {
     if (!routeArg) return;
-    // routeArg might be like "u=satoshi" (from #newchat?u=satoshi)
-    const m = String(routeArg).match(/^u=([\w.@-]+)$/);
-    if (m) setValue(m[1]);
+    const raw = String(routeArg);
+
+    const mUser = raw.match(/^u=([\w.@-]+)$/);
+    if (mUser) {
+      setValue(mUser[1]);
+      return;
+    }
+
+    const mPub = raw.match(/^p=([0-9a-f]{64})$/i);
+    if (mPub) {
+      const pub = mPub[1].toLowerCase();
+      if (pub === me?.pubkey_hex) {
+        setError('Це посилання на ваш власний акаунт.');
+        return;
+      }
+      // Anonymous contact — open chat by pubkey directly, no lookup needed
+      openAnonChat(pub);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeArg]);
 
   function onInput(e) {
-    // Accept @ and . and -, lowercase, strip everything else
     let v = e.target.value.toLowerCase().replace(/[^a-z0-9_@.-]/g, '');
     setValue(v);
     setError(null);
     setHint(null);
+  }
+
+  function openAnonChat(pubkeyHex) {
+    const contact = contacts.upsert({
+      pubkey_hex: pubkeyHex,
+      username: null,
+      home_relay: null,
+    });
+    convs.ensureConversation({
+      peerPubkey: contact.pubkey_hex,
+      peerUsername: null,
+      peerHomeRelay: null,
+    });
+    onNavigate(`chat/${pubkeyHex}`);
   }
 
   async function findClicked() {
@@ -43,14 +75,12 @@ export default function NewChat({ onNavigate, routeArg }) {
       return;
     }
 
-    // 0. Check contacts cache first
     const cached = contacts.findByUsername(parsed.username, parsed.relay);
     if (cached) {
       openChat(cached);
       return;
     }
 
-    // 1. Try locally if no relay specified, OR matching local relay
     if (!parsed.relay || parsed.relay === me.home_relay) {
       try {
         const user = await api.lookupUsername(parsed.username);
@@ -68,7 +98,6 @@ export default function NewChat({ onNavigate, routeArg }) {
         return;
       } catch (e) {
         if (e.status === 404 && !parsed.relay) {
-          // Not on local relay — show federation hint
           setHint(`Юзера немає на цьому сервері. Спробуйте написати повну адресу типу @${parsed.username}@relay2.morok.app`);
           setBusy(false);
           return;
@@ -78,11 +107,9 @@ export default function NewChat({ onNavigate, routeArg }) {
           setBusy(false);
           return;
         }
-        // 404 on local with relay hint — fall through (shouldn't happen but safe)
       }
     }
 
-    // 2. Federation lookup with explicit ?relay=
     if (parsed.relay && parsed.relay !== me.home_relay) {
       try {
         const user = await api.lookupUsername(parsed.username, parsed.relay);
@@ -180,6 +207,10 @@ export default function NewChat({ onNavigate, routeArg }) {
         >
           {busy ? 'Шукаємо...' : 'Знайти'}
         </button>
+
+        <p style={{ fontSize: 11.5, color: 'var(--text-faint)', lineHeight: 1.5 }}>
+          Якщо у людини нема юзернейма — попросіть її QR/лінк і відкрийте його.
+        </p>
       </div>
 
       {knownContacts.length > 0 && (
@@ -193,6 +224,7 @@ export default function NewChat({ onNavigate, routeArg }) {
           </div>
           {knownContacts.slice(0, 30).map((c) => {
             const hue = parseInt(c.pubkey_hex.slice(0, 6), 16) % 360;
+            const displayName = formatPeerName({ username: c.username, pubkey: c.pubkey_hex });
             return (
               <div
                 key={c.pubkey_hex}
@@ -208,12 +240,12 @@ export default function NewChat({ onNavigate, routeArg }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontWeight: 700, fontSize: 14, color: '#fff',
                 }}>
-                  {(c.username?.[0] || '?').toUpperCase()}
+                  {displayName[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>
-                    @{c.username || c.pubkey_hex.slice(0, 8)}
-                    {c.home_relay !== me.home_relay && (
+                    @{displayName}
+                    {c.home_relay && c.home_relay !== me?.home_relay && (
                       <span style={{ fontSize: 10.5, color: 'var(--text-faint)', fontFamily: 'var(--mono)', fontWeight: 400 }}>
                         @{c.home_relay}
                       </span>

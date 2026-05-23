@@ -6,6 +6,7 @@ import * as vault from './lib/vault.js';
 import * as notif from './lib/notifications.js';
 import * as convs from './lib/conversations.js';
 import * as gstore from './lib/group_storage.js';
+import { formatPeerHandle } from './lib/display.js';
 import { hexToBytes } from './lib/crypto.js';
 import { InboxClient } from './lib/inbox.js';
 
@@ -29,10 +30,6 @@ import JoinGroup from './screens/JoinGroup.jsx';
 
 const PENDING_KEY = 'morok.pending_route.v1';
 
-/**
- * Save deep-link routes (newchat?u=..., join?t=...) so that if user lands
- * here unauthenticated, we replay them after sign-up/in.
- */
 function savePendingIfDeepLink(hash) {
   if (!hash) return;
   const cleaned = hash.startsWith('#') ? hash.slice(1) : hash;
@@ -121,22 +118,19 @@ export default function App() {
 
     const me = await api.getMe();
     store.saveProfile({
-      username: me.username,
+      username: me.username,        // may be null — anonymous user
       tier: me.tier,
       homeRelay: me.home_relay,
       pubkeyHex,
     });
 
-    if (!me.username) {
-      navigate('claim');
+    // Anonymous accounts go straight to chats — no forced claim.
+    startInbox(seed, pubkeyHex);
+    const pending = consumePending();
+    if (pending) {
+      window.location.hash = `#${pending}`;
     } else {
-      startInbox(seed, pubkeyHex);
-      const pending = consumePending();
-      if (pending) {
-        window.location.hash = `#${pending}`;
-      } else {
-        navigate('chats');
-      }
+      navigate('chats');
     }
   }
 
@@ -155,14 +149,14 @@ export default function App() {
         try {
           const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
           client.ack(env.envelope_id);
-          // Notify if applicable (DM only — groups will get a follow-up)
           if (newMsg && newMsg.text && newMsg.direction === 'in') {
             if (newMsg.peer_pubkey) {
               // DM
               const conv = convs.getConversation(newMsg.peer_pubkey);
-              const peerName = conv?.peer_username
-                ? `@${conv.peer_username}`
-                : newMsg.peer_pubkey.slice(0, 12);
+              const peerName = formatPeerHandle({
+                username: conv?.peer_username,
+                pubkey: newMsg.peer_pubkey,
+              });
               notif.notify({
                 title: peerName,
                 body: newMsg.text.length > 100 ? newMsg.text.slice(0, 100) + '…' : newMsg.text,
@@ -172,11 +166,12 @@ export default function App() {
             } else if (env.group_id) {
               // Group message
               const g = gstore.getGroup(env.group_id);
-              const senderName = newMsg.sender_username
-                ? `@${newMsg.sender_username}`
-                : (newMsg.sender_pubkey?.slice(0, 8) || 'хтось');
+              const senderHandle = formatPeerHandle({
+                username: newMsg.sender_username,
+                pubkey: newMsg.sender_pubkey,
+              });
               notif.notify({
-                title: `${g?.name || 'Група'} · ${senderName}`,
+                title: `${g?.name || 'Група'} · ${senderHandle}`,
                 body: newMsg.text.length > 100 ? newMsg.text.slice(0, 100) + '…' : newMsg.text,
                 peerPubkey: env.group_id,
                 onClick: () => { window.location.hash = `#group/${env.group_id}`; },

@@ -3,6 +3,7 @@ import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
 import * as gstore from '../lib/group_storage.js';
+import { formatPeerName } from '../lib/display.js';
 
 const LONG_PRESS_MS = 500;
 
@@ -40,7 +41,9 @@ function Avatar({ username, pubkey, size = 40, isGroup }) {
     );
   }
   const hue = pubkey ? parseInt(pubkey.slice(0, 6), 16) % 360 : 0;
-  const initial = (username?.[0] || '?').toUpperCase();
+  // For anon users — use the first char of "anon_xxxx" → 'a'
+  const displayName = username || `anon_${pubkey?.slice(0, 8) || ''}`;
+  const initial = (displayName[0] || '?').toUpperCase();
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
@@ -64,7 +67,6 @@ function useInboxState() {
 
 /**
  * Build a unified, sorted list mixing DMs and groups.
- * Each item has shape: { kind: 'dm'|'group', id, title, last, unread, ts }
  */
 function buildMixedList() {
   const items = [];
@@ -75,7 +77,7 @@ function buildMixedList() {
     items.push({
       kind: 'dm',
       id: c.peer_pubkey,
-      title: `@${c.peer_username || c.peer_pubkey.slice(0, 8)}`,
+      title: `@${formatPeerName({ username: c.peer_username, pubkey: c.peer_pubkey })}`,
       pubkey: c.peer_pubkey,
       username: c.peer_username,
       last,
@@ -149,8 +151,6 @@ export default function ChatsList({ onNavigate }) {
     if (actionItem.kind === 'dm') {
       convs.deleteConversation(actionItem.id);
     } else {
-      // For groups — "delete from list" means remove locally only.
-      // To actually leave/delete the group on the server, use GroupInfo.
       gstore.removeGroup(actionItem.id);
     }
     setActionItem(null);
@@ -163,6 +163,12 @@ export default function ChatsList({ onNavigate }) {
   }
 
   const isEmpty = items.length === 0;
+  const isAnon = profile && !profile.username;
+  const isLocked = store.isIdentityEncrypted();
+  const myPubkey = store.loadIdentity()?.pubkey_hex;
+  const myHandle = profile?.username
+    ? `@${profile.username}`
+    : `@anon_${myPubkey?.slice(0, 8) || '????????'}`;
 
   const stateBadge = (() => {
     if (inboxState === 'connecting') return { text: 'підключення', color: 'var(--text-dim)' };
@@ -195,12 +201,42 @@ export default function ChatsList({ onNavigate }) {
             style={{ width: 'auto', height: 36, padding: '0 12px', fontSize: 12 }}
             onClick={() => onNavigate('profile')}
           >
-            @{profile?.username || '...'}
+            {myHandle}
           </button>
         </div>
       </div>
 
-      {profile?.username && !store.isIdentityEncrypted() && (
+      {/* Anonymous user banner — invites to claim a username */}
+      {isAnon && (
+        <div
+          onClick={() => onNavigate('claim')}
+          style={{
+            margin: '8px 14px 0',
+            background: 'rgba(107, 138, 254, 0.08)',
+            border: '1px solid rgba(107, 138, 254, 0.25)',
+            borderRadius: 10,
+            padding: '10px 12px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            cursor: 'pointer',
+            fontSize: 12.5,
+          }}
+        >
+          <span style={{ color: 'var(--accent)', fontSize: 16 }}>👤</span>
+          <div style={{ flex: 1 }}>
+            <strong>Створіть юзернейм</strong>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+              Інакше акаунт видалиться через 7 днів неактивності
+            </div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </div>
+      )}
+
+      {/* PIN setup banner — only for users who already have a username and no PIN.
+          Anonymous users see the username banner instead. */}
+      {!isAnon && !isLocked && (
         <div
           onClick={() => onNavigate('pin-setup-existing')}
           style={{
@@ -288,8 +324,9 @@ export default function ChatsList({ onNavigate }) {
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       flex: 1,
                     }}>
-                      {isGroup && last?.sender_username ? `@${last.sender_username}: ` :
-                       (last?.direction === 'out' ? 'Ви: ' : '')}
+                      {isGroup && last && last.direction !== 'out'
+                        ? `@${formatPeerName({ username: last.sender_username, pubkey: last.sender_pubkey })}: `
+                        : (last?.direction === 'out' ? 'Ви: ' : '')}
                       {last?.text || (last?.status === 'undecryptable' ? '⚠ не вдалось розшифрувати' : '...')}
                     </div>
                     {last?.ttl && (
@@ -316,7 +353,6 @@ export default function ChatsList({ onNavigate }) {
         </div>
       )}
 
-      {/* Action sheet */}
       {actionItem && (
         <div
           onClick={() => setActionItem(null)}
@@ -359,7 +395,6 @@ export default function ChatsList({ onNavigate }) {
         </div>
       )}
 
-      {/* New menu (DM / Group) */}
       {showNewMenu && (
         <div
           onClick={() => setShowNewMenu(false)}

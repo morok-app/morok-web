@@ -11,16 +11,28 @@ export default function Profile({ onNavigate }) {
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef(null);
 
-  // Build full address: @username@relay
+  const isAnon = !profile?.username;
+  const myPubkey = identity?.pubkey_hex;
+  const anonHandle = myPubkey ? `anon_${myPubkey.slice(0, 8)}` : null;
+
   const fullAddress = profile?.username && profile?.home_relay
     ? `@${profile.username}@${profile.home_relay}`
     : null;
 
-  const shareLink = profile?.username
-    ? `${window.location.origin}/web/#newchat?u=${profile.username}${profile.home_relay ? '@' + profile.home_relay : ''}`
-    : null;
+  // Share link.
+  // - Named user: link by username @kaban@relay1.morok.app
+  // - Anonymous: link by pubkey, recipient resolves via lookup-pubkey
+  //   (not currently supported server-side — for now we just embed
+  //    the pubkey in URL, recipient client decides what to do).
+  const shareLink = (() => {
+    if (!myPubkey) return null;
+    if (profile?.username) {
+      return `${window.location.origin}/web/#newchat?u=${profile.username}${profile.home_relay ? '@' + profile.home_relay : ''}`;
+    }
+    // Anonymous share: link contains pubkey directly
+    return `${window.location.origin}/web/#newchat?p=${myPubkey}`;
+  })();
 
-  // Render QR code to canvas on mount
   useEffect(() => {
     if (!shareLink || !canvasRef.current) return;
     QRCode.toCanvas(canvasRef.current, shareLink, {
@@ -46,7 +58,7 @@ export default function Profile({ onNavigate }) {
   function downloadQR() {
     if (!canvasRef.current) return;
     const link = document.createElement('a');
-    link.download = `morok-${profile.username}.png`;
+    link.download = `morok-${profile?.username || anonHandle}.png`;
     link.href = canvasRef.current.toDataURL('image/png');
     link.click();
   }
@@ -58,6 +70,9 @@ export default function Profile({ onNavigate }) {
     store.wipeAll();
     onNavigate('welcome');
   }
+
+  const displayHandle = profile?.username || anonHandle;
+  const headerInitial = (displayHandle?.[0] || '?').toUpperCase();
 
   return (
     <div className="screen">
@@ -82,16 +97,43 @@ export default function Profile({ onNavigate }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 36, fontWeight: 700, color: '#fff',
           }}>
-            {(profile?.username?.[0] || '?').toUpperCase()}
+            {headerInitial}
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>@{profile?.username}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
-            {fullAddress}
+          <div style={{ fontSize: 18, fontWeight: 700 }}>
+            @{displayHandle}
           </div>
+          {isAnon ? (
+            <div style={{
+              fontSize: 11, color: 'var(--text-faint)',
+              padding: '4px 10px', background: 'var(--surface)', borderRadius: 8,
+            }}>
+              анонімний акаунт
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
+              {fullAddress}
+            </div>
+          )}
           <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>
             tier: {profile?.tier}
           </div>
         </div>
+
+        {/* Claim username CTA — only for anonymous accounts */}
+        {isAnon && (
+          <div style={{ marginTop: 18 }}>
+            <button
+              className="btn btn-primary"
+              onClick={() => onNavigate('claim')}
+            >
+              Створити юзернейм
+            </button>
+            <p style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 8, lineHeight: 1.5 }}>
+              Без юзернейма акаунт видаляється через 7 днів неактивності.
+              Кореспонденти можуть знайти вас тільки за лінком/QR.
+            </p>
+          </div>
+        )}
 
         {/* QR */}
         <div style={{ marginTop: 24 }}>
@@ -126,7 +168,9 @@ export default function Profile({ onNavigate }) {
             </div>
           </div>
           <p style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 10, lineHeight: 1.5 }}>
-            Покажіть QR або скиньте лінк — людина зможе одразу вам написати.
+            {isAnon
+              ? 'Тільки той хто отримав цей лінк/QR може вам написати — інші не знайдуть.'
+              : 'Покажіть QR або скиньте лінк — людина зможе одразу вам написати.'}
           </p>
         </div>
 

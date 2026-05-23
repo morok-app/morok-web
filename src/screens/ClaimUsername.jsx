@@ -8,7 +8,6 @@ export default function ClaimUsername({ onNavigate }) {
   const [error, setError] = useState(null);
 
   function onInput(e) {
-    // sanitize: lowercase, allow [a-z0-9_], strip leading @
     let v = e.target.value.toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9_]/g, '');
     if (v.length > 20) v = v.slice(0, 20);
     setValue(v);
@@ -16,7 +15,7 @@ export default function ClaimUsername({ onNavigate }) {
   }
 
   const validLocal = (() => {
-    if (value.length < 5) return false; // free-tier min
+    if (value.length < 5) return false;
     if (/^[0-9_]/.test(value)) return false;
     return true;
   })();
@@ -43,6 +42,10 @@ export default function ClaimUsername({ onNavigate }) {
       setError(friendly);
       setBusy(false);
     }
+  }
+
+  function skip() {
+    onNavigate('chats');
   }
 
   return (
@@ -74,6 +77,20 @@ export default function ClaimUsername({ onNavigate }) {
         <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>
           Шорші юзернейми (3-4 символи) доступні на premium.
         </p>
+
+        <div style={{
+          marginTop: 16,
+          background: 'rgba(107, 138, 254, 0.06)',
+          border: '1px solid rgba(107, 138, 254, 0.2)',
+          borderRadius: 12,
+          padding: '12px 14px',
+        }}>
+          <div style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.55 }}>
+            <strong>Можете пропустити.</strong> Без юзернейма ваш акаунт буде
+            анонімний — вас знайдуть тільки за лінком або QR. Якщо не зайдете
+            в Morok 7 днів — акаунт автоматично видалиться.
+          </div>
+        </div>
       </div>
 
       <div className="onb-footer">
@@ -82,7 +99,14 @@ export default function ClaimUsername({ onNavigate }) {
           disabled={!validLocal || busy}
           onClick={claim}
         >
-          {busy ? 'Резервуємо...' : 'Продовжити'}
+          {busy ? 'Резервуємо...' : 'Продовжити з юзернеймом'}
+        </button>
+        <button
+          className="btn btn-ghost"
+          onClick={skip}
+          disabled={busy}
+        >
+          Пропустити (анонімно)
         </button>
       </div>
     </div>
