@@ -331,3 +331,66 @@ export async function checkInDMS(dmsId) {
 export async function cancelDMS(dmsId) {
   return http('DELETE', `/api/v1/dms/${dmsId}`, { auth: true });
 }
+// ────────────────────────────────────────────────────────────
+// Burner inbox (Day 7)
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Create a new burner token (owner-side, authenticated).
+ *
+ * Returns: { token, owner_pubkey_hex, label, created_at, expires_at, message_count }
+ */
+export async function createBurnerToken({ ttlSeconds, label }) {
+  return http('POST', '/api/v1/burner', {
+    body: { ttl_seconds: ttlSeconds, label },
+    auth: true,
+  });
+}
+
+/**
+ * List my active burner tokens (owner-side, authenticated).
+ *
+ * Returns: { tokens: BurnerInfo[] }
+ */
+export async function listBurnerTokens() {
+  return http('GET', '/api/v1/burner', { auth: true });
+}
+
+/**
+ * Revoke a burner token (owner-side, authenticated).
+ */
+export async function revokeBurnerToken(token) {
+  return http('DELETE', `/api/v1/burner/${encodeURIComponent(token)}`, {
+    auth: true,
+  });
+}
+
+/**
+ * PUBLIC: Get the owner's pubkey for a burner token. No auth.
+ * Used by the burner-send web form.
+ *
+ * Returns: { owner_pubkey_hex, label, expires_at }
+ */
+export async function getBurnerPublic(token) {
+  return http('GET', `/api/v1/burner/public/${encodeURIComponent(token)}`);
+}
+
+/**
+ * PUBLIC: Submit an encrypted message via a burner token. No auth.
+ *
+ * Returns: { envelope_id, queued, expires_at, message_count }
+ */
+export async function sendViaBurner({
+  token,
+  ephemeralPubkeyHex,
+  blobB64,
+  senderLabel,
+}) {
+  return http('POST', `/api/v1/burner/public/${encodeURIComponent(token)}/send`, {
+    body: {
+      ephemeral_pubkey_hex: ephemeralPubkeyHex,
+      blob_b64: blobB64,
+      sender_label: senderLabel || null,
+    },
+  });
+}

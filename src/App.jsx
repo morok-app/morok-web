@@ -31,6 +31,8 @@ import JoinGroup from './screens/JoinGroup.jsx';
 import DMSList from './screens/DMSList.jsx';
 import DMSCreate from './screens/DMSCreate.jsx';
 import DMSDetail from './screens/DMSDetail.jsx';
+import BurnerList from './screens/BurnerList.jsx';
+import BurnerSend from './screens/BurnerSend.jsx';
 
 const PENDING_KEY = 'morok.pending_route.v1';
 
@@ -79,6 +81,13 @@ export default function App() {
 
   useEffect(() => {
     savePendingIfDeepLink(window.location.hash);
+
+    // Public landing for burner links: skip auth/boot entirely.
+    // The visitor doesn't need (and shouldn't be forced into) an account.
+    const currentHash = (window.location.hash || '').slice(1);
+    if (currentHash.startsWith('burner-send')) {
+      return;
+    }
 
     (async () => {
       try {
@@ -329,6 +338,9 @@ export default function App() {
     case 'dms-detail':
       if (!routeArg) { navigate('dms'); return <Splash />; }
       return <DMSDetail dmsId={routeArg} onNavigate={navigate} />;
+    case 'burner': return <BurnerList onNavigate={navigate} />;
+    case 'burner-send':
+      return <BurnerSend routeArg={routeArg} />;
     default: return <Splash />;
   }
 }

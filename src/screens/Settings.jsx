@@ -286,6 +286,19 @@ export default function Settings({ onNavigate }) {
           </button>
         </Section>
 
+        <Section title="Анонімна скринька">
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
+            Створіть лінк через який будь-хто може написати вам анонімне повідомлення без реєстрації.
+            Зашифровано наскрізно — сервер бачить тільки шифротекст.
+          </div>
+          <button
+            className="btn btn-secondary"
+            onClick={() => onNavigate('burner')}
+          >
+            Керувати лінками
+          </button>
+        </Section>
+
         <Section title="Акаунт">
           <button
             className="btn btn-secondary"
