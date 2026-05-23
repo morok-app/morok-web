@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import * as groups from '../lib/groups.js';
+import * as store from '../lib/storage.js';
+import * as vault from '../lib/vault.js';
+import { hexToBytes } from '../lib/crypto.js';
 
 /**
  * Landing page for invite links:
@@ -8,6 +11,14 @@ import * as groups from '../lib/groups.js';
  * If not authenticated, App.jsx saves the URL as pending and routes to
  * welcome — after the user signs up/in, they come back here.
  */
+function getSeedBytes() {
+  const v = vault.getUnlockedSeed();
+  if (v) return v;
+  const id = store.loadIdentity();
+  if (id && !id.encrypted && id.seed_hex) return hexToBytes(id.seed_hex);
+  return null;
+}
+
 export default function JoinGroup({ routeArg, onNavigate }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -42,7 +53,21 @@ export default function JoinGroup({ routeArg, onNavigate }) {
     setBusy(true);
     setError(null);
     try {
-      const result = await groups.joinViaToken(token);
+      const seed = getSeedBytes();
+      const myPubkeyHex = store.loadProfile()?.pubkey_hex
+        || store.loadIdentity()?.pubkey_hex;
+
+      if (!seed || !myPubkeyHex) {
+        setError('Сеанс закінчився. Перезавантажте сторінку.');
+        setBusy(false);
+        return;
+      }
+
+      const result = await groups.joinViaToken({
+        token,
+        seed,
+        myPubkeyHex,
+      });
       setJoined(result);
       // Wait a moment, then route to the group
       setTimeout(() => onNavigate(`group/${result.group_id}`), 800);
@@ -79,7 +104,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
         <h1 style={{ textAlign: 'center' }}>Запрошення до групи</h1>
         <p className="hint" style={{ textAlign: 'center' }}>
           Хтось поділився з вами лінком на приватну групу Morok.<br/>
-          Назву і повідомлення побачите після приєднання — як адмін надішле вам ключ.
+          Назва і повідомлення завантажаться автоматично за пару секунд.
         </p>
 
         {error && <div className="error-text">{error}</div>}
