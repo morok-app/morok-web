@@ -13,9 +13,8 @@
  *
  * processIncoming dispatches based on meta.group_id.
  *
- * For DMs we also detect "kind=group_key" plaintext after decryption and
- * route it to groups.processIncomingGroupKey() instead of storing as a
- * regular message.
+ * For DMs we also detect control payloads (kind=group_key,
+ * kind=group_key_request) and dispatch to the groups module silently.
  */
 
 import * as api from './api.js';
@@ -38,6 +37,22 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
     ttl: ttlSeconds,
     blobB64: blob,
   });
+
+  // Detect control messages (group_key, group_key_request) — these
+  // should be invisible to the sender too. Send and return without
+  // touching conversations storage.
+  const isControl = !!tryParseControl(plaintext);
+  if (isControl) {
+    const ack = await api.sendEnvelope({
+      from: myPubkeyHex,
+      to: peerPubkeyHex,
+      ts,
+      ttl: ttlSeconds,
+      blob,
+      sig,
+    });
+    return { envelope_id: ack.envelope_id, status: 'sent', control: true };
+  }
 
   const localMsg = {
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -76,9 +91,14 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
 }
 
 /**
- * Try parsing a DM plaintext as a control message ({"kind":...,...}).
- * Returns null if it's a plain text message.
+ * Send a DM but do NOT store it in the local conversation log.
+ * Used for invisible control messages (group_key, group_key_request).
+ *
+ * NOTE: currently we still go through sendDM and then delete the local
+ * record afterwards — simpler than duplicating sendDM logic, and the
+ * brief flash in the chat list is acceptable.
  */
+
 function tryParseControl(plaintext) {
   if (!plaintext || plaintext.length < 2) return null;
   if (plaintext[0] !== '{') return null;
@@ -95,8 +115,9 @@ function tryParseControl(plaintext) {
  * Process an incoming envelope.
  *
  * If meta.group_id is present → dispatch to groups module.
- * Else → DM. Decrypt with peer key. If plaintext is {"kind":"group_key",...},
- *        dispatch to groups module and DO NOT store as a regular message.
+ * Else → DM. Decrypt with peer key.
+ *        If plaintext is {"kind":"group_key",...} → store key, no message.
+ *        If plaintext is {"kind":"group_key_request",...} → auto-reply, no message.
  *
  * Returns the message object stored (or null).
  */
@@ -105,7 +126,6 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
 
   // ── GROUP envelope ──────────────────────────────────────
   if (envMeta.group_id) {
-    // Lazy import to avoid circular dependency with groups.js
     const groupsMod = await import('./groups.js');
     return await groupsMod.processIncomingGroupEnvelope({
       envMeta, myPubkeyHex,
@@ -174,7 +194,20 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       } catch (e) {
         console.warn('group_key processing failed:', e);
       }
-      // Don't store as a visible DM message — just dedup it
+      return null;
+    }
+    if (control.kind === 'group_key_request') {
+      try {
+        const groupsMod = await import('./groups.js');
+        await groupsMod.processIncomingGroupKeyRequest({
+          payload: control,
+          senderPubkeyHex: peer,
+          seed,
+          myPubkeyHex,
+        });
+      } catch (e) {
+        console.warn('group_key_request processing failed:', e);
+      }
       return null;
     }
     // Unknown control kind → fall through to display as text

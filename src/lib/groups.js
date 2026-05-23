@@ -16,6 +16,11 @@
  *     → store group_key locally
  *     → GET /groups/{id} to fetch metadata + decrypt name
  *
+ *   processIncomingGroupKeyRequest(senderPubkey, payload, seed, myPubkeyHex)
+ *     called when a DM arrives with kind=group_key_request
+ *     → if we have the group_key locally → DM it back as group_key
+ *     → else ignore (some other member will respond)
+ *
  *   sendGroupMessage(groupId, text, ttl)
  *     → wrap in JSON {kind: 'group_msg', text}
  *     → encrypt with group_key
@@ -28,11 +33,13 @@
  *     → parse JSON, dispatch by kind
  *     → store as message in group_storage
  *
- *   joinViaToken(token)
+ *   joinViaToken(token, seed, myPubkeyHex)
  *     → POST /api/v1/groups/join?token=...
- *     → returns {group_id, member_count}
- *     → no group_key yet — admin must DM it. We mark the group "pending key"
- *       so the UI can show a placeholder.
+ *     → GET /groups/{id} to get member list
+ *     → DM kind=group_key_request to every other member
+ *     → first one who responds (could be admin, could be any member with
+ *       the key already) sends back kind=group_key
+ *     → mark stub locally while we wait
  */
 
 import * as api from './api.js';
@@ -46,17 +53,10 @@ import * as msgs from './messages.js';
 
 function nowSeconds() { return Math.floor(Date.now() / 1000); }
 
-/**
- * Wrap arbitrary group payload in a kind-tagged JSON envelope.
- */
 function wrapGroupPayload(kind, data) {
   return JSON.stringify({ kind, ...data });
 }
 
-/**
- * Try parsing a group plaintext into {kind, ...}.
- * Returns null if not JSON or no kind.
- */
 function parseGroupPayload(plaintext) {
   try {
     const obj = JSON.parse(plaintext);
@@ -71,18 +71,6 @@ function parseGroupPayload(plaintext) {
 // Create group
 // ────────────────────────────────────────────────────────────
 
-/**
- * Create a group, generate a key, encrypt the name, then optionally
- * add members (DMing them the key).
- *
- * Params:
- *   name                   — plaintext name
- *   members                — array of { pubkey_hex, username } to add
- *   defaultTtlSeconds      — default message TTL for this group
- *   seed, myPubkeyHex      — needed to DM the key to each member
- *
- * Returns: { group_id, group, addedCount, failedCount }
- */
 export async function createGroup({
   name,
   members = [],
@@ -90,20 +78,15 @@ export async function createGroup({
   seed,
   myPubkeyHex,
 }) {
-  // 1. Generate fresh group_key
   const groupKey = crypto.generateSymmetricKey();
   const groupKeyB64 = crypto.bytesToBase64(groupKey);
-
-  // 2. Encrypt name with group_key
   const nameEncryptedB64 = crypto.encryptStringWithKey(groupKey, name);
 
-  // 3. Create on server
   const groupInfo = await api.createGroup({
     nameEncryptedB64,
     defaultTtlSeconds,
   });
 
-  // 4. Store locally — creator is automatically the admin
   gstore.upsertGroup({
     group_id: groupInfo.group_id,
     name,
@@ -116,15 +99,13 @@ export async function createGroup({
     group_key_b64: groupKeyB64,
   });
 
-  // 5. Add members and send each their group_key via DM
   let addedCount = 0;
   let failedCount = 0;
   for (const m of members) {
     try {
       await api.addGroupMember(groupInfo.group_id, m.pubkey_hex);
       await sendGroupKeyDM({
-        seed,
-        myPubkeyHex,
+        seed, myPubkeyHex,
         peerPubkeyHex: m.pubkey_hex,
         groupId: groupInfo.group_id,
         groupKeyB64,
@@ -137,7 +118,6 @@ export async function createGroup({
     }
   }
 
-  // Refresh group info after adding members
   if (addedCount > 0) {
     try {
       const fresh = await api.getGroupInfo(groupInfo.group_id);
@@ -167,10 +147,6 @@ export async function createGroup({
 // Group key DM distribution
 // ────────────────────────────────────────────────────────────
 
-/**
- * Send the group_key to a peer via a regular DM (kind=group_key).
- * The peer's client will recognize the kind and store the key locally.
- */
 export async function sendGroupKeyDM({
   seed, myPubkeyHex, peerPubkeyHex,
   groupId, groupKeyB64, name,
@@ -180,12 +156,27 @@ export async function sendGroupKeyDM({
     key_b64: groupKeyB64,
     name,
   });
-  // Use the existing DM sendDM helper but with a longer TTL so the key
-  // survives until recipient comes online (7 days hard cap on server).
   await msgs.sendDM({
     seed, myPubkeyHex, peerPubkeyHex,
     plaintext: payload,
-    ttlSeconds: 86400,  // 1 day
+    ttlSeconds: 86400,
+  });
+}
+
+/**
+ * Send a group_key_request DM to a peer (presumably a group member
+ * who already has the key).
+ */
+export async function sendGroupKeyRequestDM({
+  seed, myPubkeyHex, peerPubkeyHex, groupId,
+}) {
+  const payload = wrapGroupPayload('group_key_request', {
+    group_id: groupId,
+  });
+  await msgs.sendDM({
+    seed, myPubkeyHex, peerPubkeyHex,
+    plaintext: payload,
+    ttlSeconds: 86400,
   });
 }
 
@@ -200,7 +191,6 @@ export async function processIncomingGroupKey({ payload }) {
   }
   gstore.storeGroupKey(payload.group_id, payload.key_b64, payload.name || null);
 
-  // Try fetching full group info to populate members etc.
   try {
     const info = await api.getGroupInfo(payload.group_id);
     gstore.upsertGroup({
@@ -215,10 +205,49 @@ export async function processIncomingGroupKey({ payload }) {
       group_key_b64: payload.key_b64,
     });
   } catch (e) {
-    // Common: 403 not_a_member (we haven't been added yet when DM arrived
-    // before server-side add_member). Group will be filled in later when
-    // user opens it.
     console.warn('Group info fetch failed (will retry on open):', e?.message);
+  }
+}
+
+/**
+ * Called from messages.js when a DM with kind=group_key_request arrives.
+ * If we have the group_key locally → DM it back. Else silently ignore.
+ *
+ * To prevent abuse, we only respond if the requester is actually a
+ * current member of the group on the server.
+ */
+export async function processIncomingGroupKeyRequest({
+  payload, senderPubkeyHex, seed, myPubkeyHex,
+}) {
+  if (!payload?.group_id) return;
+  const group = gstore.getGroup(payload.group_id);
+  if (!group || !group.group_key_b64) return; // we don't have the key either
+
+  // Verify requester is actually a member (otherwise this is abuse)
+  let info;
+  try {
+    info = await api.getGroupInfo(payload.group_id);
+  } catch (e) {
+    console.warn('Cannot verify requester membership:', e?.message);
+    return;
+  }
+  const isMember = info.members.some((m) => m.pubkey_hex === senderPubkeyHex);
+  if (!isMember) {
+    console.warn('group_key_request from non-member, ignoring:', senderPubkeyHex);
+    return;
+  }
+
+  try {
+    await sendGroupKeyDM({
+      seed, myPubkeyHex,
+      peerPubkeyHex: senderPubkeyHex,
+      groupId: payload.group_id,
+      groupKeyB64: group.group_key_b64,
+      name: group.name || '',
+    });
+    console.info('Sent group_key in reply to request from', senderPubkeyHex.slice(0, 8));
+  } catch (e) {
+    console.warn('Failed to send group_key reply:', e);
   }
 }
 
@@ -249,7 +278,6 @@ export async function sendGroupMessage({
     blobB64,
   });
 
-  // Optimistic local
   const localMsg = {
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
@@ -290,12 +318,6 @@ export async function sendGroupMessage({
 // Process incoming group envelope
 // ────────────────────────────────────────────────────────────
 
-/**
- * Called from messages.js when an envelope arrives with `group_id` in meta.
- *
- * Returns the new message object, or null if nothing happened (duplicate,
- * undecryptable, unknown group, etc.).
- */
 export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
   const envelopeId = envMeta.envelope_id;
   const groupId = envMeta.group_id;
@@ -307,29 +329,15 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     return null;
   }
 
-  // Dedup
   if (gstore.hasEnvelope(groupId, envelopeId)) return null;
-
-  // Sender is ourselves — we already have the local optimistic copy.
-  // Just mark the envelope as known (so we don't re-process).
-  if (senderPubkey === myPubkeyHex) {
-    // We have no good way to map envelope_id → local id; safest is to
-    // append a marker so dedup hits next time. But that would duplicate
-    // the message. Cleaner: scan for a 'sending'/'sent' message without
-    // envelope_id and patch envelope_id in. If none found — assume it's
-    // already there.
-    return null;
-  }
+  if (senderPubkey === myPubkeyHex) return null;
 
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
-    // We don't have a key for this group. Probably we'll get a group_key
-    // DM soon (or already had it, and lost it). Store as a stub.
     console.warn('No group_key for group', groupId, '— stashing envelope as stub');
     return null;
   }
 
-  // Fetch blob
   let blobBytes;
   try {
     blobBytes = await api.fetchBlob(envelopeId);
@@ -339,7 +347,6 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
   }
   const blobB64 = crypto.bytesToBase64(blobBytes);
 
-  // Decrypt
   let plaintext;
   try {
     const groupKey = crypto.base64ToBytes(group.group_key_b64);
@@ -363,7 +370,6 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     return stub;
   }
 
-  // Parse payload
   const payload = parseGroupPayload(plaintext);
   if (!payload) {
     console.warn('group payload not JSON / no kind:', plaintext.slice(0, 100));
@@ -387,7 +393,6 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     return msg;
   }
 
-  // Unknown kind — log and skip
   console.warn('unknown group payload kind:', payload.kind);
   return null;
 }
@@ -396,15 +401,60 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
 // Join / leave / delete
 // ────────────────────────────────────────────────────────────
 
-export async function joinViaToken(token) {
+/**
+ * Join a group via invite token, then auto-request the group_key from
+ * existing members. Any member who has the key will reply with a
+ * group_key DM, which our messages.js dispatcher will pick up
+ * automatically.
+ *
+ * UI sees: tap link → wait 1-2 seconds → group with name appears.
+ * No further action needed from the joining user or from the admin.
+ */
+export async function joinViaToken({ token, seed, myPubkeyHex }) {
   const result = await api.joinGroupViaToken(token);
-  // Group info we'll know after we receive the group_key DM from admin.
-  // For now, mark a pending stub locally.
+
+  // Mark a pending stub locally
   gstore.upsertGroup({
     group_id: result.group_id,
-    name: null,  // unknown until key arrives
+    name: null,
     member_count: result.member_count,
   });
+
+  // Now fetch the member list and DM key request to all other members.
+  // This works whether the admin is online or not — any member with the
+  // key will reply.
+  try {
+    const info = await api.getGroupInfo(result.group_id);
+    gstore.upsertGroup({
+      group_id: info.group_id,
+      name: null,
+      creator_pubkey_hex: info.creator_pubkey_hex,
+      is_channel: info.is_channel,
+      default_ttl_seconds: info.default_ttl_seconds,
+      max_members: info.max_members,
+      member_count: info.member_count,
+      members: info.members,
+    });
+
+    const others = (info.members || []).filter(
+      (m) => m.pubkey_hex !== myPubkeyHex,
+    );
+    // DM the request to everyone in parallel — first to respond wins.
+    await Promise.all(others.map(async (m) => {
+      try {
+        await sendGroupKeyRequestDM({
+          seed, myPubkeyHex,
+          peerPubkeyHex: m.pubkey_hex,
+          groupId: result.group_id,
+        });
+      } catch (e) {
+        console.warn('group_key_request DM to', m.pubkey_hex.slice(0, 8), 'failed:', e?.message);
+      }
+    }));
+  } catch (e) {
+    console.warn('Could not fetch group info after join:', e?.message);
+  }
+
   return result;
 }
 
@@ -418,9 +468,6 @@ export async function deleteGroupCompletely(groupId) {
   gstore.removeGroup(groupId);
 }
 
-/**
- * Refresh member list and metadata from server.
- */
 export async function refreshGroup(groupId) {
   const info = await api.getGroupInfo(groupId);
   const existing = gstore.getGroup(groupId);
@@ -438,10 +485,6 @@ export async function refreshGroup(groupId) {
   return gstore.getGroup(groupId);
 }
 
-/**
- * Admin adds an existing pubkey by username lookup.
- * Then sends group_key DM. UI calls this from "Додати учасника".
- */
 export async function addMemberAndSendKey({
   groupId, newPubkeyHex,
   seed, myPubkeyHex,
