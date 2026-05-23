@@ -398,7 +398,10 @@ function Row({
       onClick={isClickable ? onClick : undefined}
       style={{
         padding: '14px 20px',
-        display: 'flex', alignItems: 'center', gap: 14,
+        display: 'grid',
+        gridTemplateColumns: '20px 1fr auto 14px',
+        alignItems: 'center',
+        columnGap: 14,
         cursor: isClickable ? 'pointer' : 'default',
         opacity: disabled ? 0.5 : 1,
         borderBottom: '1px solid #15151A',
@@ -407,34 +410,42 @@ function Row({
       <div style={{
         width: 20, height: 20,
         color: iconColor,
-        flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         {icon}
       </div>
       <div style={{
-        flex: 1, fontSize: 14.5,
+        fontSize: 14.5,
         color: labelColor,
         fontWeight: warn ? 600 : 500,
         letterSpacing: '-0.005em',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
       }}>
         {label}
       </div>
-      {value && (
-        <div style={{
-          fontSize: 13,
-          color: valueColor,
-          fontFamily: valueMono ? 'var(--mono, monospace)' : 'inherit',
-          fontWeight: 500,
-          letterSpacing: valueMono ? '0.01em' : 0,
-        }}>
-          {value}
-        </div>
-      )}
-      {chevron && (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      )}
+      <div style={{
+        fontSize: 13,
+        color: valueColor,
+        fontFamily: valueMono ? 'var(--mono, monospace)' : 'inherit',
+        fontWeight: 500,
+        letterSpacing: valueMono ? '0.01em' : 0,
+        textAlign: 'right',
+        whiteSpace: 'nowrap',
+      }}>
+        {value}
+      </div>
+      <div style={{
+        width: 14, height: 14,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {chevron && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        )}
+      </div>
     </div>
   );
 }

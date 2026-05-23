@@ -177,41 +177,88 @@ export default function ChatsList({ onNavigate }) {
   })();
 
   return (
-    <div className="screen">
-      <div className="topbar">
-        <div className="title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          Чати
-          {stateBadge && (
-            <span style={{
-              fontSize: 10, fontWeight: 500, padding: '2px 7px',
-              borderRadius: 8, background: 'var(--surface)',
-              color: stateBadge.color, letterSpacing: '0.02em',
-            }}>{stateBadge.text}</span>
-          )}
+    <div className="screen" style={{ background: '#0A0A0B' }}>
+
+      {/* ── HEADER ──────────────────────────────────────────── */}
+      <div style={{
+        padding: '20px 20px 14px',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+        gap: 12,
+      }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 32, fontWeight: 700, letterSpacing: '-0.025em',
+            color: '#F5F5F7', lineHeight: 1,
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            Чати
+            {stateBadge && (
+              <span style={{
+                fontSize: 9.5, fontWeight: 600,
+                padding: '4px 8px',
+                borderRadius: 100,
+                background: '#16161B',
+                border: '1px solid #232329',
+                color: stateBadge.color === 'var(--danger)' ? '#FF6B7A' : '#8E8E99',
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}>{stateBadge.text}</span>
+            )}
+          </div>
+          <div
+            onClick={() => onNavigate('profile')}
+            style={{
+              fontSize: 12.5, color: '#6B6B72',
+              marginTop: 6,
+              fontFamily: 'var(--mono, monospace)',
+              letterSpacing: '0.02em',
+              cursor: 'pointer',
+              display: 'inline-block',
+            }}
+          >
+            {myHandle}
+          </div>
         </div>
-        <div className="actions" style={{ display: 'flex', gap: 4 }}>
+
+        {/* Pill with action buttons */}
+        <div style={{
+          display: 'flex',
+          background: '#16161B',
+          border: '1px solid #232329',
+          borderRadius: 100,
+          padding: 3,
+          gap: 0,
+          flexShrink: 0,
+        }}>
           <button
-            className="btn btn-ghost"
-            style={{ width: 'auto', height: 36, padding: '0 8px' }}
             onClick={() => onNavigate('tools')}
             title="Інструменти"
+            style={{
+              background: 'transparent', border: 'none',
+              width: 34, height: 30, borderRadius: 100,
+              color: '#A8A8B0', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 0,
+            }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
             </svg>
           </button>
           <button
-            className="btn btn-ghost"
-            style={{ width: 'auto', height: 36, padding: '0 8px', fontSize: 18 }}
             onClick={() => onNavigate('settings')}
             title="Налаштування"
-          >⚙</button>
-          <button
-            className="btn btn-ghost"
-            style={{ width: 'auto', height: 36, padding: '0 12px', fontSize: 12 }}
-            onClick={() => onNavigate('profile')}
+            style={{
+              background: 'transparent', border: 'none',
+              width: 34, height: 30, borderRadius: 100,
+              color: '#A8A8B0', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 0,
+            }}
           >
-            {myHandle}
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
           </button>
         </div>
       </div>
@@ -221,76 +268,111 @@ export default function ChatsList({ onNavigate }) {
         <div
           onClick={() => onNavigate('claim')}
           style={{
-            margin: '8px 14px 0',
-            background: 'rgba(107, 138, 254, 0.08)',
-            border: '1px solid rgba(107, 138, 254, 0.25)',
-            borderRadius: 10,
-            padding: '10px 12px',
-            display: 'flex', alignItems: 'center', gap: 10,
+            margin: '6px 20px 0',
+            background: '#16161B',
+            border: '1px solid #232329',
+            borderRadius: 12,
+            padding: '12px 14px',
+            display: 'flex', alignItems: 'center', gap: 12,
             cursor: 'pointer',
-            fontSize: 12.5,
           }}
         >
-          <span style={{ color: 'var(--accent)', fontSize: 16 }}>👤</span>
-          <div style={{ flex: 1 }}>
-            <strong>Створіть юзернейм</strong>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8,
+            background: 'rgba(107, 138, 254, 0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#7B96FF', flexShrink: 0,
+          }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>
+              Створіть юзернейм
+            </div>
+            <div style={{ fontSize: 11.5, color: '#6B6B72', marginTop: 2 }}>
               Інакше акаунт видалиться через 7 днів неактивності
             </div>
           </div>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 18l6-6-6-6" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
           </svg>
         </div>
       )}
 
-      {/* PIN setup banner — only for users who already have a username and no PIN.
-          Anonymous users see the username banner instead. */}
+      {/* PIN setup banner */}
       {!isAnon && !isLocked && (
         <div
           onClick={() => onNavigate('pin-setup-existing')}
           style={{
-            margin: '8px 14px 0',
-            background: 'rgba(255, 107, 122, 0.08)',
-            border: '1px solid rgba(255, 107, 122, 0.25)',
-            borderRadius: 10,
-            padding: '10px 12px',
-            display: 'flex', alignItems: 'center', gap: 10,
+            margin: '6px 20px 0',
+            background: '#16161B',
+            border: '1px solid #232329',
+            borderRadius: 12,
+            padding: '12px 14px',
+            display: 'flex', alignItems: 'center', gap: 12,
             cursor: 'pointer',
-            fontSize: 12.5,
           }}
         >
-          <span style={{ color: 'var(--danger)', fontSize: 16 }}>⚠</span>
-          <div style={{ flex: 1 }}>
-            <strong>Захистіть акаунт PIN-кодом</strong>
-            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>
+          <div style={{
+            width: 30, height: 30, borderRadius: 8,
+            background: 'rgba(255, 107, 122, 0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#FF6B7A', flexShrink: 0,
+          }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>
+              Захистіть акаунт PIN-кодом
+            </div>
+            <div style={{ fontSize: 11.5, color: '#6B6B72', marginTop: 2 }}>
               Хто має доступ до браузера — може прочитати ваші повідомлення
             </div>
           </div>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 18l6-6-6-6" />
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
           </svg>
         </div>
       )}
 
       {isEmpty ? (
-        <div className="empty-state">
-          <div className="icon-wrap">
-            <svg viewBox="0 0 24 24">
-              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '40px 24px',
+          textAlign: 'center', gap: 16,
+        }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 16,
+            background: '#16161B',
+            border: '1px solid #232329',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#3F3F45',
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
             </svg>
           </div>
-          <div className="title">Поки немає чатів</div>
-          <div className="desc">Натисніть кнопку нижче щоб почати новий чат або групу</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
+            Поки немає чатів
+          </div>
+          <div style={{ fontSize: 13, color: '#6B6B72', maxWidth: 280, lineHeight: 1.5 }}>
+            Натисніть кнопку нижче щоб почати новий чат або групу
+          </div>
         </div>
       ) : (
-        <div className="chats-list">
+        <div style={{ flex: 1, overflowY: 'auto', marginTop: 10 }}>
           {items.map((item) => {
             const last = item.last;
             const isGroup = item.kind === 'group';
             return (
               <div
                 key={`${item.kind}-${item.id}`}
+                className="lin-chat-row"
                 onClick={() => openItem(item)}
                 onMouseDown={() => startLongPress(item)}
                 onMouseUp={cancelLongPress}
@@ -300,10 +382,10 @@ export default function ChatsList({ onNavigate }) {
                 onTouchCancel={cancelLongPress}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 14px',
-                  borderBottom: '1px solid rgba(46,46,56,0.4)',
+                  padding: '12px 20px',
                   cursor: 'pointer',
                   userSelect: 'none', WebkitUserSelect: 'none',
+                  transition: 'background 0.12s',
                 }}
               >
                 <Avatar
@@ -312,42 +394,46 @@ export default function ChatsList({ onNavigate }) {
                   isGroup={isGroup}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    alignItems: 'baseline', gap: 8,
+                  }}>
                     <div style={{
-                      fontWeight: 600, fontSize: 14,
+                      fontWeight: 600, fontSize: 14.5,
+                      color: '#F5F5F7',
                       letterSpacing: '-0.01em',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     }}>
                       {item.title}
                     </div>
                     <div style={{
-                      fontSize: 11, color: 'var(--text-faint)',
-                      fontFamily: 'var(--mono)', flexShrink: 0,
+                      fontSize: 11, color: '#5A5A65',
+                      fontFamily: 'var(--mono, monospace)', flexShrink: 0,
                     }}>{formatTime(last?.ts)}</div>
                   </div>
                   <div style={{
                     display: 'flex', justifyContent: 'space-between',
-                    alignItems: 'center', gap: 6, marginTop: 2,
+                    alignItems: 'center', gap: 6, marginTop: 3,
                   }}>
                     <div style={{
-                      fontSize: 12, color: 'var(--text-dim)',
+                      fontSize: 12.5, color: '#8E8E99',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      flex: 1,
+                      flex: 1, lineHeight: 1.4,
                     }}>
                       {isGroup && last && last.direction !== 'out'
-                        ? `@${formatPeerName({ username: last.sender_username, pubkey: last.sender_pubkey })}: `
+                        ? `${formatPeerName({ username: last.sender_username, pubkey: last.sender_pubkey })}: `
                         : (last?.direction === 'out' ? 'Ви: ' : '')}
                       {last?.text || (last?.status === 'undecryptable' ? '⚠ не вдалось розшифрувати' : '...')}
                     </div>
                     {last?.ttl && (
-                      <div style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--mono)' }}>
+                      <div style={{ fontSize: 10, color: '#5A5A65', fontFamily: 'var(--mono, monospace)' }}>
                         ⏱ {formatTTL(last.ttl)}
                       </div>
                     )}
                     {item.unread > 0 && (
                       <div style={{
                         minWidth: 18, height: 18, borderRadius: 9,
-                        background: 'var(--accent)', color: '#fff',
+                        background: '#6B8AFE', color: '#fff',
                         fontSize: 10.5, fontWeight: 700,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         padding: '0 5px',
@@ -363,42 +449,54 @@ export default function ChatsList({ onNavigate }) {
         </div>
       )}
 
+      <style>{`
+        .lin-chat-row:hover { background: #111116; }
+        .lin-chat-row:active { background: #16161B; }
+      `}</style>
+
       {actionItem && (
         <div
           onClick={() => setActionItem(null)}
           style={{
             position: 'absolute', inset: 0,
-            background: 'rgba(0,0,0,0.5)', zIndex: 60,
+            background: 'rgba(0,0,0,0.7)', zIndex: 60,
             display: 'flex', alignItems: 'flex-end',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: '100%', background: 'var(--surface)',
+              width: '100%', background: '#16161B',
+              borderTop: '1px solid #232329',
               borderTopLeftRadius: 22, borderTopRightRadius: 22,
               padding: '12px 0 28px',
             }}
           >
-            <div style={{ width: 32, height: 4, background: 'var(--text-faint)', borderRadius: 2, margin: '6px auto 14px', opacity: 0.4 }} />
+            <div style={{ width: 36, height: 4, background: '#3F3F45', borderRadius: 2, margin: '6px auto 14px' }} />
             <div style={{
-              fontSize: 13, color: 'var(--text-dim)',
-              padding: '0 18px 14px',
-              borderBottom: '1px solid var(--border)',
+              fontSize: 13, color: '#8E8E99',
+              padding: '0 20px 14px',
+              borderBottom: '1px solid #232329',
+              fontWeight: 500,
             }}>
               {actionItem.title}
             </div>
             {actionItem.kind === 'group' && (
               <div
                 onClick={() => { onNavigate(`groupinfo/${actionItem.id}`); setActionItem(null); }}
-                style={{ padding: '14px 18px', cursor: 'pointer' }}
+                style={{
+                  padding: '14px 20px', cursor: 'pointer',
+                  fontSize: 14, color: '#F5F5F7',
+                }}
               >Інфо групи</div>
             )}
             <div
               onClick={deleteItemClicked}
               style={{
-                padding: '14px 18px', cursor: 'pointer',
-                color: 'var(--danger)',
+                padding: '14px 20px', cursor: 'pointer',
+                color: '#FF6B7A', fontSize: 14, fontWeight: 500,
               }}
             >{actionItem.kind === 'group' ? 'Прибрати зі списку' : 'Видалити чат'}</div>
           </div>
@@ -410,32 +508,59 @@ export default function ChatsList({ onNavigate }) {
           onClick={() => setShowNewMenu(false)}
           style={{
             position: 'absolute', inset: 0,
-            background: 'rgba(0,0,0,0.5)', zIndex: 70,
+            background: 'rgba(0,0,0,0.7)', zIndex: 70,
             display: 'flex', alignItems: 'flex-end',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: '100%', background: 'var(--surface)',
+              width: '100%', background: '#16161B',
+              borderTop: '1px solid #232329',
               borderTopLeftRadius: 22, borderTopRightRadius: 22,
               padding: '12px 0 28px',
             }}
           >
-            <div style={{ width: 32, height: 4, background: 'var(--text-faint)', borderRadius: 2, margin: '6px auto 14px', opacity: 0.4 }} />
+            <div style={{ width: 36, height: 4, background: '#3F3F45', borderRadius: 2, margin: '6px auto 18px' }} />
             <div
               onClick={() => { setShowNewMenu(false); onNavigate('newchat'); }}
-              style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center' }}
+              style={{
+                padding: '14px 20px', cursor: 'pointer',
+                display: 'flex', gap: 14, alignItems: 'center',
+              }}
             >
-              <span style={{ fontSize: 18 }}>💬</span>
-              <span>Новий чат</span>
+              <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: 'rgba(107, 138, 254, 0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#7B96FF',
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <span style={{ fontSize: 14, color: '#F5F5F7', fontWeight: 500 }}>Новий чат</span>
             </div>
             <div
               onClick={() => { setShowNewMenu(false); onNavigate('newgroup'); }}
-              style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center' }}
+              style={{
+                padding: '14px 20px', cursor: 'pointer',
+                display: 'flex', gap: 14, alignItems: 'center',
+              }}
             >
-              <span style={{ fontSize: 18 }}>👥</span>
-              <span>Нова група</span>
+              <div style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: 'rgba(107, 138, 254, 0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#7B96FF',
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </div>
+              <span style={{ fontSize: 14, color: '#F5F5F7', fontWeight: 500 }}>Нова група</span>
             </div>
           </div>
         </div>
@@ -444,15 +569,15 @@ export default function ChatsList({ onNavigate }) {
       <button
         onClick={() => setShowNewMenu(true)}
         style={{
-          position: 'absolute', bottom: 24, right: 16,
-          width: 56, height: 56, borderRadius: '50%',
-          background: 'var(--accent)', border: 'none',
+          position: 'absolute', bottom: 24, right: 20,
+          width: 54, height: 54, borderRadius: '50%',
+          background: '#F5F5F7', border: 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 6px 24px rgba(107, 138, 254, 0.4)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(107, 138, 254, 0.15)',
           cursor: 'pointer', zIndex: 10,
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </button>

@@ -2,12 +2,6 @@ import { useEffect, useState } from 'react';
 import * as dms from '../lib/dms.js';
 import * as burner from '../lib/burner.js';
 
-/**
- * Tools — landing page for power-user features (DMS, Burner inbox, etc.)
- *
- * Separated from Settings: Settings is account/device config, Tools are
- * proactive features that change what the messenger does.
- */
 export default function Tools({ onNavigate }) {
   const [dmsCount, setDmsCount] = useState(null);
   const [burnerCount, setBurnerCount] = useState(null);
@@ -26,101 +20,206 @@ export default function Tools({ onNavigate }) {
   }, []);
 
   return (
-    <div className="screen">
-      <div className="topbar">
-        <div className="back" onClick={() => onNavigate('chats')}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+    <div className="screen" style={{ background: '#0A0A0B' }}>
+
+      {/* HEADER */}
+      <div style={{
+        padding: '20px 20px 24px',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+      }}>
+        <div>
+          <div style={{
+            fontSize: 32, fontWeight: 700, letterSpacing: '-0.025em',
+            color: '#F5F5F7', lineHeight: 1,
+          }}>
+            Інструменти
+          </div>
+          <div style={{
+            fontSize: 13, color: '#6B6B72',
+            marginTop: 8, fontWeight: 500,
+          }}>
+            Додаткові функції для приватності
+          </div>
         </div>
-        <div className="title">Інструменти</div>
+        <button
+          onClick={() => onNavigate('chats')}
+          style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: '#16161B', border: '1px solid #232329',
+            color: '#A8A8B0', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 32px' }}>
-        <p className="hint" style={{ marginBottom: 20 }}>
-          Додаткові функції Morok для тих хто хоче більше контролю над приватністю.
-        </p>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
 
         <ToolCard
-          icon="📜"
+          accent="#7B96FF"
+          accentBg="rgba(107, 138, 254, 0.12)"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+            </svg>
+          }
           title="Цифровий заповіт"
-          description="Якщо ви довго не заходите — обране повідомлення автоматично доставиться адресату. Корисно для паролів, ключів, інструкцій."
-          countLabel={dmsCount === null ? null : `активних: ${dmsCount}`}
+          description="Якщо ви довго не заходите — обране повідомлення доставиться адресату. Корисно для паролів, ключів, інструкцій."
+          countLabel={dmsCount === null ? null : dmsCount}
+          countSuffix="активних"
           onClick={() => onNavigate('dms')}
         />
 
         <ToolCard
-          icon="🔥"
+          accent="#FFA94D"
+          accentBg="rgba(255, 169, 77, 0.1)"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+            </svg>
+          }
           title="Анонімна скринька"
           description="Створіть одноразовий лінк — будь-хто зможе написати вам анонімно без реєстрації. Зашифровано наскрізно."
-          countLabel={burnerCount === null ? null : `активних: ${burnerCount}`}
+          countLabel={burnerCount === null ? null : burnerCount}
+          countSuffix="активних"
           onClick={() => onNavigate('burner')}
         />
 
+        {/* Coming soon section */}
         <div style={{
-          marginTop: 24,
-          padding: '14px 16px',
-          background: 'var(--surface)',
-          border: '1px dashed var(--border)',
-          borderRadius: 12,
-          fontSize: 12, color: 'var(--text-faint)',
-          lineHeight: 1.55, textAlign: 'center',
+          fontSize: 11, color: '#3F3F45',
+          textTransform: 'uppercase', letterSpacing: '0.1em',
+          fontWeight: 600,
+          padding: '24px 0 12px',
         }}>
-          Скоро: <strong style={{ color: 'var(--text-dim)' }}>Multi-identity</strong>,
-          <strong style={{ color: 'var(--text-dim)' }}> Verified-бейджі</strong>,
-          <strong style={{ color: 'var(--text-dim)' }}> Бекап ключів</strong>
+          СКОРО
         </div>
+
+        <ComingSoonCard
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>
+            </svg>
+          }
+          title="Мульти-акаунт"
+          description="Кілька облікових записів в одному додатку"
+        />
+
+        <ComingSoonCard
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          }
+          title="Верифіковані бейджі"
+          description="Підтверджені особистості — менше шахраїв"
+        />
+
+        <ComingSoonCard
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>
+            </svg>
+          }
+          title="Зашифрований бекап"
+          description="Безпечне зберігання ключів на сервері"
+        />
       </div>
     </div>
   );
 }
 
-function ToolCard({ icon, title, description, countLabel, onClick }) {
+function ToolCard({ icon, accent, accentBg, title, description, countLabel, countSuffix, onClick }) {
   return (
     <div
       onClick={onClick}
+      className="lin-tool-card"
       style={{
-        background: 'var(--surface)', border: '1px solid var(--border)',
-        borderRadius: 14, padding: 16, marginBottom: 12,
+        background: '#13131A',
+        border: '1px solid #232329',
+        borderRadius: 14,
+        padding: 16,
+        marginBottom: 10,
         cursor: 'pointer',
-        display: 'flex', gap: 14, alignItems: 'flex-start',
-        transition: 'border-color .15s',
+        transition: 'border-color 0.15s, background 0.15s',
       }}
-      onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--text-faint)'}
-      onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
     >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 10,
+          background: accentBg,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: accent, flexShrink: 0,
+        }}>
+          <div style={{ width: 18, height: 18 }}>{icon}</div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
+              {title}
+            </div>
+            {countLabel !== null && countLabel !== undefined && (
+              <div style={{
+                fontSize: 10.5, color: accent,
+                background: accentBg,
+                padding: '2px 7px', borderRadius: 6,
+                fontFamily: 'var(--mono, monospace)',
+                fontWeight: 600,
+                letterSpacing: '0.02em',
+              }}>
+                {countLabel} {countSuffix}
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55 }}>
+            {description}
+          </div>
+        </div>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 12 }}>
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+      <style>{`
+        .lin-tool-card:hover {
+          border-color: #2F2F38;
+          background: #16161E;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function ComingSoonCard({ icon, title, description }) {
+  return (
+    <div style={{
+      background: 'transparent',
+      border: '1px dashed #232329',
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 8,
+      display: 'flex', alignItems: 'center', gap: 14,
+      opacity: 0.6,
+    }}>
       <div style={{
-        width: 40, height: 40, borderRadius: 10,
-        background: 'var(--surface-2, rgba(107,138,254,0.1))',
+        width: 32, height: 32, borderRadius: 8,
+        background: '#13131A',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 20, flexShrink: 0,
+        color: '#5A5A65', flexShrink: 0,
       }}>
-        {icon}
+        <div style={{ width: 16, height: 16 }}>{icon}</div>
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          marginBottom: 4,
-        }}>
-          <div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: '-0.01em' }}>
-            {title}
-          </div>
-          {countLabel !== null && countLabel !== undefined && (
-            <div style={{
-              fontSize: 10.5, color: 'var(--text-faint)',
-              background: 'var(--bg)',
-              padding: '2px 7px', borderRadius: 4,
-              fontFamily: 'var(--mono)',
-            }}>{countLabel}</div>
-          )}
+        <div style={{ fontSize: 13.5, fontWeight: 600, color: '#A8A8B0' }}>
+          {title}
         </div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-dim)', lineHeight: 1.55 }}>
+        <div style={{ fontSize: 11.5, color: '#5A5A65', marginTop: 2 }}>
           {description}
         </div>
       </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 12 }}>
-        <path d="M9 18l6-6-6-6" />
-      </svg>
     </div>
   );
 }
