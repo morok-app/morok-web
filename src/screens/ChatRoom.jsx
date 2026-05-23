@@ -5,6 +5,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
+import { parseBurnerMeta } from '../lib/burner.js';
 
 const TTL_OPTIONS = [
   { label: '1 година', seconds: 3600 },
@@ -183,6 +184,18 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
   const messages = conv.messages || [];
 
+  // Detect if this is a burner-inbox DM (anonymous one-way message).
+  // In that case we can't reply (the sender's ephemeral keypair is gone)
+  // and we should display a friendlier header.
+  const burnerMeta = parseBurnerMeta(conv.peer_username);
+  const isBurner = burnerMeta.isBurner;
+  const displayTitle = isBurner
+    ? (burnerMeta.label ? `Анонім · ${burnerMeta.label}` : 'Анонім')
+    : `@${conv.peer_username || conv.peer_pubkey.slice(0, 12) + '…'}`;
+  const displaySubtitle = isBurner
+    ? 'анонімна скринька'
+    : (conv.peer_home_relay || 'невідомий relay');
+
   return (
     <div className="screen">
       <div className="topbar">
@@ -192,11 +205,17 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           </svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em' }}>
-            @{conv.peer_username || conv.peer_pubkey.slice(0, 12) + '…'}
+          <div style={{
+            fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            {isBurner && <span style={{ fontSize: 14 }}>🔥</span>}
+            <span style={{
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{displayTitle}</span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-            {conv.peer_home_relay || 'невідомий relay'}
+            {displaySubtitle}
           </div>
         </div>
       </div>
@@ -386,62 +405,76 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
         </div>
       )}
 
-      {/* Composer */}
-      <div style={{
-        padding: '10px 10px',
-        display: 'flex', gap: 7, alignItems: 'flex-end',
-        borderTop: '1px solid var(--border)',
-      }}>
-        <button
-          onClick={() => setShowTtlMenu(true)}
-          style={{
-            background: 'transparent', border: 'none',
-            width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-dim)', cursor: 'pointer',
-            fontSize: 10, fontFamily: 'var(--mono)',
-          }}
-          title="Час життя повідомлення"
-        >
-          ⏱{ttlSeconds < 86400 ? `${ttlSeconds / 3600}г` : `${ttlSeconds / 86400}д`}
-        </button>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              sendClicked();
-            }
-          }}
-          placeholder="Повідомлення..."
-          rows={1}
-          style={{
-            flex: 1, minHeight: 36, maxHeight: 100,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 18,
-            padding: '8px 14px',
-            color: 'var(--text)',
-            fontSize: 14, fontFamily: 'var(--font)',
-            outline: 'none', resize: 'none',
-          }}
-        />
-        <button
-          onClick={sendClicked}
-          disabled={!draft.trim() || sending}
-          style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'var(--accent)', border: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: draft.trim() && !sending ? 1 : 0.5,
-            cursor: draft.trim() && !sending ? 'pointer' : 'not-allowed',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-        </button>
-      </div>
+      {/* Composer — replaced by a "read-only" banner for burner-inbox DMs */}
+      {isBurner ? (
+        <div style={{
+          padding: '14px 16px',
+          borderTop: '1px solid var(--border)',
+          background: 'var(--surface)',
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+        }}>
+          <div style={{ fontSize: 18, lineHeight: 1, marginTop: 1 }}>🔒</div>
+          <div style={{ flex: 1, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+            Це повідомлення з анонімної скриньки. Відправник невідомий — відповісти неможливо.
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          padding: '10px 10px',
+          display: 'flex', gap: 7, alignItems: 'flex-end',
+          borderTop: '1px solid var(--border)',
+        }}>
+          <button
+            onClick={() => setShowTtlMenu(true)}
+            style={{
+              background: 'transparent', border: 'none',
+              width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--text-dim)', cursor: 'pointer',
+              fontSize: 10, fontFamily: 'var(--mono)',
+            }}
+            title="Час життя повідомлення"
+          >
+            ⏱{ttlSeconds < 86400 ? `${ttlSeconds / 3600}г` : `${ttlSeconds / 86400}д`}
+          </button>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendClicked();
+              }
+            }}
+            placeholder="Повідомлення..."
+            rows={1}
+            style={{
+              flex: 1, minHeight: 36, maxHeight: 100,
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 18,
+              padding: '8px 14px',
+              color: 'var(--text)',
+              fontSize: 14, fontFamily: 'var(--font)',
+              outline: 'none', resize: 'none',
+            }}
+          />
+          <button
+            onClick={sendClicked}
+            disabled={!draft.trim() || sending}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'var(--accent)', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: draft.trim() && !sending ? 1 : 0.5,
+              cursor: draft.trim() && !sending ? 'pointer' : 'not-allowed',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -60,6 +60,21 @@ export default function Settings({ onNavigate }) {
 
   function setupPinClicked() { onNavigate('pin-setup-existing'); }
 
+  /**
+   * Emergency exit: wipe all local data immediately.
+   * Server-side data stays — without the 24 words, no one can read it.
+   * No confirmation dialog: this is a panic button, every second counts.
+   */
+  function emergencyLogoutClicked() {
+    try {
+      store.wipeAll();
+      vault.lockNow();
+    } catch (e) { console.warn('wipe failed:', e); }
+    // Hard redirect — bypass React state, ensure no stale data lingers
+    window.location.href = '/web/#welcome';
+    window.location.reload();
+  }
+
   async function removePinClicked() {
     if (!confirm('Видалити PIN? Доведеться знову захищати акаунт після перезавантаження.')) return;
     const seed = vault.getUnlockedSeed();
@@ -273,40 +288,24 @@ export default function Settings({ onNavigate }) {
           )}
         </Section>
 
-        <Section title="Цифровий заповіт">
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
-            Dead Man's Switch — якщо не зайдете в Morok протягом обраного
-            періоду, заздалегідь обране повідомлення доставиться отримувачу.
-          </div>
-          <button
-            className="btn btn-secondary"
-            onClick={() => onNavigate('dms')}
-          >
-            Керувати заповітами
-          </button>
-        </Section>
-
-        <Section title="Анонімна скринька">
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5, marginBottom: 12 }}>
-            Створіть лінк через який будь-хто може написати вам анонімне повідомлення без реєстрації.
-            Зашифровано наскрізно — сервер бачить тільки шифротекст.
-          </div>
-          <button
-            className="btn btn-secondary"
-            onClick={() => onNavigate('burner')}
-          >
-            Керувати лінками
-          </button>
-        </Section>
-
         <Section title="Акаунт">
           <button
             className="btn btn-secondary"
-            style={{ marginBottom: 0 }}
+            style={{ marginBottom: 12 }}
             onClick={() => onNavigate('profile')}
           >
             Профіль і ключ відновлення
           </button>
+          <button
+            className="btn btn-danger"
+            onClick={emergencyLogoutClicked}
+          >
+            🆘 Аварійний вихід
+          </button>
+          <p style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 8, lineHeight: 1.5 }}>
+            Один клік — всі локальні дані стираються з браузера. На сервері повідомлення залишаються,
+            але без 24 слів їх не дістати. Використовуйте якщо комусь треба швидко прибрати сліди.
+          </p>
         </Section>
       </div>
     </div>
