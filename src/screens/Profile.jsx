@@ -29,9 +29,9 @@ export default function Profile({ onNavigate }) {
   const shareUrl = (() => {
     const origin = window.location.origin;
     if (username) {
-      return `${origin}/web/#chat?u=${encodeURIComponent(username)}`;
+      return `${origin}/web/#newchat?u=${encodeURIComponent(username)}`;
     }
-    return `${origin}/web/#chat?p=${pubkeyHex}`;
+    return `${origin}/web/#newchat?p=${pubkeyHex}`;
   })();
 
   useEffect(() => {
