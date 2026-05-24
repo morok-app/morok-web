@@ -13,9 +13,6 @@ export default function NewChat({ onNavigate, routeArg }) {
   const [error, setError] = useState(null);
   const [hint, setHint] = useState(null);
 
-  // Preload from share-link:
-  //   ?u=username[@relay]   — named user
-  //   ?p=<64hex>            — anonymous user (pubkey-only contact)
   useEffect(() => {
     if (!routeArg) return;
     const raw = String(routeArg);
@@ -33,7 +30,6 @@ export default function NewChat({ onNavigate, routeArg }) {
         setError('Це посилання на ваш власний акаунт.');
         return;
       }
-      // Anonymous contact — open chat by pubkey directly, no lookup needed
       openAnonChat(pub);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -154,70 +150,132 @@ export default function NewChat({ onNavigate, routeArg }) {
   const knownContacts = contacts.listContacts();
 
   return (
-    <div className="screen">
-      <div className="topbar">
-        <div className="back" onClick={() => onNavigate('chats')}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+    <div className="screen" style={{ background: '#0A0A0B' }}>
+
+      {/* Header */}
+      <div style={{
+        padding: '20px 20px 24px',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+        gap: 12,
+      }}>
+        <div>
+          <div style={{
+            fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
+            color: '#F5F5F7', lineHeight: 1.1,
+          }}>
+            Новий чат
+          </div>
+          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+            Знайти юзера за іменем
+          </div>
         </div>
-        <div className="title">Новий чат</div>
+        <button
+          onClick={() => onNavigate('chats')}
+          style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: '#16161B', border: '1px solid #232329',
+            color: '#A8A8B0', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
-      <div style={{ padding: '20px 20px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <p className="hint">
-          Юзернейм людини або повна адреса якщо вона на іншому сервері:<br/>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-faint)' }}>
-            @vasya · @vasya@relay2.morok.app
-          </span>
+      <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        <div style={{
+          fontSize: 11, color: '#5A5A65',
+          marginBottom: -4,
+          fontFamily: 'var(--mono, monospace)',
+          letterSpacing: '0.05em',
+        }}>ЮЗЕРНЕЙМ</div>
+
+        <input
+          type="text"
+          placeholder="@username[@relay]"
+          value={value}
+          onChange={onInput}
+          onKeyDown={(e) => e.key === 'Enter' && findClicked()}
+          spellCheck={false}
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoFocus
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: '14px 16px',
+            background: '#13131A',
+            border: '1px solid #232329',
+            borderRadius: 12,
+            color: '#F5F5F7',
+            fontSize: 14.5, fontFamily: 'var(--mono, monospace)',
+            outline: 'none',
+            letterSpacing: '0.01em',
+          }}
+          onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
+          onBlur={(e) => e.target.style.borderColor = '#232329'}
+        />
+
+        <p style={{
+          fontSize: 11.5, color: '#5A5A65',
+          margin: '-4px 0 0', lineHeight: 1.5,
+          fontFamily: 'var(--mono, monospace)',
+        }}>
+          @vasya · @vasya@relay2.morok.app
         </p>
 
-        <div className="input-wrap">
-          <input
-            className="input"
-            type="text"
-            placeholder="@username[@relay]"
-            value={value}
-            onChange={onInput}
-            onKeyDown={(e) => e.key === 'Enter' && findClicked()}
-            spellCheck={false}
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoFocus
-          />
-        </div>
+        {error && (
+          <div style={{
+            background: 'rgba(255, 107, 122, 0.08)',
+            border: '1px solid rgba(255, 107, 122, 0.25)',
+            color: '#FF6B7A',
+            padding: '10px 14px', borderRadius: 10,
+            fontSize: 13,
+          }}>{error}</div>
+        )}
 
-        {error && <div className="error-text">{error}</div>}
         {hint && (
           <div style={{
             background: 'rgba(107, 138, 254, 0.08)',
             border: '1px solid rgba(107, 138, 254, 0.25)',
-            color: 'var(--text)',
-            padding: '10px 12px',
-            borderRadius: 10,
-            fontSize: 12.5,
-            lineHeight: 1.5,
+            color: '#A8B5F0',
+            padding: '10px 14px', borderRadius: 10,
+            fontSize: 12.5, lineHeight: 1.5,
           }}>{hint}</div>
         )}
 
         <button
-          className="btn btn-primary"
-          disabled={!value || busy}
           onClick={findClicked}
+          disabled={!value || busy}
+          style={{
+            width: '100%',
+            padding: '14px 22px',
+            borderRadius: 14,
+            background: (!value || busy) ? '#2A2A33' : '#F5F5F7',
+            color: (!value || busy) ? '#5A5A65' : '#0A0A0B',
+            border: 'none',
+            fontSize: 14.5, fontWeight: 600,
+            letterSpacing: '-0.005em',
+            cursor: (!value || busy) ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          }}
         >
           {busy ? 'Шукаємо...' : 'Знайти'}
         </button>
 
-        <p style={{ fontSize: 11.5, color: 'var(--text-faint)', lineHeight: 1.5 }}>
+        <p style={{ fontSize: 11.5, color: '#5A5A65', margin: '4px 0 0', lineHeight: 1.5 }}>
           Якщо у людини нема юзернейма — попросіть її QR/лінк і відкрийте його.
         </p>
       </div>
 
       {knownContacts.length > 0 && (
-        <div style={{ marginTop: 24, flex: 1, overflowY: 'auto' }}>
+        <div style={{ marginTop: 28, flex: 1, overflowY: 'auto', paddingBottom: 16 }}>
           <div style={{
-            fontSize: 11, color: 'var(--text-faint)',
-            textTransform: 'uppercase', letterSpacing: '0.08em',
+            fontSize: 11, color: '#3F3F45',
+            textTransform: 'uppercase', letterSpacing: '0.1em',
             padding: '4px 20px 10px', fontWeight: 600,
           }}>
             Нещодавні
@@ -229,34 +287,51 @@ export default function NewChat({ onNavigate, routeArg }) {
               <div
                 key={c.pubkey_hex}
                 onClick={() => openChat(c)}
+                className="lin-row-hover"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '10px 20px', cursor: 'pointer',
+                  padding: '12px 20px', cursor: 'pointer',
+                  transition: 'background 0.12s',
                 }}
               >
                 <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
+                  width: 38, height: 38, borderRadius: '50%',
                   background: `hsl(${hue}, 45%, 45%)`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontWeight: 700, fontSize: 14, color: '#fff',
+                  flexShrink: 0,
                 }}>
                   {displayName[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 600, color: '#F5F5F7',
+                    fontFamily: 'var(--mono, monospace)',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
                     @{displayName}
                     {c.home_relay && c.home_relay !== me?.home_relay && (
-                      <span style={{ fontSize: 10.5, color: 'var(--text-faint)', fontFamily: 'var(--mono)', fontWeight: 400 }}>
+                      <span style={{
+                        fontSize: 11, color: '#5A5A65', fontWeight: 400,
+                        marginLeft: 2,
+                      }}>
                         @{c.home_relay}
                       </span>
                     )}
                   </div>
                 </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
               </div>
             );
           })}
         </div>
       )}
+
+      <style>{`
+        .lin-row-hover:hover { background: #111116; }
+      `}</style>
     </div>
   );
 }
