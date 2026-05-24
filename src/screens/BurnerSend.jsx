@@ -72,10 +72,18 @@ export default function BurnerSend({ routeArg }) {
   // ── Loading state ──
   if (!info && !error) {
     return (
-      <div className="screen">
-        <div className="center-spinner">
-          <div className="spinner" />
-        </div>
+      <div className="screen" style={{
+        background: '#0A0A0B',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{
+          width: 28, height: 28,
+          border: '2px solid #232329',
+          borderTopColor: '#7B96FF',
+          borderRadius: '50%',
+          animation: 'spin 0.7s linear infinite',
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -83,26 +91,44 @@ export default function BurnerSend({ routeArg }) {
   // ── Error state ──
   if (error && !info) {
     return (
-      <div className="screen">
+      <div className="screen" style={{ background: '#0A0A0B' }}>
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           padding: '40px 24px', textAlign: 'center', gap: 20,
         }}>
           <div style={{
-            width: 64, height: 64, borderRadius: '50%',
+            width: 64, height: 64, borderRadius: 18,
             background: 'rgba(255, 107, 122, 0.1)',
+            border: '1px solid rgba(255, 107, 122, 0.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--danger)', fontSize: 28,
-          }}>⚠</div>
-          <div style={{ fontSize: 17, fontWeight: 700 }}>Лінк недоступний</div>
-          <div style={{ fontSize: 13, color: 'var(--text-dim)', maxWidth: 320, lineHeight: 1.5 }}>
-            {error}
+            color: '#FF6B7A',
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
           </div>
+          <div style={{
+            fontSize: 20, fontWeight: 700,
+            color: '#F5F5F7',
+            letterSpacing: '-0.02em',
+          }}>Лінк недоступний</div>
+          <div style={{
+            fontSize: 13, color: '#8E8E99',
+            maxWidth: 320, lineHeight: 1.55,
+          }}>{error}</div>
           <a
             href="/web/"
-            className="btn btn-secondary"
-            style={{ maxWidth: 260, marginTop: 12, textDecoration: 'none' }}
+            style={{
+              padding: '12px 22px',
+              borderRadius: 12,
+              background: '#16161B',
+              border: '1px solid #232329',
+              color: '#F5F5F7',
+              fontSize: 13, fontWeight: 600,
+              textDecoration: 'none',
+              marginTop: 8,
+            }}
           >
             Про Morok
           </a>
@@ -114,44 +140,81 @@ export default function BurnerSend({ routeArg }) {
   // ── Sent confirmation ──
   if (sent) {
     return (
-      <div className="screen">
+      <div className="screen" style={{
+        background: '#0A0A0B',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        {/* Dot grid bg */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: 'radial-gradient(circle, #1A1A22 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+          opacity: 0.4,
+          pointerEvents: 'none',
+        }} />
+
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
           padding: '40px 24px', textAlign: 'center', gap: 20,
+          position: 'relative', zIndex: 1,
         }}>
           <div style={{
-            width: 80, height: 80, borderRadius: '50%',
+            width: 84, height: 84, borderRadius: 24,
             background: 'rgba(74, 222, 128, 0.1)',
+            border: '1px solid rgba(74, 222, 128, 0.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--success)',
+            color: '#4ADE80',
           }}>
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>
+          <div style={{
+            fontSize: 24, fontWeight: 800,
+            color: '#F5F5F7',
+            letterSpacing: '-0.025em',
+          }}>
             Повідомлення надіслано
           </div>
-          <div style={{ fontSize: 13.5, color: 'var(--text-dim)', maxWidth: 360, lineHeight: 1.55 }}>
+          <div style={{
+            fontSize: 13.5, color: '#8E8E99',
+            maxWidth: 360, lineHeight: 1.55,
+          }}>
             Воно зашифроване і доставиться адресату.
             Жодних слідів вашої особи у системі не залишилось.
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <div style={{
+            display: 'flex', gap: 10, marginTop: 12,
+            flexWrap: 'wrap', justifyContent: 'center',
+          }}>
             <button
-              className="btn btn-secondary"
-              style={{ maxWidth: 200 }}
               onClick={() => {
                 setSent(false); setBusy(false);
                 setText(''); setSenderLabel('');
+              }}
+              style={{
+                padding: '12px 22px',
+                borderRadius: 12,
+                background: '#16161B',
+                border: '1px solid #232329',
+                color: '#F5F5F7',
+                fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
               Написати ще
             </button>
             <a
               href="/web/"
-              className="btn btn-primary"
-              style={{ maxWidth: 200, textDecoration: 'none' }}
+              style={{
+                padding: '12px 22px',
+                borderRadius: 12,
+                background: '#F5F5F7',
+                color: '#0A0A0B',
+                fontSize: 13, fontWeight: 600,
+                textDecoration: 'none',
+              }}
             >
               Створити свій Morok
             </a>
@@ -163,101 +226,172 @@ export default function BurnerSend({ routeArg }) {
 
   // ── Send form ──
   return (
-    <div className="screen">
+    <div className="screen" style={{ background: '#0A0A0B' }}>
       {/* Custom top — no back button (this is a public landing) */}
       <div style={{
-        padding: '20px 20px 16px',
-        borderBottom: '1px solid var(--border)',
+        padding: '20px 20px 18px',
+        borderBottom: '1px solid #1E1E27',
         display: 'flex', alignItems: 'center', gap: 12,
       }}>
         <div style={{
           width: 36, height: 36, borderRadius: 10,
-          background: 'var(--accent)',
+          background: 'linear-gradient(135deg, #7B96FF 0%, #5A6FE0 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontWeight: 800, fontSize: 18, color: 'white',
+          letterSpacing: '-0.04em',
           flexShrink: 0,
+          boxShadow: '0 4px 12px rgba(107, 138, 254, 0.3)',
         }}>M</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em' }}>
+          <div style={{
+            fontSize: 15, fontWeight: 700,
+            color: '#F5F5F7',
+            letterSpacing: '-0.01em',
+          }}>
             Morok · Анонімна скринька
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>
-            повідомлення шифрується у вашому браузері
+          <div style={{
+            fontSize: 11, color: '#6B6B72', marginTop: 2,
+            fontFamily: 'var(--mono, monospace)',
+            letterSpacing: '0.02em',
+          }}>
+            🔒 шифрується у вашому браузері
           </div>
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 20px 32px' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 8 }}>
-          Напишіть анонімне повідомлення
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 32px' }}>
+        <h2 style={{
+          fontSize: 26, fontWeight: 800,
+          color: '#F5F5F7',
+          letterSpacing: '-0.025em',
+          margin: '0 0 10px',
+        }}>
+          Напишіть анонімне<br/>повідомлення
         </h2>
+
         {info.label && (
           <div style={{
-            fontSize: 13, color: 'var(--text-dim)',
-            marginBottom: 4,
+            fontSize: 13, color: '#8E8E99',
+            marginBottom: 6,
           }}>
-            <span style={{ color: 'var(--text-faint)' }}>отримувач:</span> <strong style={{ color: 'var(--text)' }}>{info.label}</strong>
+            отримувач: <strong style={{ color: '#F5F5F7' }}>{info.label}</strong>
           </div>
         )}
-        <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.55, marginBottom: 22 }}>
+        <p style={{
+          fontSize: 13, color: '#8E8E99',
+          lineHeight: 1.55, margin: '0 0 24px',
+        }}>
           Цей лінк створив користувач Morok щоб приймати анонімні повідомлення.
-          Ваше повідомлення зашифрується тут, у браузері — навіть сервер Morok не зможе його прочитати.
+          Повідомлення зашифрується тут, у браузері — навіть сервер Morok не зможе його прочитати.
         </p>
 
         <div style={{
-          fontSize: 11, color: 'var(--text-faint)',
-          textTransform: 'uppercase', letterSpacing: '0.08em',
+          fontSize: 11, color: '#5A5A65',
           marginBottom: 8,
-        }}>Як підписатись (опційно)</div>
+          fontFamily: 'var(--mono, monospace)',
+          letterSpacing: '0.05em',
+        }}>ЯК ПІДПИСАТИСЬ (ОПЦІЙНО)</div>
         <input
-          className="input"
           type="text"
           placeholder="Залиште порожнім для повної анонімності"
           value={senderLabel}
           onChange={(e) => setSenderLabel(e.target.value.slice(0, 64))}
-          style={{ marginBottom: 4 }}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: '13px 14px',
+            background: '#13131A',
+            border: '1px solid #232329',
+            borderRadius: 12,
+            color: '#F5F5F7',
+            fontSize: 14, fontFamily: 'inherit',
+            outline: 'none',
+            marginBottom: 6,
+          }}
+          onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
+          onBlur={(e) => e.target.style.borderColor = '#232329'}
         />
-        <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 18, marginTop: 6, lineHeight: 1.5 }}>
+        <p style={{
+          fontSize: 11, color: '#5A5A65',
+          margin: '6px 0 22px', lineHeight: 1.5,
+        }}>
           Можна вказати ім'я, ник, email — що завгодно. Не перевіряється.
         </p>
 
         <div style={{
-          fontSize: 11, color: 'var(--text-faint)',
-          textTransform: 'uppercase', letterSpacing: '0.08em',
+          fontSize: 11, color: '#5A5A65',
           marginBottom: 8,
-        }}>Повідомлення</div>
+          fontFamily: 'var(--mono, monospace)',
+          letterSpacing: '0.05em',
+        }}>ПОВІДОМЛЕННЯ</div>
         <textarea
-          className="textarea"
           placeholder="Ваше повідомлення..."
           value={text}
           onChange={(e) => setText(e.target.value)}
-          style={{ minHeight: 160, marginBottom: 6 }}
           maxLength={4096}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            minHeight: 160,
+            padding: '14px 16px',
+            background: '#13131A',
+            border: '1px solid #232329',
+            borderRadius: 12,
+            color: '#F5F5F7',
+            fontSize: 14, fontFamily: 'inherit',
+            lineHeight: 1.6,
+            outline: 'none', resize: 'none',
+            marginBottom: 6,
+          }}
+          onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
+          onBlur={(e) => e.target.style.borderColor = '#232329'}
         />
-        <p style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 18, lineHeight: 1.5 }}>
-          {text.length} / 4096 символів
+        <p style={{
+          fontSize: 11, color: '#5A5A65',
+          margin: '6px 0 18px', lineHeight: 1.5,
+          fontFamily: 'var(--mono, monospace)',
+        }}>
+          {text.length} / 4096
         </p>
 
-        {error && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
+        {error && (
+          <div style={{
+            background: 'rgba(255, 107, 122, 0.08)',
+            border: '1px solid rgba(255, 107, 122, 0.25)',
+            color: '#FF6B7A',
+            padding: '10px 14px', borderRadius: 10,
+            fontSize: 13, marginBottom: 14,
+          }}>{error}</div>
+        )}
 
         <button
-          className="btn btn-primary"
           onClick={sendClicked}
           disabled={!text.trim() || busy}
+          style={{
+            width: '100%',
+            padding: '16px 22px',
+            borderRadius: 14,
+            background: (!text.trim() || busy) ? '#2A2A33' : '#F5F5F7',
+            color: (!text.trim() || busy) ? '#5A5A65' : '#0A0A0B',
+            border: 'none',
+            fontSize: 15, fontWeight: 600,
+            letterSpacing: '-0.005em',
+            cursor: (!text.trim() || busy) ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          }}
         >
           {busy ? 'Шифруємо й надсилаємо...' : 'Надіслати анонімно'}
         </button>
 
         <div style={{
           marginTop: 24,
-          background: 'rgba(107, 138, 254, 0.06)',
-          border: '1px solid rgba(107, 138, 254, 0.2)',
+          background: '#13131A',
+          border: '1px solid #232329',
           borderRadius: 12,
-          padding: '12px 14px',
-          fontSize: 12, color: 'var(--text-dim)',
+          padding: '14px 16px',
+          fontSize: 12, color: '#8E8E99',
           lineHeight: 1.55,
         }}>
-          🔒 <strong>Як це працює:</strong> ваш браузер створює одноразовий ключ,
+          <strong style={{ color: '#F5F5F7' }}>🔒 Як це працює:</strong> ваш браузер створює одноразовий ключ,
           шифрує повідомлення спеціально для отримувача, відправляє шифротекст.
           Жодних cookies, жодних логів — після того як заберете цю сторінку,
           сліди ваших дій зникають.

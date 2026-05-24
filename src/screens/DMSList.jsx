@@ -28,85 +28,207 @@ export default function DMSList({ onNavigate }) {
     return formatPeerName({ username: c?.username, pubkey: pk });
   }
 
+  const armedCount = items?.filter((x) => x.status === 'armed').length || 0;
+
   return (
-    <div className="screen">
-      <div className="topbar">
-        <div className="back" onClick={() => onNavigate('settings')}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+    <div className="screen" style={{ background: '#0A0A0B' }}>
+
+      {/* Header */}
+      <div style={{
+        padding: '20px 20px 24px',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+      }}>
+        <div>
+          <div style={{
+            fontSize: 32, fontWeight: 700, letterSpacing: '-0.025em',
+            color: '#F5F5F7', lineHeight: 1,
+          }}>
+            Цифровий заповіт
+          </div>
+          <div style={{
+            fontSize: 12.5, color: '#6B6B72',
+            marginTop: 8, fontFamily: 'var(--mono, monospace)',
+            letterSpacing: '0.02em',
+          }}>
+            {items === null ? '...' : `активних: ${armedCount}`}
+          </div>
         </div>
-        <div className="title">Цифровий заповіт</div>
+        <button
+          onClick={() => onNavigate('tools')}
+          style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: '#16161B', border: '1px solid #232329',
+            color: '#A8A8B0', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 80px' }}>
-        <p className="hint" style={{ marginBottom: 16 }}>
-          Якщо ви не зайдете в Morok N днів — обране повідомлення автоматично
-          доставиться отримувачу. Зашифровано end-to-end: сервер бачить тільки шифротекст.
-        </p>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 80px' }}>
+
+        <div style={{
+          background: '#13131A',
+          border: '1px solid #232329',
+          borderRadius: 12,
+          padding: '12px 14px',
+          marginBottom: 14,
+          display: 'flex', gap: 12, alignItems: 'flex-start',
+        }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 7,
+            background: 'rgba(107, 138, 254, 0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#7B96FF', flexShrink: 0, fontSize: 14,
+          }}>📜</div>
+          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55, flex: 1 }}>
+            Якщо ви не зайдете в Morok N днів — обране повідомлення доставиться отримувачу.
+            Зашифровано наскрізно: сервер бачить тільки шифротекст.
+          </div>
+        </div>
 
         {error && (
-          <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>
+          <div style={{
+            background: 'rgba(255, 107, 122, 0.08)',
+            border: '1px solid rgba(255, 107, 122, 0.25)',
+            color: '#FF6B7A',
+            padding: '10px 14px', borderRadius: 10,
+            fontSize: 13, marginBottom: 12,
+          }}>{error}</div>
         )}
 
         {items === null ? (
-          <div className="center-spinner">
-            <div className="spinner" />
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '40px 0',
+          }}>
+            <div style={{
+              width: 24, height: 24,
+              border: '2px solid #232329',
+              borderTopColor: '#7B96FF',
+              borderRadius: '50%',
+              animation: 'spin 0.7s linear infinite',
+            }} />
           </div>
         ) : items.length === 0 ? (
           <div style={{
-            textAlign: 'center', padding: '32px 20px',
-            color: 'var(--text-dim)', fontSize: 13,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            padding: '40px 24px', textAlign: 'center', gap: 12,
+            marginTop: 20,
           }}>
-            Поки немає жодного заповіту.
+            <div style={{
+              width: 56, height: 56, borderRadius: 14,
+              background: '#13131A',
+              border: '1px solid #232329',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#3F3F45',
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              </svg>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Поки немає жодного заповіту</div>
+            <div style={{ fontSize: 12.5, color: '#6B6B72', maxWidth: 260, lineHeight: 1.5 }}>
+              Натисніть «+» нижче щоб створити перший
+            </div>
           </div>
         ) : (
-          items.map((d) => (
-            <div
-              key={d.dms_id}
-              onClick={() => onNavigate(`dms-detail/${d.dms_id}`)}
-              style={{
-                background: 'var(--surface)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: 14, marginBottom: 10, cursor: 'pointer',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>
-                  {d.label || 'Без назви'}
+          items.map((d) => {
+            const statusColor =
+              d.status === 'armed' ? '#4ADE80' :
+              d.status === 'triggered' ? '#FF6B7A' :
+              '#6B6B72';
+            const statusBg =
+              d.status === 'armed' ? 'rgba(74, 222, 128, 0.1)' :
+              d.status === 'triggered' ? 'rgba(255, 107, 122, 0.1)' :
+              'rgba(143, 143, 153, 0.08)';
+
+            return (
+              <div
+                key={d.dms_id}
+                onClick={() => onNavigate(`dms-detail/${d.dms_id}`)}
+                className="lin-row-hover"
+                style={{
+                  background: '#13131A',
+                  border: '1px solid #232329',
+                  borderRadius: 14, padding: 16, marginBottom: 10,
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s',
+                }}
+              >
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  alignItems: 'flex-start', gap: 10, marginBottom: 8,
+                }}>
+                  <div style={{
+                    fontSize: 15, fontWeight: 700,
+                    color: '#F5F5F7',
+                    letterSpacing: '-0.01em', flex: 1,
+                  }}>
+                    {d.label || 'Без назви'}
+                  </div>
+                  <div style={{
+                    fontSize: 10.5, fontWeight: 600,
+                    color: statusColor, background: statusBg,
+                    padding: '3px 8px', borderRadius: 6,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    flexShrink: 0,
+                  }}>
+                    {dms.statusLabel(d.status)}
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: dms.statusColor(d.status), fontWeight: 600 }}>
-                  {dms.statusLabel(d.status)}
+
+                <div style={{
+                  fontSize: 12.5, color: '#8E8E99',
+                  marginBottom: 6,
+                }}>
+                  Отримувач: <span style={{ color: '#F5F5F7', fontFamily: 'var(--mono, monospace)' }}>
+                    @{renderRecipient(d)}
+                  </span>
+                </div>
+
+                <div style={{
+                  fontSize: 11.5, color: '#6B6B72',
+                  fontFamily: 'var(--mono, monospace)',
+                  display: 'flex', gap: 12, flexWrap: 'wrap',
+                }}>
+                  <span>{dms.formatTriggerLabel(d.trigger_seconds)}</span>
+                  {d.status === 'armed' && (
+                    <span>· спрацює за {dms.formatRemainingTime(d.fires_at)}</span>
+                  )}
                 </div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-                Отримувач: @{renderRecipient(d)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6 }}>
-                Період: {dms.formatTriggerLabel(d.trigger_seconds)}
-                {d.status === 'armed' && (
-                  <> · Спрацює за {dms.formatRemainingTime(d.fires_at)}</>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
       <button
         onClick={() => onNavigate('dms-create')}
         style={{
-          position: 'absolute', bottom: 24, right: 16,
-          width: 56, height: 56, borderRadius: '50%',
-          background: 'var(--accent)', border: 'none',
+          position: 'absolute', bottom: 24, right: 20,
+          width: 54, height: 54, borderRadius: '50%',
+          background: '#F5F5F7', border: 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 6px 24px rgba(107, 138, 254, 0.4)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
           cursor: 'pointer', zIndex: 10,
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </button>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .lin-row-hover:hover { border-color: #2F2F38 !important; }
+      `}</style>
     </div>
   );
 }
