@@ -55,7 +55,6 @@ export default function GroupChat({ groupId, onNavigate }) {
 
   const isAdmin = group?.creator_pubkey_hex === myPubkeyHex;
 
-  // Refresh group info on mount (e.g. join via token)
   useEffect(() => {
     (async () => {
       try {
@@ -67,12 +66,10 @@ export default function GroupChat({ groupId, onNavigate }) {
     })();
   }, [groupId]);
 
-  // Mark read
   useEffect(() => {
     gstore.markGroupRead(groupId);
   }, [groupId]);
 
-  // Refresh every 2s
   useEffect(() => {
     const id = setInterval(() => {
       setGroup(gstore.getGroup(groupId));
@@ -151,17 +148,29 @@ export default function GroupChat({ groupId, onNavigate }) {
 
   if (!group) {
     return (
-      <div className="screen">
-        <div className="topbar">
-          <div className="back" onClick={() => onNavigate('chats')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 18l-6-6 6-6" />
+      <div className="screen" style={{ background: '#0A0A0B' }}>
+        <CompactHeader
+          title="Група"
+          subtitle=""
+          onBack={() => onNavigate('chats')}
+        />
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '40px 24px', textAlign: 'center', gap: 12,
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 14,
+            background: '#13131A',
+            border: '1px solid #232329',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#3F3F45',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
           </div>
-          <div className="title">Група</div>
-        </div>
-        <div className="empty-state">
-          <div className="desc">Групу не знайдено</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Групу не знайдено</div>
         </div>
       </div>
     );
@@ -169,41 +178,31 @@ export default function GroupChat({ groupId, onNavigate }) {
 
   const messages = group.messages || [];
   const noKey = !group.group_key_b64;
+  const memberCount = group.member_count || (group.members?.length ?? 0);
 
   return (
-    <div className="screen">
-      <div className="topbar">
-        <div className="back" onClick={() => onNavigate('chats')}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
-        </div>
-        <div
-          style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-          onClick={() => onNavigate(`groupinfo/${groupId}`)}
-        >
-          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>👥</span>
-            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {group.name || 'Група без назви'}
-            </span>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
-            {group.member_count || (group.members?.length ?? 0)} учасників
-          </div>
-        </div>
-      </div>
+    <div className="screen" style={{ background: '#0A0A0B' }}>
+
+      <CompactHeader
+        title={group.name || 'Група без назви'}
+        subtitle={`${memberCount} учасників`}
+        onBack={() => onNavigate('chats')}
+        onTitleClick={() => onNavigate(`groupinfo/${groupId}`)}
+      />
 
       {noKey && (
         <div style={{
-          margin: '8px 14px 0',
-          background: 'rgba(255, 200, 0, 0.08)',
-          border: '1px solid rgba(255, 200, 0, 0.25)',
-          color: 'var(--text)',
-          padding: '10px 12px', borderRadius: 10,
-          fontSize: 12.5, lineHeight: 1.5,
+          margin: '10px 14px 0',
+          background: 'rgba(255, 169, 77, 0.08)',
+          border: '1px solid rgba(255, 169, 77, 0.25)',
+          padding: '10px 14px', borderRadius: 10,
+          fontSize: 12.5, color: '#FFA94D', lineHeight: 1.5,
+          display: 'flex', gap: 10, alignItems: 'flex-start',
         }}>
-          ⏳ Чекаємо на ключ групи від адміна. Як тільки прийде — побачите назву і повідомлення.
+          <div style={{ fontSize: 14, lineHeight: 1, marginTop: 1 }}>⏳</div>
+          <div>
+            Чекаємо на ключ групи від адміна. Як тільки прийде — побачите назву і повідомлення.
+          </div>
         </div>
       )}
 
@@ -212,17 +211,44 @@ export default function GroupChat({ groupId, onNavigate }) {
         onScroll={onScroll}
         style={{
           flex: 1, overflowY: 'auto',
-          padding: '14px 12px',
-          display: 'flex', flexDirection: 'column', gap: 8,
+          padding: '16px 14px 8px',
+          display: 'flex', flexDirection: 'column', gap: 6,
         }}
       >
-        {messages.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, marginTop: 32 }}>
-            Поки немає повідомлень.
+        {messages.length === 0 && !noKey && (
+          <div style={{
+            textAlign: 'center', color: '#5A5A65', fontSize: 12.5,
+            marginTop: 40, lineHeight: 1.6,
+          }}>
+            Поки немає повідомлень.<br/>
+            <span style={{ color: '#3F3F45', fontSize: 11.5 }}>
+              Напишіть перше нижче.
+            </span>
           </div>
         )}
-        {messages.map((m) => {
+        {messages.map((m, idx) => {
           const isOut = m.direction === 'out' || m.sender_pubkey === myPubkeyHex;
+          const prevMsg = messages[idx - 1];
+          const nextMsg = messages[idx + 1];
+          const sameSender = (a, b) =>
+            (a.direction === 'out' || a.sender_pubkey === myPubkeyHex)
+              === (b.direction === 'out' || b.sender_pubkey === myPubkeyHex)
+            && (a.sender_pubkey || '') === (b.sender_pubkey || '');
+          const samePrev = prevMsg && sameSender(prevMsg, m) && (m.ts - prevMsg.ts) < 300;
+          const sameNext = nextMsg && sameSender(m, nextMsg) && (nextMsg.ts - m.ts) < 300;
+
+          // Bubble radius — tail when first/last in a group
+          const radius = 16;
+          const tail = 4;
+          const borderRadius = isOut
+            ? `${radius}px ${samePrev ? tail : radius}px ${sameNext ? tail : radius}px ${radius}px`
+            : `${samePrev ? tail : radius}px ${radius}px ${radius}px ${sameNext ? tail : radius}px`;
+
+          // Color from sender pubkey (for sender name highlight)
+          const senderHue = m.sender_pubkey
+            ? parseInt(m.sender_pubkey.slice(0, 6), 16) % 360
+            : 220;
+
           return (
             <div
               key={m.id}
@@ -233,47 +259,71 @@ export default function GroupChat({ groupId, onNavigate }) {
               onTouchEnd={cancelLongPress}
               onTouchCancel={cancelLongPress}
               style={{
-                maxWidth: '78%',
+                maxWidth: '80%',
                 alignSelf: isOut ? 'flex-end' : 'flex-start',
                 display: 'flex', flexDirection: 'column', gap: 3,
+                marginTop: samePrev ? 0 : 6,
                 userSelect: 'none', WebkitUserSelect: 'none',
                 cursor: 'pointer',
               }}
             >
-              {!isOut && (
-                <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, padding: '0 4px' }}>
-                  @{m.sender_username || m.sender_pubkey?.slice(0, 8)}
+              {/* Sender name — only for incoming messages, and only first in group */}
+              {!isOut && !samePrev && (
+                <div style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: `hsl(${senderHue}, 60%, 70%)`,
+                  padding: '0 6px 2px',
+                  letterSpacing: '0.01em',
+                  fontFamily: 'var(--mono, monospace)',
+                }}>
+                  @{m.sender_username || m.sender_pubkey?.slice(0, 8) || 'anon'}
                 </div>
               )}
+
               <div
                 style={{
-                  padding: '8px 12px',
-                  borderRadius: 16,
-                  fontSize: 13.5,
-                  lineHeight: 1.4,
+                  padding: '9px 13px',
+                  borderRadius,
+                  fontSize: 14, lineHeight: 1.4,
                   wordWrap: 'break-word',
-                  background: isOut ? 'var(--bubble-out)' : 'var(--bubble-in)',
-                  color: isOut ? '#FFF' : 'var(--text)',
-                  borderBottomRightRadius: isOut ? 5 : 16,
-                  borderBottomLeftRadius: !isOut ? 5 : 16,
+                  background: isOut ? '#6B8AFE' : '#16161B',
+                  color: isOut ? '#FFF' : '#F5F5F7',
+                  border: isOut ? 'none' : '1px solid #1E1E27',
+                  letterSpacing: '-0.005em',
                 }}
               >
-                {m.status === 'undecryptable' ? <span style={{ opacity: 0.7 }}>⚠ {m.error}</span> : m.text}
-              </div>
-              <div style={{
-                fontSize: 10, color: 'var(--text-faint)',
-                fontFamily: 'var(--mono)', padding: '0 4px',
-                display: 'flex', gap: 4,
-                alignSelf: isOut ? 'flex-end' : 'flex-start',
-              }}>
-                <span>{fmtClock(m.ts)}</span>
-                {m.expires_at && <span>· ⏱ {fmtTTLLeft(m.expires_at)}</span>}
-                {isOut && (
-                  <span style={{ color: 'var(--accent)' }}>
-                    · {m.status === 'sending' ? '...' : m.status === 'sent' ? '✓' : m.status === 'failed' ? '✗' : ''}
+                {m.status === 'undecryptable' ? (
+                  <span style={{ opacity: 0.7, fontStyle: 'italic' }}>
+                    ⚠ {m.error || 'не вдалось розшифрувати'}
                   </span>
-                )}
+                ) : m.text}
               </div>
+
+              {!sameNext && (
+                <div style={{
+                  fontSize: 10, color: '#5A5A65',
+                  fontFamily: 'var(--mono, monospace)',
+                  padding: '0 6px',
+                  display: 'flex', gap: 6,
+                  alignSelf: isOut ? 'flex-end' : 'flex-start',
+                  letterSpacing: '0.02em',
+                }}>
+                  <span>{fmtClock(m.ts)}</span>
+                  {m.expires_at && (
+                    <span>· ⏱ {fmtTTLLeft(m.expires_at)}</span>
+                  )}
+                  {isOut && (
+                    <span style={{
+                      color: m.status === 'failed' ? '#FF6B7A' :
+                             m.status === 'sent' ? '#7B96FF' : '#5A5A65',
+                    }}>
+                      · {m.status === 'sending' ? '...' :
+                         m.status === 'sent' ? '✓' :
+                         m.status === 'failed' ? '✗' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -284,138 +334,301 @@ export default function GroupChat({ groupId, onNavigate }) {
         <button
           onClick={scrollToBottom}
           style={{
-            position: 'absolute', right: 14, bottom: 80,
-            width: 40, height: 40, borderRadius: '50%',
-            background: 'var(--surface)', border: '1px solid var(--border)',
+            position: 'absolute', right: 14, bottom: 88,
+            width: 38, height: 38, borderRadius: '50%',
+            background: '#16161B', border: '1px solid #232329',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text)', cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            color: '#F5F5F7', cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 9l6 6 6-6" />
           </svg>
         </button>
       )}
 
+      {/* TTL bottom sheet */}
       {showTtlMenu && (
-        <div onClick={() => setShowTtlMenu(false)} style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
-          zIndex: 50, display: 'flex', alignItems: 'flex-end',
-        }}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            width: '100%', background: 'var(--surface)',
-            borderTopLeftRadius: 22, borderTopRightRadius: 22,
-            padding: '12px 0 28px',
+        <Sheet onClose={() => setShowTtlMenu(false)}>
+          <h3 style={{
+            fontSize: 17, fontWeight: 700,
+            color: '#F5F5F7',
+            letterSpacing: '-0.02em',
+            margin: '0 20px 6px',
           }}>
-            <div style={{ width: 32, height: 4, background: 'var(--text-faint)', borderRadius: 2, margin: '6px auto 14px', opacity: 0.4 }} />
-            <div style={{ fontSize: 15, fontWeight: 700, padding: '0 18px 14px' }}>
-              Як довго зберігати повідомлення?
-            </div>
-            {TTL_OPTIONS.map((opt) => (
-              <div key={opt.seconds}
+            Час життя повідомлення
+          </h3>
+          <p style={{
+            fontSize: 12, color: '#6B6B72',
+            margin: '0 20px 14px', lineHeight: 1.5,
+          }}>
+            Після цього часу повідомлення зникне у всіх учасників.
+          </p>
+          {TTL_OPTIONS.map((opt) => {
+            const active = ttlSeconds === opt.seconds;
+            return (
+              <div
+                key={opt.seconds}
                 onClick={() => { setTtlSeconds(opt.seconds); setShowTtlMenu(false); }}
                 style={{
-                  padding: '14px 18px',
-                  display: 'flex', justifyContent: 'space-between',
+                  padding: '14px 20px',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   cursor: 'pointer',
-                  color: ttlSeconds === opt.seconds ? 'var(--accent)' : 'var(--text)',
+                  color: '#F5F5F7',
+                  fontSize: 14,
+                  background: active ? '#1A1F2E' : 'transparent',
+                  borderLeft: '3px solid ' + (active ? '#7B96FF' : 'transparent'),
+                  transition: 'background 0.12s',
                 }}
               >
-                <span>{opt.label}</span>
-                {ttlSeconds === opt.seconds && <span>✓</span>}
+                <span style={{ fontWeight: active ? 600 : 500 }}>{opt.label}</span>
+                {active && (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B96FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
+            );
+          })}
+        </Sheet>
       )}
 
+      {/* Message action sheet */}
       {actionMessage && (
-        <div onClick={() => setActionMessage(null)} style={{
-          position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)',
-          zIndex: 60, display: 'flex', alignItems: 'flex-end',
-        }}>
-          <div onClick={(e) => e.stopPropagation()} style={{
-            width: '100%', background: 'var(--surface)',
-            borderTopLeftRadius: 22, borderTopRightRadius: 22,
-            padding: '12px 0 28px',
+        <Sheet onClose={() => setActionMessage(null)}>
+          <div style={{
+            fontSize: 12.5, color: '#8E8E99',
+            padding: '0 20px 14px',
+            borderBottom: '1px solid #232329',
+            lineHeight: 1.5,
+            fontStyle: 'italic',
           }}>
-            <div style={{ width: 32, height: 4, background: 'var(--text-faint)', borderRadius: 2, margin: '6px auto 14px', opacity: 0.4 }} />
-            <div style={{
-              fontSize: 13, color: 'var(--text-dim)',
-              padding: '0 18px 14px',
-              borderBottom: '1px solid var(--border)',
-            }}>
-              {actionMessage.text?.slice(0, 80)}{actionMessage.text?.length > 80 ? '…' : ''}
-            </div>
-            <div onClick={() => {
+            "{actionMessage.text?.slice(0, 80)}{actionMessage.text?.length > 80 ? '…' : ''}"
+          </div>
+          <div
+            onClick={() => {
               navigator.clipboard?.writeText(actionMessage.text || '').catch(() => {});
               setActionMessage(null);
-            }} style={{ padding: '14px 18px', cursor: 'pointer' }}>
-              Скопіювати
-            </div>
-            {(actionMessage.direction === 'out' || actionMessage.sender_pubkey === myPubkeyHex) ? (
-              <div onClick={deleteOwnMessage} style={{
-                padding: '14px 18px', cursor: 'pointer', color: 'var(--danger)',
-              }}>
-                Видалити повідомлення
-              </div>
-            ) : (
-              <div onClick={deleteIncomingLocally} style={{
-                padding: '14px 18px', cursor: 'pointer', color: 'var(--danger)',
-              }}>
-                Видалити у себе
-              </div>
-            )}
+            }}
+            style={{
+              padding: '14px 20px', cursor: 'pointer',
+              fontSize: 14, color: '#F5F5F7',
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Скопіювати
           </div>
-        </div>
+          {(actionMessage.direction === 'out' || actionMessage.sender_pubkey === myPubkeyHex) ? (
+            <div
+              onClick={deleteOwnMessage}
+              style={{
+                padding: '14px 20px', cursor: 'pointer',
+                color: '#FF6B7A', fontSize: 14, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              Видалити повідомлення
+            </div>
+          ) : (
+            <div
+              onClick={deleteIncomingLocally}
+              style={{
+                padding: '14px 20px', cursor: 'pointer',
+                color: '#FF6B7A', fontSize: 14, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+              Видалити у себе
+            </div>
+          )}
+        </Sheet>
       )}
 
+      {/* Composer */}
       {!noKey && (
         <div style={{
-          padding: '10px 10px',
-          display: 'flex', gap: 7, alignItems: 'flex-end',
-          borderTop: '1px solid var(--border)',
+          padding: '10px 12px 14px',
+          display: 'flex', gap: 8, alignItems: 'flex-end',
+          borderTop: '1px solid #1E1E27',
+          background: '#0A0A0B',
         }}>
-          <button onClick={() => setShowTtlMenu(true)} style={{
-            background: 'transparent', border: 'none',
-            width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--text-dim)', cursor: 'pointer',
-            fontSize: 10, fontFamily: 'var(--mono)',
-          }}>
-            ⏱{ttlSeconds < 86400 ? `${ttlSeconds / 3600}г` : `${ttlSeconds / 86400}д`}
+          <button
+            onClick={() => setShowTtlMenu(true)}
+            style={{
+              background: '#13131A',
+              border: '1px solid #232329',
+              height: 38, padding: '0 11px',
+              borderRadius: 19,
+              display: 'flex', alignItems: 'center', gap: 5,
+              color: '#A8A8B0', cursor: 'pointer',
+              fontSize: 11, fontFamily: 'var(--mono, monospace)',
+              fontWeight: 600, letterSpacing: '0.02em',
+              flexShrink: 0,
+            }}
+            title="Час життя повідомлення"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            {ttlSeconds < 86400 ? `${ttlSeconds / 3600}г` : `${ttlSeconds / 86400}д`}
           </button>
-          <textarea value={draft}
+          <textarea
+            value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendClicked(); }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendClicked();
+              }
             }}
             placeholder="Повідомлення..."
             rows={1}
             style={{
-              flex: 1, minHeight: 36, maxHeight: 100,
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 18,
-              padding: '8px 14px',
-              color: 'var(--text)',
-              fontSize: 14, fontFamily: 'var(--font)',
+              flex: 1, minHeight: 38, maxHeight: 110,
+              background: '#13131A',
+              border: '1px solid #232329',
+              borderRadius: 19,
+              padding: '9px 16px',
+              color: '#F5F5F7',
+              fontSize: 14, fontFamily: 'inherit',
               outline: 'none', resize: 'none',
+              lineHeight: 1.4,
             }}
+            onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
+            onBlur={(e) => e.target.style.borderColor = '#232329'}
           />
-          <button onClick={sendClicked} disabled={!draft.trim() || sending} style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'var(--accent)', border: 'none',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: draft.trim() && !sending ? 1 : 0.5,
-            cursor: draft.trim() && !sending ? 'pointer' : 'not-allowed',
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+          <button
+            onClick={sendClicked}
+            disabled={!draft.trim() || sending}
+            style={{
+              width: 38, height: 38, borderRadius: '50%',
+              background: (draft.trim() && !sending) ? '#F5F5F7' : '#2A2A33',
+              border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: (draft.trim() && !sending) ? 'pointer' : 'not-allowed',
+              flexShrink: 0,
+              transition: 'background 0.15s',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke={(draft.trim() && !sending) ? '#0A0A0B' : '#5A5A65'}
+              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─── Sub-components ─────────────────────────────────────── */
+
+function CompactHeader({ title, subtitle, onBack, onTitleClick }) {
+  return (
+    <div style={{
+      padding: '14px 16px',
+      display: 'flex', alignItems: 'center', gap: 12,
+      borderBottom: '1px solid #1E1E27',
+      background: '#0A0A0B',
+    }}>
+      <button
+        onClick={onBack}
+        style={{
+          width: 34, height: 34, borderRadius: '50%',
+          background: '#16161B', border: '1px solid #232329',
+          color: '#A8A8B0', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+
+      {/* Group icon */}
+      <div style={{
+        width: 34, height: 34, borderRadius: 10,
+        background: 'linear-gradient(135deg, #7B96FF 0%, #5A6FE0 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#FFF',
+        flexShrink: 0,
+        cursor: onTitleClick ? 'pointer' : 'default',
+      }}
+      onClick={onTitleClick}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+
+      <div
+        style={{ flex: 1, minWidth: 0, cursor: onTitleClick ? 'pointer' : 'default' }}
+        onClick={onTitleClick}
+      >
+        <div style={{
+          fontSize: 14.5, fontWeight: 700,
+          color: '#F5F5F7',
+          letterSpacing: '-0.01em',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {title}
+        </div>
+        {subtitle && (
+          <div style={{
+            fontSize: 11, color: '#6B6B72',
+            fontFamily: 'var(--mono, monospace)',
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {subtitle}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Sheet({ children, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(0,0,0,0.7)', zIndex: 60,
+        display: 'flex', alignItems: 'flex-end',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%',
+          background: '#16161B',
+          borderTop: '1px solid #232329',
+          borderTopLeftRadius: 22, borderTopRightRadius: 22,
+          padding: '12px 0 28px',
+        }}
+      >
+        <div style={{
+          width: 36, height: 4, background: '#3F3F45',
+          borderRadius: 2, margin: '6px auto 18px',
+        }} />
+        {children}
+      </div>
     </div>
   );
 }
