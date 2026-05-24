@@ -12,7 +12,10 @@ import { decryptWithSecret } from '../lib/vault.js';
 export default function PinUnlock({ onNavigate }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(null);
-  const [lockoutSeconds, setLockoutSeconds] = useState(vault.getLockoutSecondsRemaining?.() || 0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(() => {
+    const s = vault.getLockoutStatus();
+    return s.locked ? s.remaining_s : 0;
+  });
   const inputRef = useRef(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -32,17 +35,18 @@ export default function PinUnlock({ onNavigate }) {
     setTimeout(() => {
       try {
         const identity = store.loadIdentity();
-        const seedBytes = decryptWithSecret(identity.seed_b64, digits);
+        const seedBytes = decryptWithSecret(identity.blob_b64, digits);
         vault.markUnlocked(seedBytes);
-        vault.clearLockout?.();
+        vault.clearLockout();
         onNavigate('chats');
       } catch (e) {
-        vault.recordFailedAttempt?.();
-        const remaining = vault.getLockoutSecondsRemaining?.() || 0;
-        setLockoutSeconds(remaining);
-        setError(remaining > 0
-          ? `Забагато спроб. Зачекайте ${remaining}с.`
-          : 'Неправильний PIN');
+        const status = vault.recordWrongPin();
+        if (status.locked) {
+          setLockoutSeconds(status.remaining_s);
+          setError(`Забагато спроб. Зачекайте ${status.remaining_s}с.`);
+        } else {
+          setError('Неправильний PIN');
+        }
         setPin('');
       }
     }, 100);

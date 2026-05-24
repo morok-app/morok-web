@@ -53,10 +53,10 @@ export default function PinSetup({ onNavigate, mode = 'initial' }) {
       const mnemonicBytes = identity.mnemonic ? utf8(identity.mnemonic) : null;
       const encryptedMnemonic = mnemonicBytes ? encryptWithSecret(mnemonicBytes, pin) : null;
 
-      store.saveIdentityEncrypted({
-        seed_b64: encryptedSeed,
-        mnemonic_b64: encryptedMnemonic,
-        pubkey_hex: identity.pubkey_hex,
+      store.saveIdentityLocked({
+        blobB64: encryptedSeed,
+        mnemonicBlobB64: encryptedMnemonic,
+        pubkeyHex: identity.pubkey_hex,
       });
       vault.markUnlocked(seedBytes);
       onNavigate(mode === 'existing' ? 'settings' : 'claim');
