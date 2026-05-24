@@ -7,6 +7,7 @@
  * Events emitted to the consumer:
  *   onCatchup(envelopes[])
  *   onNew(envelope)
+ *   onDeleted({ envelopeId, by, groupId })
  *   onStateChange('connecting'|'open'|'closed'|'error')
  */
 
@@ -15,9 +16,10 @@ import * as api from './api.js';
 const BACKOFF_SECONDS = [1, 2, 5, 10, 30];
 
 export class InboxClient {
-  constructor({ onCatchup, onNew, onStateChange }) {
+  constructor({ onCatchup, onNew, onDeleted, onStateChange }) {
     this.onCatchup = onCatchup;
     this.onNew = onNew;
+    this.onDeleted = onDeleted;
     this.onStateChange = onStateChange;
     this.ws = null;
     this.attempts = 0;
@@ -80,6 +82,13 @@ export class InboxClient {
         break;
       case 'new':
         this.onNew?.(msg.envelope);
+        break;
+      case 'deleted':
+        this.onDeleted?.({
+          envelopeId: msg.envelope_id,
+          by: msg.by,
+          groupId: msg.group_id || null,
+        });
         break;
       case 'ping':
         if (this.ws?.readyState === WebSocket.OPEN) {
