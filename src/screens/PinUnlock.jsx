@@ -1,189 +1,168 @@
 import { useState, useEffect, useRef } from 'react';
-import { unlockSeedWithPin, getLockoutStatus, recordWrongPin, clearLockout, markUnlocked } from '../lib/vault.js';
 import * as store from '../lib/storage.js';
+import * as vault from '../lib/vault.js';
+import { decryptWithSecret } from '../lib/vault.js';
 
-export default function PinUnlock({ onUnlocked, onForgotPin }) {
+/**
+ * PinUnlock — Linear-style unlock screen.
+ *
+ * Shows after browser reload if identity is encrypted.
+ * 5 wrong attempts → 30s lockout, escalating.
+ */
+export default function PinUnlock({ onNavigate }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [lockout, setLockout] = useState(getLockoutStatus());
-  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [lockoutSeconds, setLockoutSeconds] = useState(vault.getLockoutSecondsRemaining?.() || 0);
   const inputRef = useRef(null);
 
-  // Update cooldown countdown
-  useEffect(() => {
-    if (!lockout.locked) return;
-    setCooldownRemaining(lockout.remaining_s);
-    const id = setInterval(() => {
-      const s = getLockoutStatus();
-      setLockout(s);
-      setCooldownRemaining(s.locked ? s.remaining_s : 0);
-      if (!s.locked) clearInterval(id);
-    }, 1000);
-    return () => clearInterval(id);
-  }, [lockout.locked]);
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   useEffect(() => {
-    if (!lockout.locked) inputRef.current?.focus();
-  }, [lockout.locked]);
+    if (lockoutSeconds <= 0) return;
+    const t = setTimeout(() => setLockoutSeconds((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [lockoutSeconds]);
 
-  function onDigit(d) {
-    if (busy || lockout.locked) return;
-    if (pin.length >= 6) return;
-    setPin(pin + d);
-    setError(null);
-  }
+  function tryUnlock(value) {
+    const digits = value.replace(/\D/g, '').slice(0, 6);
+    setPin(digits);
 
-  function onBack() {
-    if (busy || lockout.locked) return;
-    setPin(pin.slice(0, -1));
-    setError(null);
-  }
+    if (digits.length !== 6) return;
 
-  // Auto-attempt when 6 digits entered
-  useEffect(() => {
-    if (pin.length === 6 && !busy && !lockout.locked) {
-      attempt();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin]);
-
-  async function attempt() {
-    setBusy(true);
-    try {
-      const id = store.loadIdentity();
-      if (!id || !id.encrypted) {
-        setError('Локальний акаунт не знайдено');
-        setBusy(false);
-        return;
+    setTimeout(() => {
+      try {
+        const identity = store.loadIdentity();
+        const seedBytes = decryptWithSecret(identity.seed_b64, digits);
+        vault.markUnlocked(seedBytes);
+        vault.clearLockout?.();
+        onNavigate('chats');
+      } catch (e) {
+        vault.recordFailedAttempt?.();
+        const remaining = vault.getLockoutSecondsRemaining?.() || 0;
+        setLockoutSeconds(remaining);
+        setError(remaining > 0
+          ? `Забагато спроб. Зачекайте ${remaining}с.`
+          : 'Неправильний PIN');
+        setPin('');
       }
-      const seedBytes = unlockSeedWithPin(id.blob_b64, pin);
-      clearLockout();
-      markUnlocked(seedBytes);
-      onUnlocked?.(seedBytes);
-    } catch (e) {
-      const s = recordWrongPin();
-      setLockout(s);
-      setPin('');
-      if (s.locked) {
-        setError(`Забагато спроб. Зачекайте ${Math.ceil(s.remaining_s / 60)} хв.`);
-      } else {
-        setError('Неправильний PIN');
-      }
-      setBusy(false);
-    }
+    }, 100);
   }
 
-  function fmtCooldown(s) {
-    if (s >= 3600) return `${Math.ceil(s / 3600)} год`;
-    if (s >= 60) return `${Math.ceil(s / 60)} хв`;
-    return `${s} с`;
+  function emergencyExitClicked() {
+    if (!confirm('Стерти всі локальні дані і вийти? Доступ до акаунта потім можна отримати тільки через 24 слова.')) return;
+    store.wipeAll();
+    vault.lockNow();
+    window.location.href = '/web/#welcome';
+    window.location.reload();
   }
+
+  const locked = lockoutSeconds > 0;
 
   return (
-    <div className="onb" style={{ paddingTop: 60 }}>
-      <div className="onb-content" style={{ alignItems: 'center', gap: 24 }}>
+    <div className="screen" style={{
+      background: '#0A0A0B',
+      display: 'flex', flexDirection: 'column',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Dot grid bg */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'radial-gradient(circle, #1A1A22 1px, transparent 1px)',
+        backgroundSize: '24px 24px',
+        opacity: 0.4,
+        pointerEvents: 'none',
+      }} />
+
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '20px',
+        gap: 32, position: 'relative', zIndex: 1,
+      }}>
+        {/* M logo */}
         <div style={{
-          width: 72, height: 72, borderRadius: 22,
-          background: 'linear-gradient(135deg, var(--accent) 0%, #4A5FB0 100%)',
+          width: 72, height: 72,
+          borderRadius: 18,
+          background: 'linear-gradient(135deg, #7B96FF 0%, #5A6FE0 100%)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 30, fontWeight: 800, color: '#FFF',
+          color: 'white', fontWeight: 800, fontSize: 42,
+          boxShadow: '0 12px 36px rgba(107, 138, 254, 0.3)',
+          letterSpacing: '-0.04em',
         }}>M</div>
 
-        <h1 style={{ textAlign: 'center', fontSize: 22 }}>Введіть PIN</h1>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            fontSize: 22, fontWeight: 700, color: '#F5F5F7',
+            letterSpacing: '-0.02em', marginBottom: 8,
+          }}>
+            Введіть PIN
+          </div>
+          <div style={{ fontSize: 13, color: '#6B6B72' }}>
+            6 цифр щоб розблокувати акаунт
+          </div>
+        </div>
 
-        {/* PIN dots */}
-        <div style={{
-          display: 'flex', gap: 14,
-          justifyContent: 'center',
-        }}>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: 16, height: 16, borderRadius: '50%',
-                background: i < pin.length ? 'var(--accent)' : 'transparent',
-                border: '1.5px solid var(--border)',
-              }}
-            />
+        {/* Dots */}
+        <div style={{ display: 'flex', gap: 14 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} style={{
+              width: 14, height: 14, borderRadius: '50%',
+              background: i < pin.length ? '#F5F5F7' : 'transparent',
+              border: '1.5px solid ' + (i < pin.length ? '#F5F5F7' : '#3F3F45'),
+              transition: 'all 0.12s',
+            }} />
           ))}
         </div>
 
-        {lockout.locked && (
-          <div style={{
-            background: 'rgba(255, 107, 122, 0.08)',
-            border: '1px solid rgba(255, 107, 122, 0.25)',
-            color: 'var(--danger)',
-            padding: '12px 14px',
-            borderRadius: 12,
-            fontSize: 13,
-            textAlign: 'center',
-            lineHeight: 1.5,
-          }}>
-            Локальний акаунт заблоковано<br/>
-            Спробуйте знов через {fmtCooldown(cooldownRemaining)}
-          </div>
-        )}
-
-        {!lockout.locked && error && (
-          <div className="error-text" style={{ textAlign: 'center' }}>{error}</div>
-        )}
-
-        {/* Hidden input */}
         <input
           ref={inputRef}
           type="tel"
           inputMode="numeric"
-          pattern="[0-9]*"
           autoFocus
-          maxLength={6}
           value={pin}
-          onChange={(e) => {
-            if (lockout.locked) return;
-            const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
-            setPin(v);
-          }}
+          disabled={locked}
+          onChange={(e) => tryUnlock(e.target.value)}
           style={{
             position: 'absolute', opacity: 0, pointerEvents: 'none',
             width: 1, height: 1,
           }}
         />
 
-        {/* On-screen keypad */}
-        <div style={{
-          marginTop: 8, display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)', gap: 10,
-          width: '100%', maxWidth: 280,
-          opacity: lockout.locked ? 0.4 : 1,
-          pointerEvents: lockout.locked ? 'none' : 'auto',
-        }}>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
-            <button
-              key={d}
-              className="btn btn-secondary"
-              style={{ height: 56, fontSize: 22, fontWeight: 500 }}
-              onClick={() => onDigit(String(d))}
-            >{d}</button>
-          ))}
-          <div />
-          <button
-            className="btn btn-secondary"
-            style={{ height: 56, fontSize: 22, fontWeight: 500 }}
-            onClick={() => onDigit('0')}
-          >0</button>
-          <button
-            className="btn btn-ghost"
-            style={{ height: 56, fontSize: 18 }}
-            onClick={onBack}
-          >⌫</button>
+        <div
+          onClick={() => inputRef.current?.focus()}
+          style={{
+            fontSize: 12.5, color: '#6B6B72',
+            cursor: 'pointer', padding: 10,
+          }}
+        >
+          Натисніть тут якщо клавіатура не з'явилась
         </div>
 
+        {error && (
+          <div style={{
+            background: 'rgba(255, 107, 122, 0.08)',
+            border: '1px solid rgba(255, 107, 122, 0.25)',
+            color: '#FF6B7A',
+            padding: '10px 14px',
+            borderRadius: 10,
+            fontSize: 13,
+          }}>
+            {error}
+          </div>
+        )}
+      </div>
+
+      <div style={{ padding: '0 20px 28px', textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <button
-          className="btn btn-ghost"
-          style={{ marginTop: 16, fontSize: 13 }}
-          onClick={onForgotPin}
+          onClick={emergencyExitClicked}
+          style={{
+            background: 'transparent', border: 'none',
+            color: '#FF6B7A', fontSize: 12.5,
+            cursor: 'pointer', fontFamily: 'inherit',
+            padding: 10,
+          }}
         >
-          Забув PIN — увійти за 24 словами
+          🆘 Аварійний вихід (стерти все)
         </button>
       </div>
     </div>

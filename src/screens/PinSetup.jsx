@@ -1,200 +1,198 @@
 import { useState, useEffect, useRef } from 'react';
-import { hexToBytes, bytesToHex } from '../lib/crypto.js';
-import { lockSeedWithPin, encryptWithSecret } from '../lib/vault.js';
-import { utf8 } from '../lib/crypto.js';
 import * as store from '../lib/storage.js';
+import * as vault from '../lib/vault.js';
+import { utf8, hexToBytes } from '../lib/crypto.js';
+import { encryptWithSecret } from '../lib/vault.js';
 
 /**
- * Set up a new 6-digit PIN.
+ * PinSetup — Linear-style 6-digit PIN setup.
  *
- * Two steps:
- *   1. Enter PIN
- *   2. Confirm PIN (must match)
+ * 2-step:
+ *   1) Enter new PIN
+ *   2) Confirm by entering again
  *
- * On success: encrypt the seed and mnemonic with the PIN, save the locked
- * identity, and navigate to chats.
- *
- * Source of the seed:
- *   - From storage if identity is currently unlocked (existing user adding PIN)
- *   - From `prefilledSeed` prop if we're in the create-account flow (passed
- *     down via App from CreateAccount before saving)
+ * Visual: 6 dots that fill as you type. Hidden text input for actual input.
  */
-export default function PinSetup({ onNavigate, onDone, prefilledSeed, prefilledMnemonic, prefilledPubkeyHex }) {
-  const [step, setStep] = useState(1);  // 1 = enter, 2 = confirm
-  const [pin1, setPin1] = useState('');
-  const [pin2, setPin2] = useState('');
+export default function PinSetup({ onNavigate, mode = 'initial' }) {
+  // mode: 'initial' (from CreateAccount) | 'existing' (from Settings)
+  const [step, setStep] = useState('enter'); // enter | confirm
+  const [pin, setPin] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const input1Ref = useRef(null);
-  const input2Ref = useRef(null);
+  const inputRef = useRef(null);
 
-  useEffect(() => {
-    if (step === 1) input1Ref.current?.focus();
-    else input2Ref.current?.focus();
-  }, [step]);
+  useEffect(() => { inputRef.current?.focus(); }, [step]);
 
-  function onDigit(d, isConfirm) {
-    if (busy) return;
-    const setVal = isConfirm ? setPin2 : setPin1;
-    const cur = isConfirm ? pin2 : pin1;
-    if (cur.length >= 6) return;
-    setVal(cur + d);
-    setError(null);
+  function handleInput(value, target) {
+    const digits = value.replace(/\D/g, '').slice(0, 6);
+    if (target === 'pin') setPin(digits);
+    else setConfirm(digits);
+
+    if (digits.length === 6) {
+      // Auto-advance
+      if (target === 'pin') {
+        setTimeout(() => setStep('confirm'), 150);
+      }
+    }
   }
 
-  function onBack(isConfirm) {
-    const setVal = isConfirm ? setPin2 : setPin1;
-    const cur = isConfirm ? pin2 : pin1;
-    setVal(cur.slice(0, -1));
-    setError(null);
-  }
-
-  // Advance when 6 digits entered
-  useEffect(() => {
-    if (step === 1 && pin1.length === 6) {
-      setStep(2);
-    }
-  }, [pin1, step]);
-
-  useEffect(() => {
-    if (step === 2 && pin2.length === 6) {
-      finish();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin2, step]);
-
-  async function finish() {
-    if (pin1 !== pin2) {
-      setError('PIN не співпадає. Спробуйте ще раз.');
-      setPin1('');
-      setPin2('');
-      setStep(1);
+  function finalizeClicked() {
+    if (pin !== confirm) {
+      setError('PIN не співпадають');
+      setConfirm('');
       return;
     }
-    setBusy(true);
-
     try {
-      // Source seed
-      let seedBytes, mnemonic, pubkeyHex;
-      if (prefilledSeed) {
-        seedBytes = prefilledSeed;
-        mnemonic = prefilledMnemonic;
-        pubkeyHex = prefilledPubkeyHex;
-      } else {
-        const id = store.loadIdentity();
-        if (!id || id.encrypted) {
-          setError('Не вдалось знайти seed');
-          setBusy(false);
-          return;
-        }
-        seedBytes = hexToBytes(id.seed_hex);
-        mnemonic = id.mnemonic;
-        pubkeyHex = id.pubkey_hex;
+      const identity = store.loadIdentity();
+      if (!identity || !identity.seed_hex) {
+        setError('Сесія завершилась. Перезавантажте сторінку.');
+        return;
       }
+      const seedBytes = hexToBytes(identity.seed_hex);
+      const encryptedSeed = encryptWithSecret(seedBytes, pin);
+      const mnemonicBytes = identity.mnemonic ? utf8(identity.mnemonic) : null;
+      const encryptedMnemonic = mnemonicBytes ? encryptWithSecret(mnemonicBytes, pin) : null;
 
-      const seedBlob = lockSeedWithPin(seedBytes, pin1);
-      const mnemonicBlob = encryptWithSecret(utf8(mnemonic), pin1);
-      store.saveIdentityLocked({
-        blobB64: seedBlob,
-        mnemonicBlobB64: mnemonicBlob,
-        pubkeyHex,
+      store.saveIdentityEncrypted({
+        seed_b64: encryptedSeed,
+        mnemonic_b64: encryptedMnemonic,
+        pubkey_hex: identity.pubkey_hex,
       });
-
-      onDone?.(seedBytes);  // hand back to caller
+      vault.markUnlocked(seedBytes);
+      onNavigate(mode === 'existing' ? 'settings' : 'claim');
     } catch (e) {
-      console.error('PIN setup failed:', e);
       setError(e.message || 'Помилка');
-      setBusy(false);
     }
   }
 
-  const currentPin = step === 1 ? pin1 : pin2;
-  const title = step === 1 ? 'Створіть PIN-код' : 'Підтвердіть PIN-код';
-  const hint = step === 1
-    ? 'Цей PIN захищає ваш акаунт на цьому пристрої. Питатиметься раз на годину.'
-    : 'Введіть той же PIN ще раз для підтвердження.';
+  function skipClicked() {
+    if (mode === 'existing') onNavigate('settings');
+    else onNavigate('claim');
+  }
+
+  useEffect(() => {
+    if (step === 'confirm' && confirm.length === 6) {
+      setTimeout(finalizeClicked, 150);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirm]);
+
+  const currentValue = step === 'enter' ? pin : confirm;
 
   return (
-    <div className="onb">
-      {step === 1 && (
-        <div className="onb-header">
-          <div className="back" onClick={() => onNavigate('welcome')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
+    <div className="screen" style={{ background: '#0A0A0B' }}>
+
+      <div style={{
+        padding: '20px 20px 16px',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+      }}>
+        <div>
+          <div style={{
+            fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
+            color: '#F5F5F7', lineHeight: 1.1,
+          }}>
+            {step === 'enter' ? 'Створіть PIN' : 'Повторіть PIN'}
+          </div>
+          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+            {step === 'enter'
+              ? '6 цифр для захисту акаунта'
+              : 'Введіть той самий PIN ще раз'}
           </div>
         </div>
-      )}
+        {mode === 'existing' && (
+          <button
+            onClick={() => onNavigate('settings')}
+            style={{
+              width: 36, height: 36, borderRadius: '50%',
+              background: '#16161B', border: '1px solid #232329',
+              color: '#A8A8B0', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        )}
+      </div>
 
-      <div className="onb-content" style={{ alignItems: 'center' }}>
-        <h1 style={{ textAlign: 'center' }}>{title}</h1>
-        <p className="hint" style={{ textAlign: 'center' }}>{hint}</p>
-
-        {/* PIN dots */}
-        <div style={{
-          display: 'flex', gap: 14, marginTop: 24,
-          justifyContent: 'center',
-        }}>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: 16, height: 16, borderRadius: '50%',
-                background: i < currentPin.length ? 'var(--accent)' : 'transparent',
-                border: '1.5px solid var(--border)',
-              }}
-            />
+      <div style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        padding: '40px 20px',
+        gap: 32,
+      }}>
+        {/* 6 dot indicators */}
+        <div style={{ display: 'flex', gap: 14, justifyContent: 'center' }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} style={{
+              width: 14, height: 14, borderRadius: '50%',
+              background: i < currentValue.length ? '#F5F5F7' : 'transparent',
+              border: '1.5px solid ' + (i < currentValue.length ? '#F5F5F7' : '#3F3F45'),
+              transition: 'all 0.12s',
+            }} />
           ))}
         </div>
 
-        {error && <div className="error-text" style={{ textAlign: 'center', marginTop: 8 }}>{error}</div>}
-
-        {/* Hidden input for keyboard entry (mobile + desktop) */}
+        {/* Hidden input that captures digits */}
         <input
-          ref={step === 1 ? input1Ref : input2Ref}
+          ref={inputRef}
           type="tel"
           inputMode="numeric"
-          pattern="[0-9]*"
           autoFocus
-          maxLength={6}
-          value={currentPin}
-          onChange={(e) => {
-            const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
-            if (step === 1) setPin1(v); else setPin2(v);
-          }}
+          value={currentValue}
+          onChange={(e) => handleInput(e.target.value, step === 'enter' ? 'pin' : 'confirm')}
           style={{
-            position: 'absolute', opacity: 0, pointerEvents: 'none',
+            position: 'absolute',
+            opacity: 0,
+            pointerEvents: 'none',
             width: 1, height: 1,
           }}
         />
 
-        {/* On-screen keypad */}
-        <div style={{
-          marginTop: 32, display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)', gap: 10,
-          width: '100%', maxWidth: 280, alignSelf: 'center',
-        }}>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
-            <button
-              key={d}
-              className="btn btn-secondary"
-              style={{ height: 56, fontSize: 22, fontWeight: 500 }}
-              onClick={() => onDigit(String(d), step === 2)}
-            >{d}</button>
-          ))}
-          <div />
-          <button
-            className="btn btn-secondary"
-            style={{ height: 56, fontSize: 22, fontWeight: 500 }}
-            onClick={() => onDigit('0', step === 2)}
-          >0</button>
-          <button
-            className="btn btn-ghost"
-            style={{ height: 56, fontSize: 18 }}
-            onClick={() => onBack(step === 2)}
-          >⌫</button>
+        <div
+          onClick={() => inputRef.current?.focus()}
+          style={{
+            fontSize: 12.5, color: '#6B6B72',
+            textAlign: 'center',
+            cursor: 'pointer',
+            padding: 10,
+          }}
+        >
+          Натисніть тут якщо клавіатура не з'явилась
         </div>
+
+        {error && (
+          <div style={{
+            background: 'rgba(255, 107, 122, 0.08)',
+            border: '1px solid rgba(255, 107, 122, 0.25)',
+            color: '#FF6B7A',
+            padding: '10px 14px',
+            borderRadius: 10,
+            fontSize: 13,
+          }}>
+            {error}
+          </div>
+        )}
       </div>
+
+      {/* Bottom — skip option for initial flow */}
+      {mode === 'initial' && step === 'enter' && (
+        <div style={{ padding: '0 20px 28px', textAlign: 'center' }}>
+          <button
+            onClick={skipClicked}
+            style={{
+              background: 'transparent', border: 'none',
+              color: '#6B6B72', fontSize: 13,
+              cursor: 'pointer', fontFamily: 'inherit',
+              padding: 10,
+            }}
+          >
+            Пропустити — захищу пізніше
+          </button>
+        </div>
+      )}
     </div>
   );
 }

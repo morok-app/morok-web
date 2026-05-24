@@ -2,111 +2,174 @@ import { useState } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 
+const PATTERN = /^[a-z0-9_]{3,20}$/;
+
+/**
+ * ClaimUsername — Linear-style, optional step.
+ *
+ * Pricing hint: 3-char = 1000 LAC, 7+ chars = 10 LAC (in future).
+ * For now everyone is free.
+ */
 export default function ClaimUsername({ onNavigate }) {
-  const [value, setValue] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [username, setUsername] = useState('');
   const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
 
-  function onInput(e) {
-    let v = e.target.value.toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9_]/g, '');
-    if (v.length > 20) v = v.slice(0, 20);
-    setValue(v);
+  const valid = PATTERN.test(username);
+
+  async function claimClicked() {
+    if (!valid) return;
     setError(null);
-  }
-
-  const validLocal = (() => {
-    if (value.length < 5) return false;
-    if (/^[0-9_]/.test(value)) return false;
-    return true;
-  })();
-
-  async function claim() {
-    if (!validLocal || busy) return;
     setBusy(true);
-    setError(null);
     try {
-      const me = await api.claimUsername(value);
-      store.saveProfile({
-        username: me.username,
-        tier: me.tier,
-        homeRelay: me.home_relay,
-      });
+      const result = await api.claimUsername(username);
+      const profile = store.loadProfile() || {};
+      store.saveProfile({ ...profile, username: result.username });
       onNavigate('chats');
     } catch (e) {
-      console.error(e);
-      const code = e.message;
-      const friendly = {
-        'username_taken': 'Цей юзернейм вже зайнятий',
-        'username_in_cooldown': 'Юзернейм нещодавно звільнено, спробуйте інший',
-      }[code] || code;
+      const code = e.message || '';
+      const friendly =
+        code.includes('username_taken') ? 'Юзернейм вже зайнятий' :
+        code.includes('reserved') ? 'Юзернейм зарезервовано системою' :
+        code.includes('invalid') ? 'Невалідний формат' :
+        code || 'Помилка';
       setError(friendly);
       setBusy(false);
     }
   }
 
-  function skip() {
+  function skipClicked() {
     onNavigate('chats');
   }
 
   return (
-    <div className="onb">
-      <div className="onb-content" style={{ paddingTop: 40 }}>
-        <h1>Як вас називати?</h1>
-        <p className="hint">
-          Це ваш юзернейм у Morok. Без телефонів, без email, без імен.
-          Мінімум 5 символів, тільки латиниця, цифри і нижнє підкреслення.
-        </p>
+    <div className="screen" style={{ background: '#0A0A0B' }}>
 
-        <div className="input-wrap">
-          <span className="input-prefix">@</span>
-          <input
-            className="input with-prefix"
-            type="text"
-            placeholder="username"
-            value={value}
-            onChange={onInput}
-            spellCheck={false}
-            autoCapitalize="none"
-            autoCorrect="off"
-            inputMode="text"
-          />
-        </div>
-
-        {error && <div className="error-text">{error}</div>}
-
-        <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>
-          Шорші юзернейми (3-4 символи) доступні на premium.
-        </p>
-
+      {/* Header */}
+      <div style={{ padding: '20px 20px 24px' }}>
         <div style={{
-          marginTop: 16,
-          background: 'rgba(107, 138, 254, 0.06)',
-          border: '1px solid rgba(107, 138, 254, 0.2)',
-          borderRadius: 12,
-          padding: '12px 14px',
+          fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
+          color: '#F5F5F7', lineHeight: 1.1,
         }}>
-          <div style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.55 }}>
-            <strong>Можете пропустити.</strong> Без юзернейма ваш акаунт буде
-            анонімний — вас знайдуть тільки за лінком або QR. Якщо не зайдете
-            в Morok 7 днів — акаунт автоматично видалиться.
-          </div>
+          Виберіть юзернейм
+        </div>
+        <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+          Щоб вас можна було знайти за іменем
         </div>
       </div>
 
-      <div className="onb-footer">
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
+
+        {/* Info card */}
+        <div style={{
+          background: '#13131A',
+          border: '1px solid #232329',
+          borderRadius: 12,
+          padding: '12px 14px',
+          marginBottom: 24,
+          fontSize: 12.5, color: '#8E8E99',
+          lineHeight: 1.55,
+        }}>
+          Юзернейм опційний. Якщо пропустите — отримаєте анонімний акаунт. Він буде доступний тільки за лінком чи QR.
+        </div>
+
+        <div style={{
+          fontSize: 11, color: '#5A5A65',
+          marginBottom: 8,
+          fontFamily: 'var(--mono, monospace)',
+          letterSpacing: '0.05em',
+        }}>
+          ЮЗЕРНЕЙМ
+        </div>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          background: '#13131A',
+          border: '1px solid ' + (error ? '#FF6B7A' : '#232329'),
+          borderRadius: 12,
+          paddingLeft: 14,
+          transition: 'border-color 0.15s',
+        }}>
+          <span style={{ color: '#5A5A65', fontSize: 16, marginRight: 4 }}>@</span>
+          <input
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20));
+              setError(null);
+            }}
+            placeholder="ваше_імʼя"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            autoFocus
+            style={{
+              flex: 1, boxSizing: 'border-box',
+              padding: '14px 14px 14px 0',
+              background: 'transparent',
+              border: 'none',
+              color: '#F5F5F7',
+              fontSize: 15, fontFamily: 'var(--mono, monospace)',
+              outline: 'none',
+            }}
+          />
+          {username && (
+            <div style={{
+              padding: '6px 12px',
+              fontSize: 11,
+              color: valid ? '#4ADE80' : '#FF6B7A',
+              fontFamily: 'var(--mono, monospace)',
+            }}>
+              {valid ? '✓' : '✕'}
+            </div>
+          )}
+        </div>
+
+        <p style={{ fontSize: 11.5, color: '#5A5A65', marginTop: 8, lineHeight: 1.5 }}>
+          3–20 символів. Тільки маленькі літери, цифри і _
+        </p>
+
+        {error && (
+          <div style={{
+            background: 'rgba(255, 107, 122, 0.08)',
+            border: '1px solid rgba(255, 107, 122, 0.25)',
+            color: '#FF6B7A',
+            padding: '10px 14px',
+            borderRadius: 10,
+            fontSize: 13, marginTop: 14,
+          }}>
+            {error}
+          </div>
+        )}
+
         <button
-          className="btn btn-primary"
-          disabled={!validLocal || busy}
-          onClick={claim}
+          onClick={claimClicked}
+          disabled={!valid || busy}
+          style={{
+            width: '100%', marginTop: 24,
+            padding: '16px 22px',
+            borderRadius: 14,
+            background: (!valid || busy) ? '#2A2A33' : '#F5F5F7',
+            color: (!valid || busy) ? '#5A5A65' : '#0A0A0B',
+            border: 'none',
+            fontSize: 15, fontWeight: 600,
+            cursor: (!valid || busy) ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          }}
         >
-          {busy ? 'Резервуємо...' : 'Продовжити з юзернеймом'}
+          {busy ? 'Зайняти...' : 'Зайняти юзернейм'}
         </button>
+
         <button
-          className="btn btn-ghost"
-          onClick={skip}
-          disabled={busy}
+          onClick={skipClicked}
+          style={{
+            width: '100%', marginTop: 10,
+            padding: '14px',
+            background: 'transparent',
+            border: 'none',
+            color: '#6B6B72', fontSize: 13,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}
         >
-          Пропустити (анонімно)
+          Пропустити — залишусь анонімним
         </button>
       </div>
     </div>
