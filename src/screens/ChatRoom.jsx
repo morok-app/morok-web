@@ -120,16 +120,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     const msg = actionMessage;
     setActionMessage(null);
 
-    if (msg.direction === 'out' && msg.envelope_id) {
-      try {
-        await api.deleteMessage(msg.envelope_id);
-      } catch (e) {
-        if (e.status !== 404) {
-          alert('Не вдалось видалити на сервері: ' + (e.message || ''));
-          return;
-        }
-      }
-    }
+    // Server-side message deletion is not yet implemented on the relay —
+    // for now this only removes the message from local storage. The peer
+    // and the relay still have a copy (which expires by TTL).
+    // TODO: implement DELETE /api/v1/messages/{envelope_id} on the relay
+    //       and call it here for direction === 'out' messages.
+
     convs.deleteMessage(peerPubkey, msg.id);
     setConv(convs.getConversation(peerPubkey));
   }
