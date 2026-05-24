@@ -139,7 +139,7 @@ export default function Welcome({ onNavigate }) {
         </button>
 
         <button
-          onClick={() => onNavigate('restore-by-username')}
+          onClick={() => onNavigate('restore')}
           style={{
             width: '100%',
             padding: '10px',

@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
+import * as vault from '../lib/vault.js';
 import { decryptWithSecret } from '../lib/vault.js';
-import { bytesToHex, hexToBytes } from '../lib/crypto.js';
+import { bytesToHex } from '../lib/crypto.js';
 
 /**
  * RestoreByUsername — Linear-style.
  *
  * 2-step form:
  *   1) Username input → fetches encrypted blob from server
- *   2) Passphrase input → decrypts locally
+ *   2) Passphrase input → decrypts locally, then full login
+ *
+ * After successful decrypt we save identity AND immediately log in
+ * via api.login() — so the session token is set before we navigate to chats.
  */
 export default function RestoreByUsername({ onNavigate }) {
   const [step, setStep] = useState('username'); // username | passphrase
@@ -46,14 +50,39 @@ export default function RestoreByUsername({ onNavigate }) {
     setBusy(true);
     try {
       const seed = decryptWithSecret(encryptedBlob, passphrase);
+
+      // Save identity locally
       store.saveIdentityUnlocked({
         seedHex: bytesToHex(seed),
         pubkeyHex,
-        mnemonic: null, // user restored from backup, doesn't have mnemonic
+        mnemonic: null,
       });
-      onNavigate('chats');
+
+      // Authenticate so we have a session token before going to chats
+      const session = await api.login({ seed, pubkeyHex });
+      store.saveSession({
+        token: session.session_token,
+        pubkeyHex: session.pubkey_hex,
+        expiresAt: session.expires_at,
+        relayUrl: api.getRelayUrl(),
+      });
+
+      const me = await api.getMe();
+      store.saveProfile({
+        username: me.username,
+        tier: me.tier,
+        homeRelay: me.home_relay,
+        pubkeyHex,
+      });
+
+      vault.markUnlocked(seed);
+
+      // Reload so App.jsx's boot picks up the fresh state cleanly
+      window.location.href = '/web/#chats';
+      window.location.reload();
     } catch (e) {
-      setError('Неправильна passphrase');
+      console.error(e);
+      setError('Неправильна passphrase або сервер відмовив');
       setBusy(false);
     }
   }

@@ -7,19 +7,33 @@ import { encryptWithSecret } from '../lib/vault.js';
 /**
  * PinSetup — Linear-style 6-digit PIN setup.
  *
- * 2-step:
- *   1) Enter new PIN
- *   2) Confirm by entering again
+ * Two modes determined by props:
+ *   - INITIAL (from CreateAccount → App.jsx routes here with prefilledSeed):
+ *     We don't have identity in store yet. Use prefilledSeed + prefilledPubkeyHex
+ *     to encrypt the seed, save the locked identity, then call onDone(seed).
+ *   - EXISTING (from Settings "Set PIN" — identity already in store unencrypted):
+ *     Load identity from store, take its seed_hex, encrypt with PIN, save locked.
+ *     Then call onDone (which routes back to settings).
  *
- * Visual: 6 dots that fill as you type. Hidden text input for actual input.
+ * 2-step UX:
+ *   1) Enter new PIN (6 digits, auto-advances when full)
+ *   2) Confirm by entering again
  */
-export default function PinSetup({ onNavigate, mode = 'initial' }) {
-  // mode: 'initial' (from CreateAccount) | 'existing' (from Settings)
+export default function PinSetup({
+  onNavigate,
+  prefilledSeed,
+  prefilledMnemonic,
+  prefilledPubkeyHex,
+  onDone,
+}) {
   const [step, setStep] = useState('enter'); // enter | confirm
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
+
+  // Existing-mode = no prefilled seed (Settings path)
+  const isExistingMode = !prefilledSeed;
 
   useEffect(() => { inputRef.current?.focus(); }, [step]);
 
@@ -28,11 +42,8 @@ export default function PinSetup({ onNavigate, mode = 'initial' }) {
     if (target === 'pin') setPin(digits);
     else setConfirm(digits);
 
-    if (digits.length === 6) {
-      // Auto-advance
-      if (target === 'pin') {
-        setTimeout(() => setStep('confirm'), 150);
-      }
+    if (digits.length === 6 && target === 'pin') {
+      setTimeout(() => setStep('confirm'), 150);
     }
   }
 
@@ -43,31 +54,64 @@ export default function PinSetup({ onNavigate, mode = 'initial' }) {
       return;
     }
     try {
-      const identity = store.loadIdentity();
-      if (!identity || !identity.seed_hex) {
-        setError('Сесія завершилась. Перезавантажте сторінку.');
-        return;
+      let seedBytes, pubkeyHex, mnemonic;
+
+      if (isExistingMode) {
+        // Pull from store
+        const identity = store.loadIdentity();
+        if (!identity || identity.encrypted) {
+          setError('Не можу знайти ідентичність у сховищі.');
+          return;
+        }
+        seedBytes = hexToBytes(identity.seed_hex);
+        pubkeyHex = identity.pubkey_hex;
+        mnemonic = identity.mnemonic;
+      } else {
+        seedBytes = prefilledSeed;
+        pubkeyHex = prefilledPubkeyHex;
+        mnemonic = prefilledMnemonic;
       }
-      const seedBytes = hexToBytes(identity.seed_hex);
+
       const encryptedSeed = encryptWithSecret(seedBytes, pin);
-      const mnemonicBytes = identity.mnemonic ? utf8(identity.mnemonic) : null;
-      const encryptedMnemonic = mnemonicBytes ? encryptWithSecret(mnemonicBytes, pin) : null;
+      const encryptedMnemonic = mnemonic
+        ? encryptWithSecret(utf8(mnemonic), pin)
+        : null;
 
       store.saveIdentityLocked({
         blobB64: encryptedSeed,
         mnemonicBlobB64: encryptedMnemonic,
-        pubkeyHex: identity.pubkey_hex,
+        pubkeyHex,
       });
       vault.markUnlocked(seedBytes);
-      onNavigate(mode === 'existing' ? 'settings' : 'claim');
+      vault.clearLockout();
+
+      onDone?.(seedBytes);
     } catch (e) {
+      console.error(e);
       setError(e.message || 'Помилка');
     }
   }
 
   function skipClicked() {
-    if (mode === 'existing') onNavigate('settings');
-    else onNavigate('claim');
+    // Initial-mode skip: just save identity unlocked + call onDone so App
+    // proceeds to login as if PIN was set (the seed itself is what onDone
+    // needs to start the session).
+    if (isExistingMode) {
+      onNavigate('settings');
+      return;
+    }
+    try {
+      const seedHex = Array.from(prefilledSeed).map((b) => b.toString(16).padStart(2, '0')).join('');
+      store.saveIdentityUnlocked({
+        seedHex,
+        pubkeyHex: prefilledPubkeyHex,
+        mnemonic: prefilledMnemonic,
+      });
+      vault.markUnlocked(prefilledSeed);
+      onDone?.(prefilledSeed);
+    } catch (e) {
+      setError(e.message || 'Помилка');
+    }
   }
 
   useEffect(() => {
@@ -99,7 +143,7 @@ export default function PinSetup({ onNavigate, mode = 'initial' }) {
               : 'Введіть той самий PIN ще раз'}
           </div>
         </div>
-        {mode === 'existing' && (
+        {isExistingMode && (
           <button
             onClick={() => onNavigate('settings')}
             style={{
@@ -178,7 +222,7 @@ export default function PinSetup({ onNavigate, mode = 'initial' }) {
       </div>
 
       {/* Bottom — skip option for initial flow */}
-      {mode === 'initial' && step === 'enter' && (
+      {!isExistingMode && step === 'enter' && (
         <div style={{ padding: '0 20px 28px', textAlign: 'center' }}>
           <button
             onClick={skipClicked}

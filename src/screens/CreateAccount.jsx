@@ -1,20 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { generateIdentity } from '../lib/crypto.js';
-import * as store from '../lib/storage.js';
 
 /**
- * CreateAccount — Linear-style 3-step flow:
+ * CreateAccount — Linear-style 2-step flow:
  *   1) Intro screen — explain what 24 words are, big "Generate" button
- *   2) Show 24 words in a 2-column grid, "I wrote them down" button
- *   3) Verification — ask 3 random words to confirm
+ *   2) Show 24 words in a 2-column grid with copy button, "I wrote them down" → next
  *
- * Pure black, large title, monospace for word numbers.
+ * After confirmation we DON'T save identity ourselves — we hand the seed
+ * back to App.jsx via onSeedReady(). App.jsx routes through PinSetup and
+ * eventually calls login(). This keeps a single source of truth for the
+ * sign-in/persist flow.
  */
 
-export default function CreateAccount({ onNavigate }) {
-  const [step, setStep] = useState('intro'); // intro | show | verify
+export default function CreateAccount({ onNavigate, onSeedReady }) {
+  const [step, setStep] = useState('intro'); // intro | show
   const [identity, setIdentity] = useState(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   function generateClicked() {
     const id = generateIdentity();
@@ -22,17 +24,20 @@ export default function CreateAccount({ onNavigate }) {
     setStep('show');
   }
 
-  function continueClicked() {
-    setStep('verify');
+  function copyClicked() {
+    navigator.clipboard.writeText(identity.mnemonic).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }
 
-  function finishClicked() {
-    store.saveIdentityUnlocked({
-      seedHex: Array.from(identity.seed).map((b) => b.toString(16).padStart(2, '0')).join(''),
+  function continueClicked() {
+    // Hand the seed to App.jsx — it will route through PinSetup and login.
+    onSeedReady({
+      seed: identity.seed,
       pubkeyHex: identity.pubkeyHex,
       mnemonic: identity.mnemonic,
     });
-    onNavigate('pin-setup');
   }
 
   return (
@@ -42,13 +47,11 @@ export default function CreateAccount({ onNavigate }) {
       <Header
         title={
           step === 'intro' ? 'Створити акаунт' :
-          step === 'show'  ? 'Ваш ключ відновлення' :
-          'Підтвердження'
+          'Ваш ключ відновлення'
         }
         subtitle={
-          step === 'intro' ? 'Крок 1 з 3' :
-          step === 'show'  ? 'Крок 2 з 3' :
-          'Крок 3 з 3'
+          step === 'intro' ? 'Крок 1 з 2' :
+          'Крок 2 з 2'
         }
         onClose={() => onNavigate('welcome')}
       />
@@ -61,13 +64,8 @@ export default function CreateAccount({ onNavigate }) {
             confirmed={confirmed}
             onConfirm={setConfirmed}
             onContinue={continueClicked}
-          />
-        )}
-        {step === 'verify' && identity && (
-          <VerifyPanel
-            mnemonic={identity.mnemonic}
-            onFinish={finishClicked}
-            onBack={() => setStep('show')}
+            onCopy={copyClicked}
+            copied={copied}
           />
         )}
       </div>
@@ -176,7 +174,7 @@ function IntroPanel({ onGenerate }) {
   );
 }
 
-function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue }) {
+function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue, onCopy, copied }) {
   const words = mnemonic.split(' ');
 
   return (
@@ -194,7 +192,7 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue }) {
         border: '1px solid #232329',
         borderRadius: 14,
         padding: 16,
-        marginBottom: 16,
+        marginBottom: 10,
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: 8,
@@ -224,6 +222,24 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue }) {
           </div>
         ))}
       </div>
+
+      <button
+        onClick={onCopy}
+        style={{
+          width: '100%',
+          padding: '11px 14px',
+          borderRadius: 10,
+          background: copied ? '#4ADE80' : '#16161B',
+          border: '1px solid ' + (copied ? '#4ADE80' : '#232329'),
+          color: copied ? '#0A0A0B' : '#F5F5F7',
+          fontSize: 13, fontWeight: 600,
+          cursor: 'pointer', fontFamily: 'inherit',
+          marginBottom: 16,
+          transition: 'all 0.15s',
+        }}
+      >
+        {copied ? '✓ Скопійовано в буфер' : 'Копіювати всі 24 слова'}
+      </button>
 
       <div
         onClick={() => onConfirm(!confirmed)}
@@ -258,113 +274,6 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue }) {
       <PrimaryButton onClick={onContinue} disabled={!confirmed}>
         Продовжити
       </PrimaryButton>
-    </div>
-  );
-}
-
-function VerifyPanel({ mnemonic, onFinish, onBack }) {
-  const words = mnemonic.split(' ');
-
-  // Pick 3 random positions
-  const [positions] = useState(() => {
-    const all = Array.from({ length: 24 }, (_, i) => i);
-    for (let i = all.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [all[i], all[j]] = [all[j], all[i]];
-    }
-    return all.slice(0, 3).sort((a, b) => a - b);
-  });
-
-  const [inputs, setInputs] = useState(['', '', '']);
-  const [error, setError] = useState(null);
-
-  function check() {
-    for (let i = 0; i < 3; i++) {
-      const expected = words[positions[i]];
-      if (inputs[i].trim().toLowerCase() !== expected) {
-        setError(`Слово №${positions[i] + 1} неправильне`);
-        return;
-      }
-    }
-    setError(null);
-    onFinish();
-  }
-
-  const allFilled = inputs.every((x) => x.trim().length > 0);
-
-  return (
-    <div>
-      <div style={{
-        fontSize: 13, color: '#8E8E99',
-        lineHeight: 1.55, marginBottom: 20,
-      }}>
-        Введіть 3 слова з вашого списку. Це підтвердить що ви їх правильно записали.
-      </div>
-
-      {positions.map((pos, i) => (
-        <div key={pos} style={{ marginBottom: 14 }}>
-          <div style={{
-            fontSize: 11, color: '#5A5A65',
-            marginBottom: 6,
-            fontFamily: 'var(--mono, monospace)',
-            letterSpacing: '0.05em',
-          }}>
-            СЛОВО №{String(pos + 1).padStart(2, '0')}
-          </div>
-          <input
-            value={inputs[i]}
-            onChange={(e) => {
-              const next = [...inputs];
-              next[i] = e.target.value;
-              setInputs(next);
-              setError(null);
-            }}
-            placeholder="..."
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              padding: '13px 14px',
-              background: '#13131A',
-              border: '1px solid #232329',
-              borderRadius: 10,
-              color: '#F5F5F7',
-              fontSize: 14, fontFamily: 'var(--mono, monospace)',
-              outline: 'none',
-            }}
-            onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
-            onBlur={(e) => e.target.style.borderColor = '#232329'}
-          />
-        </div>
-      ))}
-
-      {error && (
-        <div style={{
-          background: 'rgba(255, 107, 122, 0.08)',
-          border: '1px solid rgba(255, 107, 122, 0.25)',
-          color: '#FF6B7A',
-          padding: '10px 14px',
-          borderRadius: 10,
-          fontSize: 13, marginBottom: 14,
-        }}>
-          {error}
-        </div>
-      )}
-
-      <PrimaryButton onClick={check} disabled={!allFilled}>
-        Підтвердити
-      </PrimaryButton>
-
-      <button
-        onClick={onBack}
-        style={{
-          width: '100%', marginTop: 10,
-          background: 'transparent', border: 'none',
-          padding: 14,
-          color: '#6B6B72', fontSize: 13,
-          cursor: 'pointer', fontFamily: 'inherit',
-        }}
-      >
-        Повернутись до слів
-      </button>
     </div>
   );
 }

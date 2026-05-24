@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { identityFromMnemonic } from '../lib/crypto.js';
-import * as store from '../lib/storage.js';
 
 /**
  * LoginByMnemonic — Linear-style.
  *
- * Single big textarea for 24 words. Validates on submit.
- * Helpful affordances: word count badge, paste-friendly.
+ * Single big textarea for 24 words. Validates on submit, then hands the
+ * seed back to App.jsx via onSeedReady (which routes through PinSetup
+ * and ultimately calls login()).
  */
-export default function LoginByMnemonic({ onNavigate }) {
+export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
   const [text, setText] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -25,12 +25,11 @@ export default function LoginByMnemonic({ onNavigate }) {
     setError(null);
     try {
       const id = identityFromMnemonic(text);
-      store.saveIdentityUnlocked({
-        seedHex: Array.from(id.seed).map((b) => b.toString(16).padStart(2, '0')).join(''),
+      onSeedReady({
+        seed: id.seed,
         pubkeyHex: id.pubkeyHex,
         mnemonic: id.mnemonic,
       });
-      onNavigate('chats');
     } catch (e) {
       setError(e.message || 'Не вдалось розпізнати фразу');
       setBusy(false);
@@ -154,7 +153,7 @@ export default function LoginByMnemonic({ onNavigate }) {
 
         <div style={{ marginTop: 20, textAlign: 'center' }}>
           <button
-            onClick={() => onNavigate('restore-by-username')}
+            onClick={() => onNavigate('restore')}
             style={{
               background: 'transparent', border: 'none',
               color: '#6B6B72', fontSize: 12.5,

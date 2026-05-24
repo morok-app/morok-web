@@ -6,10 +6,13 @@ import { decryptWithSecret } from '../lib/vault.js';
 /**
  * PinUnlock — Linear-style unlock screen.
  *
- * Shows after browser reload if identity is encrypted.
- * 5 wrong attempts → 30s lockout, escalating.
+ * App.jsx routes here when identity is encrypted and the seed isn't in
+ * memory. After a successful decrypt we call onUnlocked(seedBytes) and
+ * App.jsx does the full login → inbox start → navigate('chats') flow.
+ *
+ * 5 wrong attempts → 30s lockout, escalating per vault's lockout policy.
  */
-export default function PinUnlock({ onNavigate }) {
+export default function PinUnlock({ onUnlocked, onForgotPin }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(null);
   const [lockoutSeconds, setLockoutSeconds] = useState(() => {
@@ -38,7 +41,7 @@ export default function PinUnlock({ onNavigate }) {
         const seedBytes = decryptWithSecret(identity.blob_b64, digits);
         vault.markUnlocked(seedBytes);
         vault.clearLockout();
-        onNavigate('chats');
+        onUnlocked?.(seedBytes);
       } catch (e) {
         const status = vault.recordWrongPin();
         if (status.locked) {
@@ -53,11 +56,7 @@ export default function PinUnlock({ onNavigate }) {
   }
 
   function emergencyExitClicked() {
-    if (!confirm('Стерти всі локальні дані і вийти? Доступ до акаунта потім можна отримати тільки через 24 слова.')) return;
-    store.wipeAll();
-    vault.lockNow();
-    window.location.href = '/web/#welcome';
-    window.location.reload();
+    onForgotPin?.();
   }
 
   const locked = lockoutSeconds > 0;
