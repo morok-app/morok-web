@@ -146,14 +146,55 @@ export default function ChatsList({ onNavigate }) {
     longPressTimer.current = null;
   }
 
-  function deleteItemClicked() {
+  async function deleteForMe() {
     if (!actionItem) return;
     if (actionItem.kind === 'dm') {
       convs.deleteConversation(actionItem.id);
     } else {
+      // Group "remove from list" — local only. Note: next incoming
+      // message will re-create the local stub.
       gstore.removeGroup(actionItem.id);
     }
     setActionItem(null);
+    setItems(buildMixedList());
+  }
+
+  async function deleteForAll() {
+    if (!actionItem) return;
+    const item = actionItem;
+    setActionItem(null);
+
+    if (item.kind === 'dm') {
+      // Best-effort: for every outgoing envelope, ask the relay to drop
+      // it from the recipient's inbox. Failures are swallowed — the goal
+      // is "do as much as we can"; local cleanup happens unconditionally.
+      const outgoing = (item.raw.messages || []).filter(
+        (m) => m.direction === 'out' && m.envelope_id,
+      );
+      if (outgoing.length > 0) {
+        await Promise.allSettled(
+          outgoing.map((m) => api.deleteDMMessage(m.envelope_id, item.id)),
+        );
+      }
+      convs.deleteConversation(item.id);
+    } else {
+      // Group: depending on role.
+      const myPubkey = store.loadIdentity()?.pubkey_hex;
+      const isAdmin = item.raw.creator_pubkey_hex === myPubkey;
+      try {
+        if (isAdmin) {
+          // DELETE /groups/{id} — only the creator may do this; relay
+          // tears down membership for everyone.
+          await api.deleteGroup(item.id);
+        } else {
+          // Leave: remove myself from members.
+          await api.removeGroupMember(item.id, myPubkey);
+        }
+      } catch (e) {
+        alert(`Помилка: ${e.message}`);
+      }
+      gstore.removeGroup(item.id);
+    }
     setItems(buildMixedList());
   }
 
@@ -492,13 +533,37 @@ export default function ChatsList({ onNavigate }) {
                 }}
               >Інфо групи</div>
             )}
-            <div
-              onClick={deleteItemClicked}
-              style={{
-                padding: '14px 20px', cursor: 'pointer',
-                color: '#FF6B7A', fontSize: 14, fontWeight: 500,
-              }}
-            >{actionItem.kind === 'group' ? 'Прибрати зі списку' : 'Видалити чат'}</div>
+            {actionItem.kind === 'dm' && (
+              <>
+                <div
+                  onClick={deleteForMe}
+                  style={{
+                    padding: '14px 20px', cursor: 'pointer',
+                    color: '#F5F5F7', fontSize: 14, fontWeight: 500,
+                  }}
+                >Видалити чат у мене</div>
+                <div
+                  onClick={deleteForAll}
+                  style={{
+                    padding: '14px 20px', cursor: 'pointer',
+                    color: '#FF6B7A', fontSize: 14, fontWeight: 500,
+                  }}
+                >Видалити чат у всіх</div>
+              </>
+            )}
+            {actionItem.kind === 'group' && (() => {
+              const myPubkey = store.loadIdentity()?.pubkey_hex;
+              const isAdmin = actionItem.raw.creator_pubkey_hex === myPubkey;
+              return (
+                <div
+                  onClick={deleteForAll}
+                  style={{
+                    padding: '14px 20px', cursor: 'pointer',
+                    color: '#FF6B7A', fontSize: 14, fontWeight: 500,
+                  }}
+                >{isAdmin ? 'Видалити групу для всіх' : 'Вийти з групи'}</div>
+              );
+            })()}
           </div>
         </div>
       )}
