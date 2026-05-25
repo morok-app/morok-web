@@ -4,7 +4,13 @@
 
 import { signAuthChallenge } from './crypto.js';
 
-const DEFAULT_RELAY = 'https://relay1.morok.app';
+// Auto-detect the relay this web client should talk to. When the web is
+// hosted at https://relay1.morok.app/web/ → talk to relay1. When at
+// https://relay2.morok.app/web/ → talk to relay2. Outside the browser
+// (SSR / tests) fall back to relay1.
+const DEFAULT_RELAY = typeof window !== 'undefined' && window.location?.origin
+  ? window.location.origin
+  : 'https://relay1.morok.app';
 
 let _relayUrl = DEFAULT_RELAY;
 let _sessionToken = null;
