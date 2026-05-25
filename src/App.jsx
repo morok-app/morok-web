@@ -169,17 +169,51 @@ export default function App() {
     if (inboxRef.current) inboxRef.current.stop();
     const client = new InboxClient({
       onCatchup: async (envelopes) => {
+        const touchedPeers = new Set();
+        const touchedGroups = new Set();
         for (const env of envelopes) {
           try {
-            await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
+            const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
             client.ack(env.envelope_id);
+            if (newMsg?.peer_pubkey) touchedPeers.add(newMsg.peer_pubkey);
+            if (env.group_id) touchedGroups.add(env.group_id);
           } catch (e) { console.warn('catchup failed:', e); }
         }
+        try {
+          for (const p of touchedPeers) {
+            window.dispatchEvent(new CustomEvent('morok-conv-update', {
+              detail: { peerPubkey: p },
+            }));
+          }
+          for (const g of touchedGroups) {
+            window.dispatchEvent(new CustomEvent('morok-group-update', {
+              detail: { groupId: g },
+            }));
+          }
+        } catch {}
       },
       onNew: async (env) => {
         try {
           const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
           client.ack(env.envelope_id);
+
+          // Tell the open chat/group view to refresh from store. Without
+          // this, ChatRoom only re-renders on remount (navigate away & back)
+          // because it listens to morok-conv-update.
+          if (newMsg) {
+            try {
+              if (newMsg.peer_pubkey) {
+                window.dispatchEvent(new CustomEvent('morok-conv-update', {
+                  detail: { peerPubkey: newMsg.peer_pubkey },
+                }));
+              } else if (env.group_id) {
+                window.dispatchEvent(new CustomEvent('morok-group-update', {
+                  detail: { groupId: env.group_id },
+                }));
+              }
+            } catch {}
+          }
+
           if (newMsg && newMsg.text && newMsg.direction === 'in') {
             if (newMsg.peer_pubkey) {
               // DM
