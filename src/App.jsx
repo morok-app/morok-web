@@ -211,6 +211,31 @@ export default function App() {
           }
         } catch (e) { console.warn('new failed:', e); }
       },
+      onDeleted: ({ envelopeId, by, groupId }) => {
+        // Server tells us a sender/admin removed this envelope. Drop it
+        // from our local store and notify the open chat UI to refresh.
+        try {
+          if (groupId) {
+            const removed = gstore.deleteMessageByEnvelope(groupId, envelopeId);
+            if (removed) {
+              window.dispatchEvent(new CustomEvent('morok-group-update', {
+                detail: { groupId },
+              }));
+            }
+          } else if (by) {
+            // For DMs, `by` is the sender pubkey — which equals the peer
+            // key for the local recipient's conversation.
+            const removed = convs.deleteMessageByEnvelope(by, envelopeId);
+            if (removed) {
+              window.dispatchEvent(new CustomEvent('morok-conv-update', {
+                detail: { peerPubkey: by },
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn('onDeleted handler failed:', e);
+        }
+      },
       onStateChange: (s) => {
         console.info('inbox state:', s);
         broadcastInboxState(s);

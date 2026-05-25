@@ -147,6 +147,28 @@ export function deleteMessage(peerPubkey, messageId) {
   return removed;
 }
 
+/**
+ * Remove a message from a peer's conversation by its server envelope_id.
+ *
+ * Used by the WebSocket "deleted" event handler: when a sender deletes
+ * a DM remotely, the relay pushes the envelope_id to the recipient — we
+ * find the local message that wraps that envelope and drop it.
+ *
+ * Returns the removed message or null if it wasn't there. Callers can
+ * use the return value to decide whether to refresh UI.
+ */
+export function deleteMessageByEnvelope(peerPubkey, envelopeId) {
+  if (!envelopeId) return null;
+  const state = load();
+  const conv = state[peerPubkey];
+  if (!conv) return null;
+  const idx = conv.messages.findIndex((x) => x.envelope_id === envelopeId);
+  if (idx < 0) return null;
+  const [removed] = conv.messages.splice(idx, 1);
+  save(state);
+  return removed;
+}
+
 export function hasEnvelope(peerPubkey, envelopeId) {
   const state = load();
   const conv = state[peerPubkey];

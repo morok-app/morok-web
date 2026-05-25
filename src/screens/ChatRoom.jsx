@@ -115,19 +115,33 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     }
   }
 
-  async function deleteMessageClicked() {
+  async function deleteForMe() {
+    if (!actionMessage) return;
+    const msg = actionMessage;
+    setActionMessage(null);
+    convs.deleteMessage(peerPubkey, msg.id);
+    setConv(convs.getConversation(peerPubkey));
+  }
+
+  async function deleteForEveryone() {
     if (!actionMessage) return;
     const msg = actionMessage;
     setActionMessage(null);
 
-    // Server-side message deletion is not yet implemented on the relay —
-    // for now this only removes the message from local storage. The peer
-    // and the relay still have a copy (which expires by TTL).
-    // TODO: implement DELETE /api/v1/messages/{envelope_id} on the relay
-    //       and call it here for direction === 'out' messages.
+    if (!msg.envelope_id) {
+      // No server-side envelope to target — fall back to local only.
+      convs.deleteMessage(peerPubkey, msg.id);
+      setConv(convs.getConversation(peerPubkey));
+      return;
+    }
 
-    convs.deleteMessage(peerPubkey, msg.id);
-    setConv(convs.getConversation(peerPubkey));
+    try {
+      await api.deleteDMMessage(msg.envelope_id, peerPubkey);
+      convs.deleteMessage(peerPubkey, msg.id);
+      setConv(convs.getConversation(peerPubkey));
+    } catch (e) {
+      alert(`Не вдалось видалити у співрозмовника: ${e.message}`);
+    }
   }
 
   async function sendClicked() {
@@ -415,27 +429,38 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             Скопіювати
           </div>
           {actionMessage.direction === 'out' && (
-            <div
-              onClick={deleteMessageClicked}
-              style={{
-                padding: '14px 20px', cursor: 'pointer',
-                color: '#FF6B7A', fontSize: 14, fontWeight: 500,
-                display: 'flex', alignItems: 'center', gap: 12,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-              Видалити повідомлення
-            </div>
+            <>
+              <div
+                onClick={deleteForMe}
+                style={{
+                  padding: '14px 20px', cursor: 'pointer',
+                  color: '#F5F5F7', fontSize: 14, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                Видалити у мене
+              </div>
+              <div
+                onClick={deleteForEveryone}
+                style={{
+                  padding: '14px 20px', cursor: 'pointer',
+                  color: '#FF6B7A', fontSize: 14, fontWeight: 500,
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+                Видалити у всіх
+              </div>
+            </>
           )}
           {actionMessage.direction === 'in' && (
             <div
-              onClick={() => {
-                convs.deleteMessage(peerPubkey, actionMessage.id);
-                setConv(convs.getConversation(peerPubkey));
-                setActionMessage(null);
-              }}
+              onClick={deleteForMe}
               style={{
                 padding: '14px 20px', cursor: 'pointer',
                 color: '#FF6B7A', fontSize: 14, fontWeight: 500,

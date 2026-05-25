@@ -184,6 +184,27 @@ export function deleteMessage(groupId, messageId) {
 }
 
 /**
+ * Remove a group message by its server envelope_id.
+ *
+ * Used by the WebSocket "deleted" event handler when sender or admin
+ * removes a message group-wide — every member's client drops the
+ * matching envelope from local store.
+ *
+ * Returns the removed message or null.
+ */
+export function deleteMessageByEnvelope(groupId, envelopeId) {
+  if (!envelopeId) return null;
+  const state = load();
+  const g = state[groupId];
+  if (!g) return null;
+  const idx = g.messages.findIndex((x) => x.envelope_id === envelopeId);
+  if (idx < 0) return null;
+  const [removed] = g.messages.splice(idx, 1);
+  save(state);
+  return removed;
+}
+
+/**
  * Wipe local copy of a group (called after leave/delete on server).
  * Does NOT touch the server — caller is responsible for that.
  */

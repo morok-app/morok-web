@@ -133,6 +133,31 @@ export async function ackEnvelope(envelopeId) {
   return http('DELETE', `/api/v1/messages/${envelopeId}`, { auth: true });
 }
 
+/**
+ * Sender-initiated server-side delete of a DM.
+ * Removes the message from the recipient's inbox AND pushes a delete
+ * event onto their WebSocket. Best-effort: if the recipient already
+ * acked the message, the queue removal is a no-op but the WS event
+ * still goes out (so an online recipient drops it from local store).
+ */
+export async function deleteDMMessage(envelopeId, recipientPubkeyHex) {
+  return http('POST', `/api/v1/messages/${envelopeId}/delete-for-recipient`, {
+    body: { recipient_pubkey_hex: recipientPubkeyHex },
+    auth: true,
+  });
+}
+
+/**
+ * Delete a group message. Authorized for the sender of the message
+ * OR for the group admin. Removes from every member's inbox and pushes
+ * a delete event on each member's channel.
+ */
+export async function deleteGroupMessage(groupId, envelopeId) {
+  return http('POST', `/api/v1/groups/${groupId}/messages/${envelopeId}/delete`, {
+    auth: true,
+  });
+}
+
 // ────────────────────────────────────────────────────────────
 // WebSocket inbox
 // ────────────────────────────────────────────────────────────

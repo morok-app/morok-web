@@ -3,6 +3,7 @@ import * as gstore from '../lib/group_storage.js';
 import * as groups from '../lib/groups.js';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
+import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
 
 const TTL_OPTIONS = [
@@ -78,6 +79,17 @@ export default function GroupChat({ groupId, onNavigate }) {
     return () => clearInterval(id);
   }, [groupId]);
 
+  // React immediately when InboxClient's onDeleted updates this group.
+  useEffect(() => {
+    function onUpdate(e) {
+      if (e.detail?.groupId === groupId) {
+        setGroup(gstore.getGroup(groupId));
+      }
+    }
+    window.addEventListener('morok-group-update', onUpdate);
+    return () => window.removeEventListener('morok-group-update', onUpdate);
+  }, [groupId]);
+
   useEffect(() => {
     if (!scrollerRef.current) return;
     const el = scrollerRef.current;
@@ -110,18 +122,32 @@ export default function GroupChat({ groupId, onNavigate }) {
     longPressTimer.current = null;
   }
 
-  function deleteOwnMessage() {
+  function deleteForMe() {
     if (!actionMessage) return;
     gstore.deleteMessage(groupId, actionMessage.id);
     setActionMessage(null);
     setGroup(gstore.getGroup(groupId));
   }
 
-  function deleteIncomingLocally() {
+  async function deleteForEveryone() {
     if (!actionMessage) return;
-    gstore.deleteMessage(groupId, actionMessage.id);
+    const msg = actionMessage;
     setActionMessage(null);
-    setGroup(gstore.getGroup(groupId));
+
+    if (!msg.envelope_id) {
+      // No server envelope_id to target — local-only fallback.
+      gstore.deleteMessage(groupId, msg.id);
+      setGroup(gstore.getGroup(groupId));
+      return;
+    }
+
+    try {
+      await api.deleteGroupMessage(groupId, msg.envelope_id);
+      gstore.deleteMessage(groupId, msg.id);
+      setGroup(gstore.getGroup(groupId));
+    } catch (e) {
+      alert(`Не вдалось видалити для всіх: ${e.message}`);
+    }
   }
 
   async function sendClicked() {
@@ -422,35 +448,46 @@ export default function GroupChat({ groupId, onNavigate }) {
             </svg>
             Скопіювати
           </div>
-          {(actionMessage.direction === 'out' || actionMessage.sender_pubkey === myPubkeyHex) ? (
-            <div
-              onClick={deleteOwnMessage}
-              style={{
-                padding: '14px 20px', cursor: 'pointer',
-                color: '#FF6B7A', fontSize: 14, fontWeight: 500,
-                display: 'flex', alignItems: 'center', gap: 12,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-              Видалити повідомлення
-            </div>
-          ) : (
-            <div
-              onClick={deleteIncomingLocally}
-              style={{
-                padding: '14px 20px', cursor: 'pointer',
-                color: '#FF6B7A', fontSize: 14, fontWeight: 500,
-                display: 'flex', alignItems: 'center', gap: 12,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-              Видалити у себе
-            </div>
-          )}
+          {(() => {
+            const isMine = actionMessage.direction === 'out'
+              || actionMessage.sender_pubkey === myPubkeyHex;
+            // Sender deletes for all; admin can delete anyone's; otherwise
+            // only local removal.
+            const canDeleteForAll = isMine || isAdmin;
+            return (
+              <>
+                <div
+                  onClick={deleteForMe}
+                  style={{
+                    padding: '14px 20px', cursor: 'pointer',
+                    color: canDeleteForAll ? '#F5F5F7' : '#FF6B7A',
+                    fontSize: 14, fontWeight: 500,
+                    display: 'flex', alignItems: 'center', gap: 12,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                  {canDeleteForAll ? 'Видалити у мене' : 'Видалити у себе'}
+                </div>
+                {canDeleteForAll && (
+                  <div
+                    onClick={deleteForEveryone}
+                    style={{
+                      padding: '14px 20px', cursor: 'pointer',
+                      color: '#FF6B7A', fontSize: 14, fontWeight: 500,
+                      display: 'flex', alignItems: 'center', gap: 12,
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    {isMine ? 'Видалити у всіх' : 'Видалити для всіх (адмін)'}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </Sheet>
       )}
 
