@@ -1,0 +1,228 @@
+/**
+ * Peer profile screen.
+ *
+ * Shown when the user taps a peer's header in ChatRoom or a peer's name
+ * in a group chat (in a later track). Displays whatever we know about
+ * the peer locally, and if we know their username, opportunistically
+ * refreshes via /users/lookup to fill in missing fields (e.g. home_relay).
+ *
+ * Does NOT require an existing conversation — works for "discovered"
+ * peers (e.g. from groups) too. "Написати" creates a local conversation
+ * stub so the chat shows up in ChatsList.
+ */
+import { useEffect, useState } from 'react';
+import * as convs from '../lib/conversations.js';
+import * as api from '../lib/api.js';
+
+export default function PeerProfile({ peerPubkey, onNavigate }) {
+  const [conv, setConv] = useState(() => convs.getConversation(peerPubkey));
+  const [copied, setCopied] = useState(false);
+  const [lookupTried, setLookupTried] = useState(false);
+
+  // Opportunistic background lookup: if we have a username, refresh
+  // profile info (home_relay especially) so the page completes itself.
+  useEffect(() => {
+    if (lookupTried) return;
+    const username = conv?.peer_username;
+    if (!username) return;
+    // Already complete — nothing to refresh
+    if (conv?.peer_home_relay) return;
+
+    setLookupTried(true);
+    api.lookupUsername(username, conv?.peer_home_relay || undefined)
+      .then((profile) => {
+        if (!profile) return;
+        // Only trust if pubkey matches what we already know
+        if (profile.pubkey_hex && profile.pubkey_hex !== peerPubkey) return;
+        convs.ensureConversation({
+          peerPubkey,
+          peerUsername: profile.username || username,
+          peerHomeRelay: profile.home_relay,
+        });
+        setConv(convs.getConversation(peerPubkey));
+      })
+      .catch(() => { /* best-effort */ });
+  }, [peerPubkey, conv, lookupTried]);
+
+  const username = conv?.peer_username;
+  const homeRelay = conv?.peer_home_relay;
+  const hue = parseInt((peerPubkey || '000000').slice(0, 6), 16) % 360;
+  const firstLetter = (username || peerPubkey || '?')[0]?.toUpperCase() || '?';
+
+  async function copyPubkey() {
+    try {
+      await navigator.clipboard.writeText(peerPubkey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Old-school fallback
+      const ta = document.createElement('textarea');
+      ta.value = peerPubkey;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch {}
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    }
+  }
+
+  function writeMessage() {
+    // Make sure the conversation exists so it shows in ChatsList even
+    // before the first message is sent.
+    if (!conv) {
+      convs.ensureConversation({
+        peerPubkey,
+        peerUsername: username,
+        peerHomeRelay: homeRelay,
+      });
+    }
+    onNavigate(`chat/${peerPubkey}`);
+  }
+
+  return (
+    <div className="screen" style={{ background: '#0A0A0B', minHeight: '100vh' }}>
+      {/* Top bar */}
+      <div style={{
+        padding: '14px 16px',
+        display: 'flex', alignItems: 'center', gap: 12,
+        borderBottom: '1px solid #1E1E27',
+        background: '#0A0A0B',
+      }}>
+        <button
+          onClick={() => onNavigate('chats')}
+          style={{
+            width: 34, height: 34, borderRadius: '50%',
+            background: '#16161B', border: '1px solid #232329',
+            color: '#A8A8B0', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+          aria-label="Назад"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <div style={{
+          fontSize: 14.5, fontWeight: 700, color: '#F5F5F7',
+          letterSpacing: '-0.01em',
+        }}>
+          Профіль
+        </div>
+      </div>
+
+      {/* Hero: avatar + name */}
+      <div style={{
+        padding: '36px 24px 24px',
+        textAlign: 'center',
+      }}>
+        <div style={{
+          width: 96, height: 96, borderRadius: '50%',
+          background: `hsl(${hue}, 45%, 45%)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 36, fontWeight: 700, color: '#fff',
+          margin: '0 auto 18px',
+          letterSpacing: '-0.02em',
+        }}>
+          {firstLetter}
+        </div>
+
+        <div style={{
+          fontSize: 22, fontWeight: 700, color: '#F5F5F7',
+          letterSpacing: '-0.01em',
+          wordBreak: 'break-word',
+        }}>
+          {username ? `@${username}` : 'Анонім'}
+        </div>
+
+        {homeRelay && (
+          <div style={{
+            fontSize: 12.5, color: '#8E8E99',
+            marginTop: 6,
+            fontFamily: 'var(--mono, monospace)',
+            letterSpacing: '0.02em',
+          }}>
+            {homeRelay}
+          </div>
+        )}
+      </div>
+
+      {/* Pubkey card */}
+      <div style={{ padding: '0 20px' }}>
+        <div style={{
+          background: '#13131A',
+          border: '1px solid #232329',
+          borderRadius: 12,
+          padding: '14px 16px',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            marginBottom: 10,
+          }}>
+            <div style={{
+              fontSize: 10.5, color: '#6B6B72',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              fontWeight: 600,
+            }}>
+              Публічний ключ
+            </div>
+            <button
+              onClick={copyPubkey}
+              style={{
+                background: copied ? 'rgba(67, 209, 122, 0.12)' : '#1C1C21',
+                border: copied ? '1px solid rgba(67, 209, 122, 0.3)' : '1px solid #2A2A33',
+                color: copied ? '#43D17A' : '#A8A8B0',
+                fontSize: 11, fontWeight: 600,
+                padding: '5px 10px', borderRadius: 7,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'all 0.15s',
+                letterSpacing: '0.02em',
+              }}
+            >
+              {copied ? 'Скопійовано' : 'Копіювати'}
+            </button>
+          </div>
+          <div
+            onClick={copyPubkey}
+            style={{
+              fontSize: 12, fontFamily: 'var(--mono, monospace)',
+              color: '#D5D5DA', wordBreak: 'break-all',
+              cursor: 'pointer',
+              lineHeight: 1.5,
+              letterSpacing: '0.01em',
+            }}
+            title="Натисніть, щоб скопіювати"
+          >
+            {peerPubkey}
+          </div>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{
+        padding: '24px 20px',
+        display: 'flex', flexDirection: 'column', gap: 10,
+      }}>
+        <button
+          onClick={writeMessage}
+          style={{
+            height: 48, borderRadius: 12,
+            background: '#6B8AFE', color: '#fff',
+            border: 'none', cursor: 'pointer',
+            fontSize: 14.5, fontWeight: 600,
+            letterSpacing: '-0.005em',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+          </svg>
+          Написати повідомлення
+        </button>
+      </div>
+    </div>
+  );
+}

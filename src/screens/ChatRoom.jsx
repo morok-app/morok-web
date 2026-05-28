@@ -229,6 +229,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
         peerHue={peerHue}
         firstLetter={(conv.peer_username || conv.peer_pubkey)[0]?.toUpperCase() || '?'}
         onBack={() => onNavigate('chats')}
+        onTitleClick={isBurner ? null : () => onNavigate(`peer/${peerPubkey}`)}
       />
 
       <div
@@ -578,7 +579,8 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
 /* ─── Sub-components ─────────────────────────────────────── */
 
-function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack }) {
+function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack, onTitleClick }) {
+  const clickable = typeof onTitleClick === 'function';
   return (
     <div style={{
       padding: '14px 16px',
@@ -601,39 +603,55 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
         </svg>
       </button>
 
-      {firstLetter && (
-        <div style={{
-          width: 34, height: 34, borderRadius: '50%',
-          background: isBurner
-            ? 'rgba(255, 169, 77, 0.15)'
-            : (peerHue !== undefined ? `hsl(${peerHue}, 45%, 45%)` : '#16161B'),
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontWeight: 700, fontSize: 13, color: isBurner ? '#FFA94D' : '#fff',
-          flexShrink: 0,
-        }}>
-          {isBurner ? '🔥' : firstLetter}
-        </div>
-      )}
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          fontSize: 14.5, fontWeight: 700,
-          color: '#F5F5F7',
-          letterSpacing: '-0.01em',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {title}
-        </div>
-        {subtitle && (
+      <div
+        onClick={clickable ? onTitleClick : undefined}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          flex: 1, minWidth: 0,
+          cursor: clickable ? 'pointer' : 'default',
+          padding: clickable ? '2px 8px 2px 2px' : 0,
+          margin: clickable ? '-2px -8px -2px -2px' : 0,
+          borderRadius: 10,
+          transition: 'background 0.15s',
+        }}
+        onMouseEnter={clickable ? (e) => { e.currentTarget.style.background = '#13131A'; } : undefined}
+        onMouseLeave={clickable ? (e) => { e.currentTarget.style.background = 'transparent'; } : undefined}
+        title={clickable ? 'Відкрити профіль' : undefined}
+      >
+        {firstLetter && (
           <div style={{
-            fontSize: 11, color: '#6B6B72',
-            fontFamily: 'var(--mono, monospace)',
-            letterSpacing: '0.02em',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            width: 34, height: 34, borderRadius: '50%',
+            background: isBurner
+              ? 'rgba(255, 169, 77, 0.15)'
+              : (peerHue !== undefined ? `hsl(${peerHue}, 45%, 45%)` : '#16161B'),
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 700, fontSize: 13, color: isBurner ? '#FFA94D' : '#fff',
+            flexShrink: 0,
           }}>
-            {subtitle}
+            {isBurner ? '🔥' : firstLetter}
           </div>
         )}
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 14.5, fontWeight: 700,
+            color: '#F5F5F7',
+            letterSpacing: '-0.01em',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {title}
+          </div>
+          {subtitle && (
+            <div style={{
+              fontSize: 11, color: '#6B6B72',
+              fontFamily: 'var(--mono, monospace)',
+              letterSpacing: '0.02em',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {subtitle}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
