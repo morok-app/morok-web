@@ -103,8 +103,49 @@ export default function GroupChat({ groupId, onNavigate }) {
     const el = scrollerRef.current;
     if (!el) return;
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollDown(dist > SCROLL_BOTTOM_THRESHOLD);
+    const atBottom = dist < SCROLL_BOTTOM_THRESHOLD;
+    setShowScrollDown(!atBottom);
+    if (atBottom) flushReadReceipts();
   }
+
+  async function flushReadReceipts() {
+    if (!store.getPreference('read_receipts', true)) return;
+    const g = gstore.getGroup(groupId);
+    if (!g) return;
+    const toReport = (g.messages || []).filter(
+      (m) =>
+        m.direction === 'in' &&
+        m.envelope_id &&
+        m.sender_pubkey &&
+        m.sender_pubkey !== myPubkeyHex &&
+        !m.read_sent &&
+        m.status !== 'undecryptable',
+    );
+    if (toReport.length === 0) return;
+    for (const m of toReport) {
+      gstore.updateMessage(groupId, m.id, { read_sent: true });
+    }
+    try {
+      await api.sendReadReceipts(
+        toReport.map((m) => ({
+          envelope_id: m.envelope_id,
+          sender_pubkey_hex: m.sender_pubkey,
+          group_id: groupId,
+        })),
+      );
+    } catch (e) {
+      console.warn('group read receipts failed:', e);
+      for (const m of toReport) {
+        gstore.updateMessage(groupId, m.id, { read_sent: false });
+      }
+    }
+  }
+
+  // Initial flush when opening or new messages arrive while at bottom
+  useEffect(() => {
+    flushReadReceipts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, group?.messages?.length]);
 
   function scrollToBottom() {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
@@ -338,16 +379,22 @@ export default function GroupChat({ groupId, onNavigate }) {
                   {m.expires_at && (
                     <span>· ⏱ {fmtTTLLeft(m.expires_at)}</span>
                   )}
-                  {isOut && (
-                    <span style={{
-                      color: m.status === 'failed' ? '#FF6B7A' :
-                             m.status === 'sent' ? '#7B96FF' : '#5A5A65',
-                    }}>
-                      · {m.status === 'sending' ? '...' :
-                         m.status === 'sent' ? '✓' :
-                         m.status === 'failed' ? '✗' : ''}
-                    </span>
-                  )}
+                  {isOut && (() => {
+                    const readCount = Array.isArray(m.read_by) ? m.read_by.length : 0;
+                    const isRead = readCount > 0;
+                    return (
+                      <span style={{
+                        color: m.status === 'failed' ? '#FF6B7A' :
+                               isRead ? '#60A5FA' :
+                               m.status === 'sent' ? '#7B96FF' : '#5A5A65',
+                      }}>
+                        · {m.status === 'sending' ? '...' :
+                           m.status === 'failed' ? '✗' :
+                           isRead ? `✓✓ ${readCount}` :
+                           m.status === 'sent' ? '✓' : ''}
+                      </span>
+                    );
+                  })()}
                 </div>
               )}
             </div>

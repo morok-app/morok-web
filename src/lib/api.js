@@ -140,6 +140,19 @@ export async function ackEnvelope(envelopeId) {
 }
 
 /**
+ * Send a batch of read receipts. `reads` is an array of
+ * { envelope_id, sender_pubkey_hex, group_id? } objects. The relay
+ * notifies each sender (locally via WS or via federation forward).
+ */
+export async function sendReadReceipts(reads) {
+  if (!reads || reads.length === 0) return { sent: 0 };
+  return http('POST', '/api/v1/messages/read', {
+    body: { reads },
+    auth: true,
+  });
+}
+
+/**
  * Sender-initiated server-side delete of a DM.
  * Removes the message from the recipient's inbox AND pushes a delete
  * event onto their WebSocket. Best-effort: if the recipient already

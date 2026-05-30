@@ -95,7 +95,46 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     if (!el) return;
     const atBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < SCROLL_BOTTOM_THRESHOLD;
     setShowScrollDown(!atBottom);
+    if (atBottom) flushReadReceipts();
   }
+
+  async function flushReadReceipts() {
+    if (!store.getPreference('read_receipts', true)) return;
+    const c = convs.getConversation(peerPubkey);
+    if (!c) return;
+    const toReport = (c.messages || []).filter(
+      (m) =>
+        m.direction === 'in' &&
+        m.envelope_id &&
+        !m.read_sent &&
+        m.status !== 'undecryptable',
+    );
+    if (toReport.length === 0) return;
+    // Local marker first — avoids re-sending if request slow
+    for (const m of toReport) {
+      convs.updateMessage(peerPubkey, m.id, { read_sent: true });
+    }
+    try {
+      await api.sendReadReceipts(
+        toReport.map((m) => ({
+          envelope_id: m.envelope_id,
+          sender_pubkey_hex: peerPubkey,
+        })),
+      );
+    } catch (e) {
+      // If the call failed, roll back the local marker so we retry later
+      console.warn('read receipts batch failed:', e);
+      for (const m of toReport) {
+        convs.updateMessage(peerPubkey, m.id, { read_sent: false });
+      }
+    }
+  }
+
+  // Also flush when the chat is first opened (user is at bottom by default).
+  useEffect(() => {
+    flushReadReceipts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peerPubkey, conv?.messages?.length]);
 
   function scrollToBottom() {
     messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
@@ -320,11 +359,13 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                   {isOut && (
                     <span style={{
                       color: m.status === 'failed' ? '#FF6B7A' :
+                             m.read_at ? '#60A5FA' :
                              m.status === 'sent' ? '#7B96FF' : '#5A5A65',
                     }}>
                       · {m.status === 'sending' ? '...' :
-                         m.status === 'sent' ? '✓' :
-                         m.status === 'failed' ? '✗' : ''}
+                         m.status === 'failed' ? '✗' :
+                         m.read_at ? '✓✓' :
+                         m.status === 'sent' ? '✓' : ''}
                     </span>
                   )}
                 </div>

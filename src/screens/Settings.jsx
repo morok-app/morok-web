@@ -30,6 +30,18 @@ export default function Settings({ onNavigate }) {
   const [notifEnabled, setNotifEnabled] = useState(notif.isPreferenceEnabled());
   const [notifPermission, setNotifPermission] = useState(notif.getPermission());
 
+  // Read receipts toggle
+  const [readReceiptsEnabled, setReadReceiptsEnabled] = useState(
+    () => store.getPreference('read_receipts', true),
+  );
+
+  function toggleReadReceipts() {
+    const next = !readReceiptsEnabled;
+    store.setPreference('read_receipts', next);
+    setReadReceiptsEnabled(next);
+    showToast(next ? 'Підтвердження прочитання увімкнено' : 'Підтвердження прочитання вимкнено', 'ok');
+  }
+
   useEffect(() => {
     (async () => {
       try {
@@ -279,6 +291,15 @@ export default function Settings({ onNavigate }) {
           }
           onClick={(notif.isSupported() && notifPermission !== 'denied') ? toggleNotifications : null}
           chevron={notif.isSupported() && notifPermission !== 'denied'}
+        />
+
+        <Row
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/><polyline points="22 10 11 21 6 16"/></svg>}
+          label="Підтвердження прочитання"
+          value={readReceiptsEnabled ? 'Увімкнено' : 'Вимкнено'}
+          valueColor={readReceiptsEnabled ? '#4ADE80' : '#6B6B72'}
+          onClick={toggleReadReceipts}
+          chevron
         />
 
         {/* Group 3: Account */}

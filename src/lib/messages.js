@@ -20,6 +20,12 @@
 import * as api from './api.js';
 import * as crypto from './crypto.js';
 import * as convs from './conversations.js';
+import { compressImage } from './images.js';
+
+// Kinds that are purely protocol signalling — never shown to the user
+// and never stored in conversation history. Everything else (raw text,
+// {kind:'image'}, future content kinds) is a real message.
+const CONTROL_KINDS = new Set(['group_key', 'group_key_request']);
 
 export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds }) {
   const ts = Math.floor(Date.now() / 1000);
@@ -40,8 +46,11 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
 
   // Detect control messages (group_key, group_key_request) — these
   // should be invisible to the sender too. Send and return without
-  // touching conversations storage.
-  const isControl = !!tryParseControl(plaintext);
+  // touching conversations storage. Content payloads like {kind:'image'}
+  // are NOT control — they're real messages that the sender must see
+  // in their own UI.
+  const parsedCtl = tryParseControl(plaintext);
+  const isControl = !!(parsedCtl && CONTROL_KINDS.has(parsedCtl.kind));
   if (isControl) {
     const ack = await api.sendEnvelope({
       from: myPubkeyHex,
@@ -98,6 +107,83 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
  * record afterwards — simpler than duplicating sendDM logic, and the
  * brief flash in the chat list is acceptable.
  */
+
+/**
+ * Send an image DM. Compresses the file client-side, wraps it as
+ * {kind:'image', ...} JSON, encrypts and sends. The local conversation
+ * log gets a message with `image` populated and `text` set to the
+ * caption (which may be empty).
+ *
+ * Throws if compression fails or sending fails. On success returns the
+ * stored message object.
+ */
+export async function sendDMImage({
+  seed, myPubkeyHex, peerPubkeyHex,
+  file, caption = '', ttlSeconds,
+}) {
+  const compressed = await compressImage(file);
+  const payload = JSON.stringify({
+    kind: 'image',
+    data_b64: compressed.data_b64,
+    mime: compressed.mime,
+    w: compressed.w,
+    h: compressed.h,
+    caption: caption || '',
+  });
+
+  const ts = Math.floor(Date.now() / 1000);
+  const blob = crypto.encryptForPeer({
+    seed, myPubkeyHex, peerPubkeyHex, plaintext: payload,
+  });
+  const sig = crypto.signEnvelope({
+    seed,
+    fromHex: myPubkeyHex,
+    toHex: peerPubkeyHex,
+    ts,
+    ttl: ttlSeconds,
+    blobB64: blob,
+  });
+
+  const localMsg = {
+    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    direction: 'out',
+    peer_pubkey: peerPubkeyHex,
+    text: caption || '',
+    image: {
+      data_b64: compressed.data_b64,
+      mime: compressed.mime,
+      w: compressed.w,
+      h: compressed.h,
+    },
+    ts,
+    ttl: ttlSeconds,
+    expires_at: ts + ttlSeconds,
+    status: 'sending',
+  };
+  convs.appendMessage(peerPubkeyHex, localMsg);
+
+  try {
+    const ack = await api.sendEnvelope({
+      from: myPubkeyHex,
+      to: peerPubkeyHex,
+      ts,
+      ttl: ttlSeconds,
+      blob,
+      sig,
+    });
+    convs.updateMessage(peerPubkeyHex, localMsg.id, {
+      envelope_id: ack.envelope_id,
+      status: 'sent',
+      expires_at: ack.expires_at || (ts + ttlSeconds),
+    });
+    return { ...localMsg, envelope_id: ack.envelope_id, status: 'sent' };
+  } catch (e) {
+    convs.updateMessage(peerPubkeyHex, localMsg.id, {
+      status: 'failed', error: e.message,
+    });
+    throw e;
+  }
+}
 
 function tryParseControl(plaintext) {
   if (!plaintext || plaintext.length < 2) return null;
@@ -209,6 +295,29 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
         console.warn('group_key_request processing failed:', e);
       }
       return null;
+    }
+    if (control.kind === 'image') {
+      // CONTENT — a real message with an image attached. Store with
+      // both `image` and `text` (caption, may be empty).
+      const msg = {
+        id: `recv-${envelopeId.slice(0, 16)}`,
+        envelope_id: envelopeId,
+        direction: 'in',
+        peer_pubkey: peer,
+        text: control.caption || '',
+        image: {
+          data_b64: control.data_b64,
+          mime: control.mime || 'image/jpeg',
+          w: control.w,
+          h: control.h,
+        },
+        ts: envMeta.timestamp || envMeta.ts || Math.floor(Date.now() / 1000),
+        ttl: envMeta.ttl_seconds || envMeta.ttl,
+        expires_at: envMeta.expires_at,
+        status: 'received',
+      };
+      convs.appendMessage(peer, msg);
+      return msg;
     }
     // Unknown control kind → fall through to display as text
   }

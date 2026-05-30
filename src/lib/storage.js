@@ -20,6 +20,7 @@ const K_IDENTITY = 'morok.identity.v1';
 const K_SESSION = 'morok.session.v1';
 const K_PROFILE = 'morok.profile.v1';
 const K_BACKUP_HAS = 'morok.backup_has.v1';
+const K_PREFS = 'morok.prefs.v1';
 
 function readJSON(key) {
   try {
@@ -101,6 +102,21 @@ export function saveBackupHas({ has, updatedAt }) {
 }
 export function clearBackupHas() { localStorage.removeItem(K_BACKUP_HAS); }
 
+// ── Preferences (toggles in Settings) ─────────────────────────
+
+export function getPreference(key, defaultValue) {
+  const prefs = readJSON(K_PREFS) || {};
+  return key in prefs ? prefs[key] : defaultValue;
+}
+
+export function setPreference(key, value) {
+  const prefs = readJSON(K_PREFS) || {};
+  prefs[key] = value;
+  writeJSON(K_PREFS, prefs);
+}
+
+export function clearPreferences() { localStorage.removeItem(K_PREFS); }
+
 // ── Wipe ─────────────────────────────────────────────────────
 
 export function wipeAll() {
@@ -108,6 +124,7 @@ export function wipeAll() {
   clearSession();
   clearProfile();
   clearBackupHas();
+  clearPreferences();
   localStorage.removeItem('morok.conv.v1');
   localStorage.removeItem('morok.contacts.v1');
   localStorage.removeItem('morok.pin_lockout.v1');

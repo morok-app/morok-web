@@ -229,6 +229,32 @@ export function markGroupRead(groupId) {
   if (changed) save(state);
 }
 
+/**
+ * Record that `readerPubkey` (some group member) has read our outgoing
+ * group message identified by envelopeId. Adds the pubkey to a
+ * deduplicated list under `read_by`. Returns the updated message
+ * or null if it wasn't ours / not found / already recorded.
+ *
+ * UI shows aggregated count ("✓✓ N") so we never reveal which
+ * specific members read; just how many.
+ */
+export function markOutgoingReadByMember(groupId, envelopeId, readerPubkey) {
+  if (!groupId || !envelopeId || !readerPubkey) return null;
+  const state = load();
+  const g = state[groupId];
+  if (!g) return null;
+  const m = (g.messages || []).find(
+    (x) => x.envelope_id === envelopeId && x.direction === 'out',
+  );
+  if (!m) return null;
+  if (!Array.isArray(m.read_by)) m.read_by = [];
+  if (m.read_by.includes(readerPubkey)) return null;
+  m.read_by.push(readerPubkey);
+  if (!m.read_at) m.read_at = Math.floor(Date.now() / 1000);
+  save(state);
+  return m;
+}
+
 export function countUnread(groupId) {
   const g = getGroup(groupId);
   if (!g) return 0;

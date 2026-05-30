@@ -46,6 +46,7 @@ import * as api from './api.js';
 import * as crypto from './crypto.js';
 import * as gstore from './group_storage.js';
 import * as msgs from './messages.js';
+import { compressImage } from './images.js';
 
 // ────────────────────────────────────────────────────────────
 // Helpers
@@ -318,6 +319,78 @@ export async function sendGroupMessage({
 // Process incoming group envelope
 // ────────────────────────────────────────────────────────────
 
+export async function sendGroupImage({
+  groupId, file, caption = '',
+  ttlSeconds = 86400,
+  seed, myPubkeyHex,
+}) {
+  const group = gstore.getGroup(groupId);
+  if (!group || !group.group_key_b64) {
+    throw new Error('Немає ключа групи');
+  }
+  const groupKey = crypto.base64ToBytes(group.group_key_b64);
+
+  const compressed = await compressImage(file);
+  const payload = wrapGroupPayload('image', {
+    data_b64: compressed.data_b64,
+    mime: compressed.mime,
+    w: compressed.w,
+    h: compressed.h,
+    caption: caption || '',
+  });
+  const blobB64 = crypto.encryptStringWithKey(groupKey, payload);
+
+  const ts = nowSeconds();
+  const sig = crypto.signEnvelope({
+    seed,
+    fromHex: myPubkeyHex,
+    toHex: groupId,
+    ts,
+    ttl: ttlSeconds,
+    blobB64,
+  });
+
+  const localMsg = {
+    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    direction: 'out',
+    sender_pubkey: myPubkeyHex,
+    text: caption || '',
+    image: {
+      data_b64: compressed.data_b64,
+      mime: compressed.mime,
+      w: compressed.w,
+      h: compressed.h,
+    },
+    ts,
+    ttl: ttlSeconds,
+    expires_at: ts + ttlSeconds,
+    status: 'sending',
+  };
+  gstore.appendMessage(groupId, localMsg);
+
+  try {
+    const ack = await api.sendGroupMessage(groupId, {
+      from: myPubkeyHex,
+      to: groupId,
+      ts,
+      ttl: ttlSeconds,
+      blob: blobB64,
+      sig,
+    });
+    gstore.updateMessage(groupId, localMsg.id, {
+      envelope_id: ack.envelope_id,
+      status: 'sent',
+      expires_at: ack.expires_at || (ts + ttlSeconds),
+    });
+    return { ...localMsg, envelope_id: ack.envelope_id, status: 'sent' };
+  } catch (e) {
+    gstore.updateMessage(groupId, localMsg.id, {
+      status: 'failed', error: e.message,
+    });
+    throw e;
+  }
+}
+
 export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
   const envelopeId = envMeta.envelope_id;
   const groupId = envMeta.group_id;
@@ -384,6 +457,29 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
       sender_pubkey: senderPubkey,
       sender_username: senderUsername,
       text: payload.text || '',
+      ts: envMeta.ts || nowSeconds(),
+      ttl: envMeta.ttl,
+      expires_at: envMeta.expires_at,
+      status: 'received',
+    };
+    gstore.appendMessage(groupId, msg);
+    return msg;
+  }
+
+  if (payload.kind === 'image') {
+    const msg = {
+      id: `recv-${envelopeId.slice(0, 16)}`,
+      envelope_id: envelopeId,
+      direction: 'in',
+      sender_pubkey: senderPubkey,
+      sender_username: senderUsername,
+      text: payload.caption || '',
+      image: {
+        data_b64: payload.data_b64,
+        mime: payload.mime || 'image/jpeg',
+        w: payload.w,
+        h: payload.h,
+      },
       ts: envMeta.ts || nowSeconds(),
       ttl: envMeta.ttl,
       expires_at: envMeta.expires_at,

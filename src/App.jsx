@@ -23,7 +23,6 @@ import ChatsList from './screens/ChatsList.jsx';
 import NewChat from './screens/NewChat.jsx';
 import ChatRoom from './screens/ChatRoom.jsx';
 import Profile from './screens/Profile.jsx';
-import PeerProfile from './screens/PeerProfile.jsx';
 import Settings from './screens/Settings.jsx';
 import NewGroup from './screens/NewGroup.jsx';
 import GroupChat from './screens/GroupChat.jsx';
@@ -271,6 +270,32 @@ export default function App() {
           console.warn('onDeleted handler failed:', e);
         }
       },
+      onRead: ({ envelopeId, readerPubkey, groupId }) => {
+        // Peer (or some group member) tells us they read our message.
+        // For DM: readerPubkey == the peer of our outgoing message.
+        // For group: append to the read_by aggregate (count only in UI).
+        try {
+          if (groupId) {
+            const updated = gstore.markOutgoingReadByMember(
+              groupId, envelopeId, readerPubkey,
+            );
+            if (updated) {
+              window.dispatchEvent(new CustomEvent('morok-group-update', {
+                detail: { groupId },
+              }));
+            }
+          } else if (readerPubkey) {
+            const updated = convs.markOutgoingRead(readerPubkey, envelopeId);
+            if (updated) {
+              window.dispatchEvent(new CustomEvent('morok-conv-update', {
+                detail: { peerPubkey: readerPubkey },
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn('onRead handler failed:', e);
+        }
+      },
       onStateChange: (s) => {
         console.info('inbox state:', s);
         broadcastInboxState(s);
@@ -386,9 +411,6 @@ export default function App() {
     case 'chat':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <ChatRoom peerPubkey={routeArg} onNavigate={navigate} />;
-    case 'peer':
-      if (!routeArg) { navigate('chats'); return <Splash />; }
-      return <PeerProfile peerPubkey={routeArg} onNavigate={navigate} />;
     case 'group':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <GroupChat groupId={routeArg} onNavigate={navigate} />;

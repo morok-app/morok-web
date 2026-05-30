@@ -7,7 +7,8 @@
  * Events emitted to the consumer:
  *   onCatchup(envelopes[])
  *   onNew(envelope)
- *   onDeleted({ envelopeId, by, groupId })
+ *   onDeleted({envelopeId, by, groupId})
+ *   onRead({envelopeId, readerPubkey, groupId})
  *   onStateChange('connecting'|'open'|'closed'|'error')
  */
 
@@ -16,10 +17,11 @@ import * as api from './api.js';
 const BACKOFF_SECONDS = [1, 2, 5, 10, 30];
 
 export class InboxClient {
-  constructor({ onCatchup, onNew, onDeleted, onStateChange }) {
+  constructor({ onCatchup, onNew, onDeleted, onRead, onStateChange }) {
     this.onCatchup = onCatchup;
     this.onNew = onNew;
     this.onDeleted = onDeleted;
+    this.onRead = onRead;
     this.onStateChange = onStateChange;
     this.ws = null;
     this.attempts = 0;
@@ -87,6 +89,13 @@ export class InboxClient {
         this.onDeleted?.({
           envelopeId: msg.envelope_id,
           by: msg.by,
+          groupId: msg.group_id || null,
+        });
+        break;
+      case 'read':
+        this.onRead?.({
+          envelopeId: msg.envelope_id,
+          readerPubkey: msg.reader,
           groupId: msg.group_id || null,
         });
         break;

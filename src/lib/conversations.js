@@ -203,6 +203,28 @@ export function markConversationRead(peerPubkey) {
   if (changed) save(state);
 }
 
+/**
+ * Mark an outgoing message as read by the peer.
+ *
+ * Called from the WS 'read' handler. Returns the updated message
+ * (so the caller can decide whether to refresh UI) or null if the
+ * envelope isn't found or was already marked.
+ */
+export function markOutgoingRead(peerPubkey, envelopeId, readAt = null) {
+  if (!peerPubkey || !envelopeId) return null;
+  const state = load();
+  const conv = state[peerPubkey];
+  if (!conv) return null;
+  const m = conv.messages.find(
+    (x) => x.envelope_id === envelopeId && x.direction === 'out',
+  );
+  if (!m) return null;
+  if (m.read_at) return null;
+  m.read_at = readAt || Math.floor(Date.now() / 1000);
+  save(state);
+  return m;
+}
+
 export function countUnread(peerPubkey) {
   const conv = getConversation(peerPubkey);
   if (!conv) return 0;
