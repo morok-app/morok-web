@@ -45,15 +45,25 @@ function computeTargetDims(srcW, srcH, maxDim) {
 }
 
 /**
- * Compress an image File/Blob to a base64 JPEG within size limits.
+ * Compress an image File/Blob to a base64 JPEG that fits the relay's
+ * blob-size budget after JSON wrapping and encryption.
+ *
+ * The backend's MOROK_MAX_BLOB_BYTES is 262144 (256KB). After our
+ * pipeline (JSON wrap → encrypt → base64-for-transport) the raw JPEG
+ * budget is roughly ~140KB. iPhone photos at 1200px / q0.75 often
+ * land at 180-220KB → over budget.
+ *
+ * Strategy: try progressively more aggressive (dim, quality) presets
+ * until the JPEG fits the budget. Returns the first preset that works.
+ * Throws if even the lowest-quality preset is over budget (unlikely
+ * for any sane input).
  *
  * Returns: { data_b64, mime, w, h, original_size, compressed_size }
- *
- * Throws on truly oversized inputs (>50MB) or unreadable files.
  */
 export async function compressImage(file, {
   maxDim = DEFAULT_MAX_DIM,
   quality = DEFAULT_QUALITY,
+  rawBudgetBytes = 140 * 1024,
 } = {}) {
   if (!file || !file.size) throw new Error('Файл не вибрано');
   if (file.size > 50 * 1024 * 1024) {
@@ -61,33 +71,52 @@ export async function compressImage(file, {
   }
 
   const img = await loadImageFromBlob(file);
-  const target = computeTargetDims(img.naturalWidth, img.naturalHeight, maxDim);
 
-  const canvas = document.createElement('canvas');
-  canvas.width = target.w;
-  canvas.height = target.h;
-  const ctx = canvas.getContext('2d');
+  // Progressive presets — first dimension stays at requested max, then
+  // shrink quality, then shrink dimensions.
+  const presets = [
+    { dim: maxDim, q: quality },           // 1200 / 0.75 — best quality
+    { dim: maxDim, q: 0.65 },              // same size, slightly lower q
+    { dim: maxDim, q: 0.55 },              // ...lower
+    { dim: 1024,   q: 0.65 },              // shrink
+    { dim: 1024,   q: 0.55 },
+    { dim: 800,    q: 0.6 },               // last resort
+    { dim: 640,    q: 0.55 },
+  ];
 
-  // Fill with dark bg so transparent PNGs don't end up with white halos
-  // on our dark UI, and so JPEG output is consistent.
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, target.w, target.h);
-  ctx.drawImage(img, 0, 0, target.w, target.h);
+  let last = null;
+  for (const p of presets) {
+    const target = computeTargetDims(img.naturalWidth, img.naturalHeight, p.dim);
 
-  const dataUrl = canvas.toDataURL('image/jpeg', quality);
-  const data_b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    const canvas = document.createElement('canvas');
+    canvas.width = target.w;
+    canvas.height = target.h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, target.w, target.h);
+    ctx.drawImage(img, 0, 0, target.w, target.h);
 
-  // Approximate compressed byte size (base64 inflates by ~4/3)
-  const compressed_size = Math.floor(data_b64.length * 0.75);
+    const dataUrl = canvas.toDataURL('image/jpeg', p.q);
+    const data_b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    const compressed_size = Math.floor(data_b64.length * 0.75);
 
-  return {
-    data_b64,
-    mime: 'image/jpeg',
-    w: target.w,
-    h: target.h,
-    original_size: file.size,
-    compressed_size,
-  };
+    last = {
+      data_b64,
+      mime: 'image/jpeg',
+      w: target.w,
+      h: target.h,
+      original_size: file.size,
+      compressed_size,
+    };
+
+    if (compressed_size <= rawBudgetBytes) {
+      return last;
+    }
+  }
+
+  // None of the presets fit — return the smallest one anyway and let
+  // the backend reject if it still over. Better than blocking.
+  return last;
 }
 
 /**

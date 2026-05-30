@@ -7,11 +7,11 @@ import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
 import { formatBytes } from '../lib/images.js';
 
+// TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
-  { label: '1 година', seconds: 3600 },
-  { label: '1 день', seconds: 86400 },
-  { label: '7 днів', seconds: 7 * 86400 },
-  { label: '30 днів', seconds: 30 * 86400 },
+  { label: '1 година',  seconds: 3600 },
+  { label: '6 годин',   seconds: 6 * 3600 },
+  { label: '24 години', seconds: 24 * 3600 },
 ];
 
 const LONG_PRESS_MS = 500;
