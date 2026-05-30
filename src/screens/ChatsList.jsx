@@ -112,6 +112,19 @@ export default function ChatsList({ onNavigate }) {
   const longPressTimer = useRef(null);
   const inboxState = useInboxState();
   const [showNewMenu, setShowNewMenu] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef(null);
+
+  // Focus input when search opens
+  useEffect(() => {
+    if (searchOpen) {
+      // small delay so the input is mounted before focusing
+      setTimeout(() => searchInputRef.current?.focus(), 30);
+    } else {
+      setSearchQuery('');
+    }
+  }, [searchOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +224,20 @@ export default function ChatsList({ onNavigate }) {
     ? `@${profile.username}`
     : `@anon_${myPubkey?.slice(0, 8) || '????????'}`;
 
+  // Filter items by search query — match title or any message text/caption.
+  // Case-insensitive substring.
+  const visibleItems = (() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => {
+      if (item.title.toLowerCase().includes(q)) return true;
+      const msgs = item.raw?.messages || [];
+      return msgs.some(
+        (m) => typeof m.text === 'string' && m.text.toLowerCase().includes(q),
+      );
+    });
+  })();
+
   const stateBadge = (() => {
     if (inboxState === 'connecting') return { text: 'підключення', color: 'var(--text-dim)' };
     if (inboxState === 'closed' || inboxState === 'error') return { text: 'офлайн', color: 'var(--danger)' };
@@ -271,6 +298,21 @@ export default function ChatsList({ onNavigate }) {
           gap: 0,
           flexShrink: 0,
         }}>
+          <button
+            onClick={() => setSearchOpen((v) => !v)}
+            title="Пошук"
+            style={{
+              background: searchOpen ? '#232329' : 'transparent', border: 'none',
+              width: 34, height: 30, borderRadius: 100,
+              color: searchOpen ? '#7B96FF' : '#A8A8B0', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 0,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </button>
           <button
             onClick={() => onNavigate('tools')}
             title="Інструменти"
@@ -380,6 +422,61 @@ export default function ChatsList({ onNavigate }) {
         </div>
       )}
 
+      {/* Search input — visible only when search button is toggled on */}
+      {searchOpen && (
+        <div style={{
+          padding: '4px 20px 8px',
+          display: 'flex', gap: 8, alignItems: 'center',
+        }}>
+          <div style={{
+            flex: 1,
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: '#13131A',
+            border: '1px solid #232329',
+            borderRadius: 12,
+            padding: '8px 12px',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B6B72" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setSearchOpen(false); }}
+              placeholder="Пошук чатів і повідомлень"
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                fontSize: 13.5, color: '#F5F5F7', minWidth: 0,
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                title="Очистити"
+                style={{
+                  background: 'transparent', border: 'none',
+                  color: '#6B6B72', cursor: 'pointer', padding: 0,
+                  display: 'flex', alignItems: 'center',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setSearchOpen(false)}
+            style={{
+              background: 'transparent', border: 'none',
+              color: '#7B96FF', cursor: 'pointer',
+              fontSize: 13, fontWeight: 500, padding: '4px 6px',
+            }}
+          >Готово</button>
+        </div>
+      )}
+
       {isEmpty ? (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
@@ -405,9 +502,31 @@ export default function ChatsList({ onNavigate }) {
             Натисніть кнопку нижче щоб почати новий чат або групу
           </div>
         </div>
+      ) : visibleItems.length === 0 ? (
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          padding: '40px 24px',
+          textAlign: 'center', gap: 14,
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12,
+            background: '#16161B',
+            border: '1px solid #232329',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#3F3F45',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </div>
+          <div style={{ fontSize: 13.5, color: '#8E8E99' }}>
+            Нічого не знайдено за “{searchQuery}”
+          </div>
+        </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', marginTop: 10 }}>
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const last = item.last;
             const isGroup = item.kind === 'group';
             return (
@@ -464,7 +583,11 @@ export default function ChatsList({ onNavigate }) {
                       {isGroup && last && last.direction !== 'out'
                         ? `${formatPeerName({ username: last.sender_username, pubkey: last.sender_pubkey })}: `
                         : (last?.direction === 'out' ? 'Ви: ' : '')}
-                      {last?.text || (last?.status === 'undecryptable' ? '⚠ не вдалось розшифрувати' : '...')}
+                      {last?.status === 'undecryptable'
+                        ? '⚠ не вдалось розшифрувати'
+                        : last?.image
+                          ? (last.text ? `📷 ${last.text}` : '📷 Картинка')
+                          : (last?.text || '...')}
                     </div>
                     {last?.ttl && (
                       <div style={{ fontSize: 10, color: '#5A5A65', fontFamily: 'var(--mono, monospace)' }}>
