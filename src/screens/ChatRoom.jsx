@@ -8,12 +8,11 @@ import { hexToBytes } from '../lib/crypto.js';
 import { parseBurnerMeta } from '../lib/burner.js';
 import { formatBytes } from '../lib/images.js';
 
+// TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
   { seconds: 3600,        label: '1 година' },
   { seconds: 6 * 3600,    label: '6 годин' },
   { seconds: 24 * 3600,   label: '24 години' },
-  { seconds: 3 * 86400,   label: '3 дні' },
-  { seconds: 7 * 86400,   label: '7 днів' },
 ];
 
 const LONG_PRESS_MS = 500;
