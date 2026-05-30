@@ -5,6 +5,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
+import { formatBytes } from '../lib/images.js';
 
 const TTL_OPTIONS = [
   { label: '1 година', seconds: 3600 },
@@ -49,9 +50,12 @@ export default function GroupChat({ groupId, onNavigate }) {
   const [sending, setSending] = useState(false);
   const [showTtlMenu, setShowTtlMenu] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
+  const [lightboxImage, setLightboxImage] = useState(null);
+  const [imageBusy, setImageBusy] = useState(false);
   const longPressTimer = useRef(null);
   const scrollerRef = useRef(null);
   const messagesEnd = useRef(null);
+  const fileInputRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const isAdmin = group?.creator_pubkey_hex === myPubkeyHex;
@@ -213,6 +217,40 @@ export default function GroupChat({ groupId, onNavigate }) {
     }
   }
 
+  function attachClicked() {
+    if (imageBusy || sending) return;
+    fileInputRef.current?.click();
+  }
+
+  async function onImagePicked(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Це не картинка.');
+      return;
+    }
+    const seed = getSeedBytes();
+    if (!seed || !myPubkeyHex) {
+      alert('Сеанс закінчився.');
+      return;
+    }
+    setImageBusy(true);
+    try {
+      await groups.sendGroupImage({
+        groupId, file, caption: draft.trim(),
+        ttlSeconds, seed, myPubkeyHex,
+      });
+      vault.refreshSession();
+      setDraft('');
+      setGroup(gstore.getGroup(groupId));
+    } catch (err) {
+      alert(`Не вдалось надіслати картинку: ${err.message}`);
+    } finally {
+      setImageBusy(false);
+    }
+  }
+
   if (!group) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
@@ -349,7 +387,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
               <div
                 style={{
-                  padding: '9px 13px',
+                  padding: m.image ? 4 : '9px 13px',
                   borderRadius,
                   fontSize: 14, lineHeight: 1.4,
                   wordWrap: 'break-word',
@@ -357,12 +395,34 @@ export default function GroupChat({ groupId, onNavigate }) {
                   color: isOut ? '#FFF' : '#F5F5F7',
                   border: isOut ? 'none' : '1px solid #1E1E27',
                   letterSpacing: '-0.005em',
+                  overflow: 'hidden',
                 }}
               >
                 {m.status === 'undecryptable' ? (
-                  <span style={{ opacity: 0.7, fontStyle: 'italic' }}>
+                  <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
                     ⚠ {m.error || 'не вдалось розшифрувати'}
                   </span>
+                ) : m.image ? (
+                  <>
+                    <img
+                      src={`data:${m.image.mime};base64,${m.image.data_b64}`}
+                      alt={m.text || 'image'}
+                      onClick={(e) => { e.stopPropagation(); setLightboxImage(m.image); }}
+                      style={{
+                        display: 'block', maxWidth: 280, maxHeight: 360,
+                        width: 'auto', height: 'auto',
+                        borderRadius: 12,
+                        cursor: 'zoom-in',
+                        background: '#000',
+                      }}
+                      draggable={false}
+                    />
+                    {m.text && (
+                      <div style={{ padding: '6px 9px 2px', fontSize: 14, color: isOut ? '#FFF' : '#F5F5F7' }}>
+                        {m.text}
+                      </div>
+                    )}
+                  </>
                 ) : m.text}
               </div>
 
@@ -477,24 +537,30 @@ export default function GroupChat({ groupId, onNavigate }) {
             lineHeight: 1.5,
             fontStyle: 'italic',
           }}>
-            "{actionMessage.text?.slice(0, 80)}{actionMessage.text?.length > 80 ? '…' : ''}"
+            {actionMessage.image
+              ? (actionMessage.text
+                  ? `📷 Картинка · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
+                  : '📷 Картинка')
+              : `"${actionMessage.text?.slice(0, 80) || ''}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
-          <div
-            onClick={() => {
-              navigator.clipboard?.writeText(actionMessage.text || '').catch(() => {});
-              setActionMessage(null);
-            }}
-            style={{
-              padding: '14px 20px', cursor: 'pointer',
-              fontSize: 14, color: '#F5F5F7',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            Скопіювати
-          </div>
+          {actionMessage.text && (
+            <div
+              onClick={() => {
+                navigator.clipboard?.writeText(actionMessage.text || '').catch(() => {});
+                setActionMessage(null);
+              }}
+              style={{
+                padding: '14px 20px', cursor: 'pointer',
+                fontSize: 14, color: '#F5F5F7',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              {actionMessage.image ? 'Скопіювати підпис' : 'Скопіювати'}
+            </div>
+          )}
           {(() => {
             const isMine = actionMessage.direction === 'out'
               || actionMessage.sender_pubkey === myPubkeyHex;
@@ -566,6 +632,45 @@ export default function GroupChat({ groupId, onNavigate }) {
             </svg>
             {ttlSeconds < 86400 ? `${ttlSeconds / 3600}г` : `${ttlSeconds / 86400}д`}
           </button>
+          <button
+            onClick={attachClicked}
+            disabled={imageBusy || sending}
+            style={{
+              background: '#13131A',
+              border: '1px solid #232329',
+              width: 38, height: 38,
+              borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: imageBusy ? '#5A5A65' : '#A8A8B0',
+              cursor: (imageBusy || sending) ? 'wait' : 'pointer',
+              flexShrink: 0,
+            }}
+            title="Додати картинку"
+          >
+            {imageBusy ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="2" x2="12" y2="6"/>
+                <line x1="12" y1="18" x2="12" y2="22"/>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                <line x1="2" y1="12" x2="6" y2="12"/>
+                <line x1="18" y1="12" x2="22" y2="12"/>
+              </svg>
+            ) : (
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={onImagePicked}
+            style={{ display: 'none' }}
+          />
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -609,6 +714,49 @@ export default function GroupChat({ groupId, onNavigate }) {
               strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Image lightbox */}
+      {lightboxImage && (
+        <div
+          onClick={() => setLightboxImage(null)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.92)',
+            zIndex: 100,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+            cursor: 'zoom-out',
+          }}
+        >
+          <img
+            src={`data:${lightboxImage.mime};base64,${lightboxImage.data_b64}`}
+            alt="image"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '100%', maxHeight: '100%',
+              borderRadius: 8,
+              cursor: 'default',
+            }}
+            draggable={false}
+          />
+          <button
+            onClick={() => setLightboxImage(null)}
+            style={{
+              position: 'absolute', top: 16, right: 16,
+              width: 36, height: 36, borderRadius: '50%',
+              background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.15)',
+              color: '#F5F5F7', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            aria-label="Закрити"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
         </div>

@@ -23,6 +23,7 @@ import ChatsList from './screens/ChatsList.jsx';
 import NewChat from './screens/NewChat.jsx';
 import ChatRoom from './screens/ChatRoom.jsx';
 import Profile from './screens/Profile.jsx';
+import PeerProfile from './screens/PeerProfile.jsx';
 import Settings from './screens/Settings.jsx';
 import NewGroup from './screens/NewGroup.jsx';
 import GroupChat from './screens/GroupChat.jsx';
@@ -411,6 +412,9 @@ export default function App() {
     case 'chat':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <ChatRoom peerPubkey={routeArg} onNavigate={navigate} />;
+    case 'peer':
+      if (!routeArg) { navigate('chats'); return <Splash />; }
+      return <PeerProfile peerPubkey={routeArg} onNavigate={navigate} />;
     case 'group':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <GroupChat groupId={routeArg} onNavigate={navigate} />;
