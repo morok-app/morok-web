@@ -152,6 +152,21 @@ export async function sendReadReceipts(reads) {
   });
 }
 
+/** Web push: fetch this relay's VAPID public key (base64url). */
+export async function getPushVapidKey() {
+  return http('GET', '/api/v1/push/vapid-public-key', { auth: false });
+}
+
+/** Web push: register a subscription on this relay for the current user. */
+export async function pushSubscribe(body) {
+  return http('POST', '/api/v1/push/subscribe', { body, auth: true });
+}
+
+/** Web push: remove a subscription by endpoint. */
+export async function pushUnsubscribe(body) {
+  return http('POST', '/api/v1/push/unsubscribe', { body, auth: true });
+}
+
 /**
  * Sender-initiated server-side delete of a DM.
  * Removes the message from the recipient's inbox AND pushes a delete
