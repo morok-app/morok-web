@@ -1,17 +1,14 @@
-# Створи папку public якщо її ще немає
-mkdir public -Force | Out-Null
-
-# Створи sw.js одним блоком
-@'
 /* Morok Service Worker — handles web push notifications. */
 
 const APP_URL = '/web/';
 
 self.addEventListener('install', () => {
+  // Activate immediately on first install / new SW
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
+  // Take control of any clients without reload
   event.waitUntil(self.clients.claim());
 });
 
@@ -33,6 +30,8 @@ self.addEventListener('push', (event) => {
     : (isGroup ? 'Нове повідомлення у групі' : 'Нове повідомлення');
 
   event.waitUntil((async () => {
+    // If any tab is currently focused, the user is reading right now —
+    // skip the OS notification, the live UI will surface it.
     const clientList = await self.clients.matchAll({
       type: 'window', includeUncontrolled: true,
     });
@@ -69,4 +68,3 @@ self.addEventListener('notificationclick', (event) => {
     }
   })());
 });
-'@ | Out-File -FilePath public\sw.js -Encoding UTF8
