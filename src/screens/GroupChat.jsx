@@ -6,6 +6,7 @@ import * as vault from '../lib/vault.js';
 import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
 import { formatBytes } from '../lib/images.js';
+import { Recorder, isSupported as voiceIsSupported, formatDuration, MAX_DURATION_MS } from '../lib/voice.js';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
@@ -52,10 +53,15 @@ export default function GroupChat({ groupId, onNavigate }) {
   const [actionMessage, setActionMessage] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [imageBusy, setImageBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordMs, setRecordMs] = useState(0);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const longPressTimer = useRef(null);
   const scrollerRef = useRef(null);
   const messagesEnd = useRef(null);
   const fileInputRef = useRef(null);
+  const recorderRef = useRef(null);
+  const recordTimerRef = useRef(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const isAdmin = group?.creator_pubkey_hex === myPubkeyHex;
@@ -251,6 +257,105 @@ export default function GroupChat({ groupId, onNavigate }) {
     }
   }
 
+  async function startRecording() {
+    if (recording || voiceBusy || sending || imageBusy) return;
+    if (!voiceIsSupported()) {
+      alert('Браузер не підтримує запис голосу.');
+      return;
+    }
+    const seed = getSeedBytes();
+    if (!seed || !myPubkeyHex) {
+      alert('Сеанс закінчився. Перезавантажте сторінку.');
+      return;
+    }
+    const rec = new Recorder();
+    try {
+      await rec.start({
+        onAutoStop: () => { stopAndSend(); },
+      });
+    } catch (e) {
+      const msg = e?.name === 'NotAllowedError'
+        ? 'Доступ до мікрофону заблоковано.'
+        : (e?.message || 'Не вдалось почати запис');
+      alert(msg);
+      return;
+    }
+    recorderRef.current = rec;
+    setRecording(true);
+    setRecordMs(0);
+    recordTimerRef.current = setInterval(() => {
+      const r = recorderRef.current;
+      if (!r) return;
+      const d = r.getDuration();
+      setRecordMs(d);
+      if (d >= MAX_DURATION_MS) {
+        stopAndSend();
+      }
+    }, 200);
+  }
+
+  function _stopRecordTimer() {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+  }
+
+  async function stopAndSend() {
+    const rec = recorderRef.current;
+    _stopRecordTimer();
+    setRecording(false);
+    if (!rec) return;
+    setVoiceBusy(true);
+    try {
+      const result = await rec.stop();
+      recorderRef.current = null;
+      if (!result || !result.blob || result.duration_ms < 300) {
+        setVoiceBusy(false);
+        return;
+      }
+      const seed = getSeedBytes();
+      if (!seed || !myPubkeyHex) {
+        alert('Сеанс закінчився.');
+        setVoiceBusy(false);
+        return;
+      }
+      await groups.sendGroupVoice({
+        groupId,
+        audioBlob: result.blob,
+        mimeType: result.mime,
+        durationMs: result.duration_ms,
+        ttlSeconds,
+        seed, myPubkeyHex,
+      });
+      vault.refreshSession();
+      setGroup(gstore.getGroup(groupId));
+    } catch (e) {
+      alert(`Не вдалось надіслати голосове: ${e.message}`);
+    } finally {
+      setVoiceBusy(false);
+    }
+  }
+
+  function cancelRecording() {
+    _stopRecordTimer();
+    setRecording(false);
+    setRecordMs(0);
+    const rec = recorderRef.current;
+    recorderRef.current = null;
+    if (rec) rec.cancel();
+  }
+
+  useEffect(() => {
+    return () => {
+      _stopRecordTimer();
+      const rec = recorderRef.current;
+      if (rec) rec.cancel();
+      recorderRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   if (!group) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
@@ -287,6 +392,12 @@ export default function GroupChat({ groupId, onNavigate }) {
 
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
+      <style>{`
+        @keyframes morokPulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.45; transform: scale(0.85); }
+        }
+      `}</style>
 
       <CompactHeader
         title={group.name || 'Група без назви'}
@@ -387,7 +498,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
               <div
                 style={{
-                  padding: m.image ? 4 : '9px 13px',
+                  padding: m.image ? 4 : (m.voice ? '6px 8px' : '9px 13px'),
                   borderRadius,
                   fontSize: 14, lineHeight: 1.4,
                   wordWrap: 'break-word',
@@ -402,6 +513,8 @@ export default function GroupChat({ groupId, onNavigate }) {
                   <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
                     ⚠ {m.error || 'не вдалось розшифрувати'}
                   </span>
+                ) : m.voice ? (
+                  <VoicePlayer voice={m.voice} isOut={isOut} />
                 ) : m.image ? (
                   <>
                     <img
@@ -537,7 +650,9 @@ export default function GroupChat({ groupId, onNavigate }) {
             lineHeight: 1.5,
             fontStyle: 'italic',
           }}>
-            {actionMessage.image
+            {actionMessage.voice
+              ? `🎤 Голосове (${formatDuration(actionMessage.voice.duration_ms || 0)})`
+              : actionMessage.image
               ? (actionMessage.text
                   ? `📷 Картинка · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
                   : '📷 Картинка')
@@ -606,6 +721,71 @@ export default function GroupChat({ groupId, onNavigate }) {
 
       {/* Composer */}
       {!noKey && (
+        recording ? (
+          <div style={{
+            padding: '10px 12px 14px',
+            display: 'flex', gap: 10, alignItems: 'center',
+            borderTop: '1px solid #1E1E27',
+            background: '#0A0A0B',
+          }}>
+            <button
+              onClick={cancelRecording}
+              style={{
+                width: 38, height: 38, borderRadius: '50%',
+                background: '#13131A',
+                border: '1px solid #232329',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#FF6B7A', cursor: 'pointer',
+                flexShrink: 0,
+              }}
+              title="Скасувати"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+            <div style={{
+              flex: 1, height: 38,
+              background: '#13131A', border: '1px solid #232329',
+              borderRadius: 19,
+              padding: '0 16px',
+              display: 'flex', alignItems: 'center', gap: 10,
+              color: '#F5F5F7', fontSize: 13,
+            }}>
+              <div style={{
+                width: 9, height: 9, borderRadius: '50%',
+                background: '#FF4A5C',
+                animation: 'morokPulse 1.2s ease-in-out infinite',
+                flexShrink: 0,
+              }} />
+              <div style={{ fontFamily: 'var(--mono, monospace)', fontSize: 13, color: '#F5F5F7', letterSpacing: '0.02em' }}>
+                {formatDuration(recordMs)}
+              </div>
+              <div style={{ flex: 1 }} />
+              <div style={{ fontSize: 11, color: '#5A5A65' }}>
+                {Math.floor((MAX_DURATION_MS - recordMs) / 1000)}с
+              </div>
+            </div>
+            <button
+              onClick={stopAndSend}
+              disabled={voiceBusy}
+              style={{
+                width: 38, height: 38, borderRadius: '50%',
+                background: '#F5F5F7', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: voiceBusy ? 'wait' : 'pointer',
+                flexShrink: 0,
+              }}
+              title="Надіслати"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+        ) : (
         <div style={{
           padding: '10px 12px 14px',
           display: 'flex', gap: 8, alignItems: 'flex-end',
@@ -634,7 +814,7 @@ export default function GroupChat({ groupId, onNavigate }) {
           </button>
           <button
             onClick={attachClicked}
-            disabled={imageBusy || sending}
+            disabled={imageBusy || sending || voiceBusy}
             style={{
               background: '#13131A',
               border: '1px solid #232329',
@@ -696,27 +876,51 @@ export default function GroupChat({ groupId, onNavigate }) {
             onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
             onBlur={(e) => e.target.style.borderColor = '#232329'}
           />
-          <button
-            onClick={sendClicked}
-            disabled={!draft.trim() || sending}
-            style={{
-              width: 38, height: 38, borderRadius: '50%',
-              background: (draft.trim() && !sending) ? '#F5F5F7' : '#2A2A33',
-              border: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: (draft.trim() && !sending) ? 'pointer' : 'not-allowed',
-              flexShrink: 0,
-              transition: 'background 0.15s',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke={(draft.trim() && !sending) ? '#0A0A0B' : '#5A5A65'}
-              strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
+          {draft.trim() ? (
+            <button
+              onClick={sendClicked}
+              disabled={!draft.trim() || sending}
+              style={{
+                width: 38, height: 38, borderRadius: '50%',
+                background: (draft.trim() && !sending) ? '#F5F5F7' : '#2A2A33',
+                border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: (draft.trim() && !sending) ? 'pointer' : 'not-allowed',
+                flexShrink: 0,
+                transition: 'background 0.15s',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke={(draft.trim() && !sending) ? '#0A0A0B' : '#5A5A65'}
+                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={startRecording}
+              disabled={voiceBusy || sending || imageBusy}
+              style={{
+                width: 38, height: 38, borderRadius: '50%',
+                background: '#F5F5F7',
+                border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: (voiceBusy || sending || imageBusy) ? 'wait' : 'pointer',
+                flexShrink: 0,
+              }}
+              title="Записати голосове"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
+          )}
         </div>
+        )
       )}
 
       {/* Image lightbox */}
@@ -861,6 +1065,106 @@ function Sheet({ children, onClose }) {
         }} />
         {children}
       </div>
+    </div>
+  );
+}
+
+/**
+ * VoicePlayer — inline audio bubble (same as DM ChatRoom).
+ */
+function VoicePlayer({ voice, isOut }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentMs, setCurrentMs] = useState(0);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return undefined;
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onEnded = () => { setPlaying(false); setCurrentMs(0); try { a.currentTime = 0; } catch {} };
+    const onTime = () => setCurrentMs(Math.floor((a.currentTime || 0) * 1000));
+    a.addEventListener('play', onPlay);
+    a.addEventListener('pause', onPause);
+    a.addEventListener('ended', onEnded);
+    a.addEventListener('timeupdate', onTime);
+    return () => {
+      a.removeEventListener('play', onPlay);
+      a.removeEventListener('pause', onPause);
+      a.removeEventListener('ended', onEnded);
+      a.removeEventListener('timeupdate', onTime);
+    };
+  }, []);
+
+  function toggle(e) {
+    e.stopPropagation();
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) {
+      a.play().catch(() => {});
+    } else {
+      a.pause();
+    }
+  }
+
+  const total = Math.max(1, voice.duration_ms || 0);
+  const shown = playing ? currentMs : (currentMs > 0 ? currentMs : total);
+  const progress = Math.min(1, currentMs / total);
+  const accent = isOut ? '#FFFFFF' : '#7B96FF';
+  const trackBg = isOut ? 'rgba(255,255,255,0.25)' : 'rgba(123,150,255,0.22)';
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      minWidth: 180, maxWidth: 240,
+    }}>
+      <button
+        onClick={toggle}
+        style={{
+          width: 32, height: 32, borderRadius: '50%',
+          background: isOut ? 'rgba(255,255,255,0.18)' : 'rgba(123,150,255,0.16)',
+          border: 'none',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', flexShrink: 0,
+          padding: 0,
+        }}
+      >
+        {playing ? (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill={accent}>
+            <rect x="6" y="5" width="4" height="14" rx="1"/>
+            <rect x="14" y="5" width="4" height="14" rx="1"/>
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill={accent} style={{ marginLeft: 2 }}>
+            <polygon points="6 4 20 12 6 20 6 4"/>
+          </svg>
+        )}
+      </button>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+        <div style={{
+          height: 3, background: trackBg, borderRadius: 2, overflow: 'hidden',
+        }}>
+          <div style={{
+            width: `${progress * 100}%`, height: '100%',
+            background: accent, borderRadius: 2,
+            transition: 'width 0.1s linear',
+          }} />
+        </div>
+        <div style={{
+          fontFamily: 'var(--mono, monospace)',
+          fontSize: 10.5,
+          color: isOut ? 'rgba(255,255,255,0.85)' : '#A8A8B0',
+          letterSpacing: '0.02em',
+        }}>
+          {formatDuration(shown)}
+        </div>
+      </div>
+      <audio
+        ref={audioRef}
+        src={`data:${voice.mime || 'audio/webm'};base64,${voice.data_b64}`}
+        preload="metadata"
+        style={{ display: 'none' }}
+      />
     </div>
   );
 }
