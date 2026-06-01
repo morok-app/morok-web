@@ -26,7 +26,7 @@ import { blobToBase64 } from './voice.js';
 // Kinds that are purely protocol signalling — never shown to the user
 // and never stored in conversation history. Everything else (raw text,
 // {kind:'image'}, future content kinds) is a real message.
-const CONTROL_KINDS = new Set(['group_key', 'group_key_request']);
+const CONTROL_KINDS = new Set(['group_key', 'group_key_request', 'reaction']);
 
 export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds }) {
   const ts = Math.floor(Date.now() / 1000);
@@ -280,6 +280,71 @@ export async function sendDMVoice({
 }
 
 /**
+ * Send a reaction (or remove one) to a DM message.
+ *
+ * Reactions are wrapped as a control payload — not stored in the
+ * sender's own history. The sender updates the target message's
+ * reactions array locally BEFORE sending (optimistic), so the UI
+ * reflects the change instantly. If the relay rejects the envelope,
+ * we roll the local update back.
+ *
+ * Validates the emoji against ALLOWED_REACTIONS before sending — the
+ * UI should only ever surface those, this is a belt-and-braces check.
+ */
+export async function sendDMReaction({
+  seed, myPubkeyHex, peerPubkeyHex,
+  targetEnvelopeId, emoji, op = 'add',
+  ttlSeconds = 86400,
+}) {
+  if (!targetEnvelopeId) throw new Error('no_target');
+  if (op !== 'add' && op !== 'remove') throw new Error('bad_op');
+  if (op === 'add' && !convs.ALLOWED_REACTIONS.includes(emoji)) {
+    throw new Error('bad_emoji');
+  }
+
+  // Optimistic local update (we already see our own reactions)
+  const previous = convs.getMyReaction(peerPubkeyHex, targetEnvelopeId, myPubkeyHex);
+  convs.applyReaction(peerPubkeyHex, targetEnvelopeId, emoji, op, myPubkeyHex);
+
+  const payload = JSON.stringify({
+    kind: 'reaction',
+    target_envelope_id: targetEnvelopeId,
+    emoji: op === 'add' ? emoji : '',
+    op,
+  });
+
+  const ts = Math.floor(Date.now() / 1000);
+  const blob = crypto.encryptForPeer({
+    seed, myPubkeyHex, peerPubkeyHex, plaintext: payload,
+  });
+  const sig = crypto.signEnvelope({
+    seed,
+    fromHex: myPubkeyHex,
+    toHex: peerPubkeyHex,
+    ts,
+    ttl: ttlSeconds,
+    blobB64: blob,
+  });
+
+  try {
+    const ack = await api.sendEnvelope({
+      from: myPubkeyHex,
+      to: peerPubkeyHex,
+      ts, ttl: ttlSeconds, blob, sig,
+    });
+    return { envelope_id: ack.envelope_id, status: 'sent', control: true };
+  } catch (e) {
+    // Roll back local optimistic update
+    if (previous) {
+      convs.applyReaction(peerPubkeyHex, targetEnvelopeId, previous, 'add', myPubkeyHex);
+    } else {
+      convs.applyReaction(peerPubkeyHex, targetEnvelopeId, emoji, 'remove', myPubkeyHex);
+    }
+    throw e;
+  }
+}
+
+/**
  * Process an incoming envelope.
  *
  * If meta.group_id is present → dispatch to groups module.
@@ -376,6 +441,17 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       } catch (e) {
         console.warn('group_key_request processing failed:', e);
       }
+      return null;
+    }
+    if (control.kind === 'reaction') {
+      // Reaction on a DM we sent or received. Look up the target by
+      // envelope_id; if expired or never present locally, drop quietly.
+      const target = control.target_envelope_id;
+      const op = control.op === 'remove' ? 'remove' : 'add';
+      const emoji = typeof control.emoji === 'string' ? control.emoji : '';
+      if (!target) return null;
+      // Whitelist enforced inside applyReaction; bad input → null
+      convs.applyReaction(peer, target, emoji, op, peer);
       return null;
     }
     if (control.kind === 'image') {

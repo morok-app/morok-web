@@ -171,6 +171,31 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     setConv(convs.getConversation(peerPubkey));
   }
 
+  async function reactClicked(emoji, alreadyMine) {
+    if (!actionMessage || !actionMessage.envelope_id) return;
+    const targetEnvelopeId = actionMessage.envelope_id;
+    setActionMessage(null);
+    const seed = getSeedBytes();
+    if (!seed || !myPubkeyHex) {
+      alert('Сеанс закінчився.');
+      return;
+    }
+    try {
+      await msgs.sendDMReaction({
+        seed, myPubkeyHex,
+        peerPubkeyHex: peerPubkey,
+        targetEnvelopeId,
+        emoji,
+        op: alreadyMine ? 'remove' : 'add',
+      });
+      setConv(convs.getConversation(peerPubkey));
+    } catch (e) {
+      // Optimistic update was already rolled back inside sendDMReaction
+      setConv(convs.getConversation(peerPubkey));
+      console.warn('reaction failed:', e);
+    }
+  }
+
   async function deleteForEveryone() {
     if (!actionMessage) return;
     const msg = actionMessage;
@@ -521,6 +546,57 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                   </>
                 ) : m.text}
               </div>
+              {m.reactions && Object.keys(m.reactions).length > 0 && (
+                <div style={{
+                  display: 'flex', gap: 4, marginTop: 4,
+                  alignSelf: isOut ? 'flex-end' : 'flex-start',
+                  flexWrap: 'wrap',
+                }}>
+                  {Object.entries(m.reactions).map(([emoji, pubkeys]) => {
+                    const count = Array.isArray(pubkeys) ? pubkeys.length : 0;
+                    if (count === 0) return null;
+                    const mine = Array.isArray(pubkeys) && pubkeys.includes(myPubkeyHex);
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!m.envelope_id) return;
+                          // Quick-toggle: tap your own reaction to remove it.
+                          if (mine) {
+                            const seed = getSeedBytes();
+                            if (!seed || !myPubkeyHex) return;
+                            msgs.sendDMReaction({
+                              seed, myPubkeyHex,
+                              peerPubkeyHex: peerPubkey,
+                              targetEnvelopeId: m.envelope_id,
+                              emoji, op: 'remove',
+                            }).then(() => setConv(convs.getConversation(peerPubkey)))
+                              .catch(() => setConv(convs.getConversation(peerPubkey)));
+                          } else {
+                            setActionMessage(m);
+                          }
+                        }}
+                        style={{
+                          background: mine ? 'rgba(123,150,255,0.18)' : '#13131A',
+                          border: mine ? '1px solid #6B8AFE' : '1px solid #232329',
+                          borderRadius: 12,
+                          padding: '2px 7px',
+                          fontSize: 12,
+                          color: '#F5F5F7',
+                          cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 3,
+                          fontFamily: 'inherit',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <span>{emoji}</span>
+                        <span style={{ fontSize: 10.5, color: '#A8A8B0', fontFamily: 'var(--mono, monospace)' }}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {!sameNext && (
                 <div style={{
                   fontSize: 10, color: '#5A5A65',
@@ -623,9 +699,38 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       {/* Message long-press action sheet */}
       {actionMessage && (
         <Sheet onClose={() => setActionMessage(null)}>
+          {actionMessage.envelope_id && actionMessage.status !== 'undecryptable' && (
+            <div style={{
+              display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+              padding: '6px 12px 14px', borderBottom: '1px solid #232329',
+              gap: 4,
+            }}>
+              {['👍', '❤️', '😂', '🔥', '😢'].map((emoji) => {
+                const mine = (actionMessage.reactions || {});
+                const isMine = (mine[emoji] || []).includes(myPubkeyHex);
+                return (
+                  <button
+                    key={emoji}
+                    onClick={() => reactClicked(emoji, isMine)}
+                    style={{
+                      width: 44, height: 44, borderRadius: 22,
+                      background: isMine ? 'rgba(123,150,255,0.18)' : 'transparent',
+                      border: isMine ? '1px solid #6B8AFE' : '1px solid transparent',
+                      fontSize: 22,
+                      cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'background 0.12s',
+                    }}
+                  >
+                    {emoji}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div style={{
             fontSize: 12.5, color: '#8E8E99',
-            padding: '0 20px 14px',
+            padding: '14px 20px 14px',
             borderBottom: '1px solid #232329',
             lineHeight: 1.5,
             fontStyle: 'italic',

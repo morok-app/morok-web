@@ -473,6 +473,73 @@ export async function sendGroupVoice({
   }
 }
 
+/**
+ * Send a reaction (or remove one) to a group message.
+ *
+ * Same model as sendDMReaction — wrapped as kind:'reaction' payload,
+ * encrypted with the group key, broadcast via the group endpoint. Not
+ * stored as a regular history entry on the sender side; the target
+ * message's reactions get updated optimistically before send.
+ */
+export async function sendGroupReaction({
+  groupId, targetEnvelopeId, emoji, op = 'add',
+  ttlSeconds = 86400,
+  seed, myPubkeyHex,
+}) {
+  if (!groupId || !targetEnvelopeId) throw new Error('no_target');
+  if (op !== 'add' && op !== 'remove') throw new Error('bad_op');
+  if (op === 'add' && !gstore.ALLOWED_REACTIONS.includes(emoji)) {
+    throw new Error('bad_emoji');
+  }
+
+  const group = gstore.getGroup(groupId);
+  if (!group || !group.group_key_b64) {
+    throw new Error('Немає ключа групи');
+  }
+  const groupKey = crypto.base64ToBytes(group.group_key_b64);
+
+  // Optimistic local update
+  const previous = gstore.getMyGroupReaction(groupId, targetEnvelopeId, myPubkeyHex);
+  gstore.applyReaction(groupId, targetEnvelopeId, emoji, op, myPubkeyHex);
+
+  const payload = wrapGroupPayload('reaction', {
+    target_envelope_id: targetEnvelopeId,
+    emoji: op === 'add' ? emoji : '',
+    op,
+  });
+  const blobB64 = crypto.encryptStringWithKey(groupKey, payload);
+
+  const ts = nowSeconds();
+  const sig = crypto.signEnvelope({
+    seed,
+    fromHex: myPubkeyHex,
+    toHex: groupId,
+    ts,
+    ttl: ttlSeconds,
+    blobB64,
+  });
+
+  try {
+    const ack = await api.sendGroupMessage(groupId, {
+      from: myPubkeyHex,
+      to: groupId,
+      ts,
+      ttl: ttlSeconds,
+      blob: blobB64,
+      sig,
+    });
+    return { envelope_id: ack.envelope_id, status: 'sent', control: true };
+  } catch (e) {
+    // Roll back optimistic update
+    if (previous) {
+      gstore.applyReaction(groupId, targetEnvelopeId, previous, 'add', myPubkeyHex);
+    } else {
+      gstore.applyReaction(groupId, targetEnvelopeId, emoji, 'remove', myPubkeyHex);
+    }
+    throw e;
+  }
+}
+
 export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
   const envelopeId = envMeta.envelope_id;
   const groupId = envMeta.group_id;
@@ -591,6 +658,17 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     };
     gstore.appendMessage(groupId, msg);
     return msg;
+  }
+
+  if (payload.kind === 'reaction') {
+    const target = payload.target_envelope_id;
+    const op = payload.op === 'remove' ? 'remove' : 'add';
+    const emoji = typeof payload.emoji === 'string' ? payload.emoji : '';
+    if (target) {
+      // Whitelist + per-user dedupe enforced inside applyReaction
+      gstore.applyReaction(groupId, target, emoji, op, senderPubkey);
+    }
+    return null;
   }
 
   console.warn('unknown group payload kind:', payload.kind);

@@ -230,3 +230,68 @@ export function countUnread(peerPubkey) {
   if (!conv) return 0;
   return conv.messages.filter((m) => m.direction === 'in' && !m.read_at).length;
 }
+
+/**
+ * Allowed reaction emoji whitelist. Anything outside this set is
+ * silently ignored on receive — a defense against payloads injecting
+ * arbitrary text into the reaction strip.
+ */
+export const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '🔥', '😢'];
+
+/**
+ * Apply a reaction (add or remove) to a target DM message.
+ *
+ * Storage model:
+ *   message.reactions = { '👍': [pubkey1, pubkey2], '❤️': [pubkey3] }
+ *
+ * One user → at most ONE reaction per message. Adding a new one
+ * replaces any previous reaction the same user had on that message.
+ *
+ * Returns the updated message, or null if target/emoji invalid.
+ */
+export function applyReaction(peerPubkey, targetEnvelopeId, emoji, op, fromPubkey) {
+  if (!peerPubkey || !targetEnvelopeId || !fromPubkey) return null;
+  if (op !== 'add' && op !== 'remove') return null;
+  if (op === 'add' && !ALLOWED_REACTIONS.includes(emoji)) return null;
+
+  const state = load();
+  const conv = state[peerPubkey];
+  if (!conv) return null;
+  const m = conv.messages.find((x) => x.envelope_id === targetEnvelopeId);
+  if (!m) return null;
+
+  if (!m.reactions || typeof m.reactions !== 'object') m.reactions = {};
+
+  // Always strip this user from ALL emoji buckets first — enforces
+  // the one-reaction-per-user-per-message rule.
+  for (const e of Object.keys(m.reactions)) {
+    m.reactions[e] = (m.reactions[e] || []).filter((p) => p !== fromPubkey);
+    if (m.reactions[e].length === 0) delete m.reactions[e];
+  }
+
+  if (op === 'add') {
+    if (!m.reactions[emoji]) m.reactions[emoji] = [];
+    // Cap per-emoji list at 100 to bound storage cost
+    if (m.reactions[emoji].length < 100) {
+      m.reactions[emoji].push(fromPubkey);
+    }
+  }
+
+  save(state);
+  return m;
+}
+
+/**
+ * Find which emoji (if any) the given user has placed on a message.
+ * Returns the emoji string or null.
+ */
+export function getMyReaction(peerPubkey, targetEnvelopeId, myPubkey) {
+  const conv = getConversation(peerPubkey);
+  if (!conv) return null;
+  const m = conv.messages.find((x) => x.envelope_id === targetEnvelopeId);
+  if (!m || !m.reactions) return null;
+  for (const [emoji, pubkeys] of Object.entries(m.reactions)) {
+    if (Array.isArray(pubkeys) && pubkeys.includes(myPubkey)) return emoji;
+  }
+  return null;
+}

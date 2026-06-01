@@ -266,3 +266,54 @@ export function getLastMessage(groupId) {
   if (!g || !g.messages || g.messages.length === 0) return null;
   return g.messages[g.messages.length - 1];
 }
+
+/**
+ * Allowed reaction emoji — kept in sync with conversations.js.
+ */
+export const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '🔥', '😢'];
+
+/**
+ * Apply a reaction (add or remove) to a target GROUP message.
+ *
+ * Mirrors conversations.js#applyReaction. One user → one reaction
+ * per message. Returns the updated message or null.
+ */
+export function applyReaction(groupId, targetEnvelopeId, emoji, op, fromPubkey) {
+  if (!groupId || !targetEnvelopeId || !fromPubkey) return null;
+  if (op !== 'add' && op !== 'remove') return null;
+  if (op === 'add' && !ALLOWED_REACTIONS.includes(emoji)) return null;
+
+  const state = load();
+  const g = state[groupId];
+  if (!g) return null;
+  const m = (g.messages || []).find((x) => x.envelope_id === targetEnvelopeId);
+  if (!m) return null;
+
+  if (!m.reactions || typeof m.reactions !== 'object') m.reactions = {};
+
+  for (const e of Object.keys(m.reactions)) {
+    m.reactions[e] = (m.reactions[e] || []).filter((p) => p !== fromPubkey);
+    if (m.reactions[e].length === 0) delete m.reactions[e];
+  }
+
+  if (op === 'add') {
+    if (!m.reactions[emoji]) m.reactions[emoji] = [];
+    if (m.reactions[emoji].length < 200) {
+      m.reactions[emoji].push(fromPubkey);
+    }
+  }
+
+  save(state);
+  return m;
+}
+
+export function getMyGroupReaction(groupId, targetEnvelopeId, myPubkey) {
+  const g = getGroup(groupId);
+  if (!g) return null;
+  const m = (g.messages || []).find((x) => x.envelope_id === targetEnvelopeId);
+  if (!m || !m.reactions) return null;
+  for (const [emoji, pubkeys] of Object.entries(m.reactions)) {
+    if (Array.isArray(pubkeys) && pubkeys.includes(myPubkey)) return emoji;
+  }
+  return null;
+}
