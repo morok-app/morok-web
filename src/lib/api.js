@@ -117,6 +117,21 @@ export async function deleteAccount() {
   return http('DELETE', '/api/v1/me', { auth: true });
 }
 
+/**
+ * Fetch the calling user's login history (up to 30 most recent).
+ * Each entry: { created_at, ip_hash, user_agent }.
+ */
+export async function getLoginHistory() {
+  return http('GET', '/api/v1/me/sessions', { auth: true });
+}
+
+/**
+ * Wipe the calling user's login history. Returns { cleared: N }.
+ */
+export async function clearLoginHistory() {
+  return http('DELETE', '/api/v1/me/sessions', { auth: true });
+}
+
 export async function lookupUsername(username, relay) {
   const qs = relay ? `?relay=${encodeURIComponent(relay)}` : '';
   return http('GET', `/api/v1/users/lookup/${encodeURIComponent(username)}${qs}`);
