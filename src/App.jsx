@@ -25,6 +25,7 @@ import ChatRoom from './screens/ChatRoom.jsx';
 import Profile from './screens/Profile.jsx';
 import PeerProfile from './screens/PeerProfile.jsx';
 import Settings from './screens/Settings.jsx';
+import DeleteAccount from './screens/DeleteAccount.jsx';
 import NewGroup from './screens/NewGroup.jsx';
 import GroupChat from './screens/GroupChat.jsx';
 import GroupInfo from './screens/GroupInfo.jsx';
@@ -409,6 +410,11 @@ export default function App() {
     case 'newgroup': return <NewGroup onNavigate={navigate} />;
     case 'profile': return <Profile onNavigate={navigate} />;
     case 'settings': return <Settings onNavigate={navigate} />;
+    case 'delete-account': {
+      const id = store.loadIdentity();
+      if (!id?.pubkey_hex) { navigate('welcome'); return <Splash />; }
+      return <DeleteAccount onNavigate={navigate} currentPubkeyHex={id.pubkey_hex} />;
+    }
     case 'chat':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <ChatRoom peerPubkey={routeArg} onNavigate={navigate} />;

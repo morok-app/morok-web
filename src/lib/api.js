@@ -105,6 +105,18 @@ export async function releaseUsername() {
   return http('DELETE', '/api/v1/users/me/username', { auth: true });
 }
 
+/**
+ * Permanently delete the current account on the relay.
+ *
+ * The caller MUST verify the mnemonic locally before calling this —
+ * the relay only checks the auth token, which any active session has.
+ * Trusting the active session alone would let a thief with an
+ * unlocked device wipe the account.
+ */
+export async function deleteAccount() {
+  return http('DELETE', '/api/v1/me', { auth: true });
+}
+
 export async function lookupUsername(username, relay) {
   const qs = relay ? `?relay=${encodeURIComponent(relay)}` : '';
   return http('GET', `/api/v1/users/lookup/${encodeURIComponent(username)}${qs}`);
