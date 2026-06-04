@@ -8,6 +8,7 @@ import { hexToBytes } from '../lib/crypto.js';
 import { parseBurnerMeta } from '../lib/burner.js';
 import { formatBytes } from '../lib/images.js';
 import { Recorder, isSupported as voiceIsSupported, formatDuration, MAX_DURATION_MS } from '../lib/voice.js';
+import * as muted from '../lib/muted.js';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
@@ -56,6 +57,8 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   const [recording, setRecording] = useState(false);
   const [recordMs, setRecordMs] = useState(0);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [muteEntry, setMuteEntry] = useState(null);    // current mute info from IDB
+  const [muteSheetOpen, setMuteSheetOpen] = useState(false);
 
   const scrollerRef = useRef(null);
   const messagesEnd = useRef(null);
@@ -72,6 +75,20 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     const refreshed = convs.getConversation(peerPubkey);
     setConv(refreshed);
   }, [peerPubkey]);
+
+  // Load mute state (re-checks whenever the peer username changes — that's
+  // our mute key for DMs since push payloads identify the sender by username).
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const username = conv?.peer_username;
+      if (!username) { setMuteEntry(null); return; }
+      const e = await muted.getMute(muted.dmKey(username));
+      if (!cancelled) setMuteEntry(e);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [conv?.peer_username]);
 
   // Listen to inbox updates
   useEffect(() => {
@@ -215,6 +232,24 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     } catch (e) {
       alert(`Не вдалось видалити у співрозмовника: ${e.message}`);
     }
+  }
+
+  // ── Mute / unmute ──
+  async function muteFor(durationMs) {
+    const username = conv?.peer_username;
+    if (!username) return;
+    await muted.setMute(muted.dmKey(username), durationMs);
+    const e = await muted.getMute(muted.dmKey(username));
+    setMuteEntry(e);
+    setMuteSheetOpen(false);
+  }
+
+  async function unmuteChat() {
+    const username = conv?.peer_username;
+    if (!username) return;
+    await muted.unmute(muted.dmKey(username));
+    setMuteEntry(null);
+    setMuteSheetOpen(false);
   }
 
   async function sendClicked() {
@@ -448,6 +483,8 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
         firstLetter={(conv.peer_username || conv.peer_pubkey)[0]?.toUpperCase() || '?'}
         onBack={() => onNavigate('chats')}
         onTitleClick={isBurner ? null : () => onNavigate(`peer/${peerPubkey}`)}
+        onMenuClick={conv.peer_username ? () => setMuteSheetOpen(true) : null}
+        isMuted={!!muteEntry}
       />
 
       <div
@@ -693,6 +730,56 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               </div>
             );
           })}
+        </Sheet>
+      )}
+
+      {/* Mute / unmute sheet */}
+      {muteSheetOpen && (
+        <Sheet onClose={() => setMuteSheetOpen(false)}>
+          {muteEntry ? (
+            <>
+              <div style={{
+                padding: '6px 22px 14px',
+                color: '#A8A8B0', fontSize: 13, textAlign: 'center',
+              }}>
+                Заглушено · {muted.formatMuteUntil(muteEntry.until)}
+              </div>
+              <button
+                onClick={unmuteChat}
+                style={{
+                  width: '100%', padding: '14px 22px',
+                  background: 'transparent', border: 'none', borderTop: '1px solid #232329',
+                  color: '#7B96FF', fontSize: 15, fontWeight: 600,
+                  textAlign: 'center', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                🔔 Розгасити чат
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{
+                padding: '6px 22px 14px',
+                color: '#A8A8B0', fontSize: 13, textAlign: 'center',
+              }}>
+                Заглушити сповіщення
+              </div>
+              {muted.MUTE_DURATIONS.map((d) => (
+                <button
+                  key={d.label}
+                  onClick={() => muteFor(d.ms)}
+                  style={{
+                    width: '100%', padding: '14px 22px',
+                    background: 'transparent', border: 'none', borderTop: '1px solid #232329',
+                    color: '#F5F5F7', fontSize: 15,
+                    textAlign: 'center', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </>
+          )}
         </Sheet>
       )}
 
@@ -1080,7 +1167,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
 /* ─── Sub-components ─────────────────────────────────────── */
 
-function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack, onTitleClick }) {
+function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack, onTitleClick, onMenuClick, isMuted }) {
   const clickable = typeof onTitleClick === 'function';
   return (
     <div style={{
@@ -1139,8 +1226,14 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
             color: '#F5F5F7',
             letterSpacing: '-0.01em',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            {title}
+            <span style={{
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>{title}</span>
+            {isMuted && (
+              <span style={{ fontSize: 12, color: '#6B6B72', flexShrink: 0 }} title="Заглушено">🔕</span>
+            )}
           </div>
           {subtitle && (
             <div style={{
@@ -1154,6 +1247,24 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
           )}
         </div>
       </div>
+
+      {typeof onMenuClick === 'function' && (
+        <button
+          onClick={onMenuClick}
+          style={{
+            width: 34, height: 34, borderRadius: '50%',
+            background: '#16161B', border: '1px solid #232329',
+            color: '#A8A8B0', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+          title="Дії"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

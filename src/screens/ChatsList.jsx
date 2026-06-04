@@ -3,6 +3,7 @@ import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
 import * as gstore from '../lib/group_storage.js';
+import * as muted from '../lib/muted.js';
 import { formatPeerName } from '../lib/display.js';
 
 const LONG_PRESS_MS = 500;
@@ -119,6 +120,20 @@ export default function ChatsList({ onNavigate }) {
   const longPressTimer = useRef(null);
   const inboxState = useInboxState();
   const [showNewMenu, setShowNewMenu] = useState(false);
+  const [mutedKeys, setMutedKeys] = useState(new Set());
+
+  // Refresh muted state periodically (cheap: 1 IDB read every 3s)
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      const list = await muted.listMuted();
+      if (cancelled) return;
+      setMutedKeys(new Set(list.map((e) => e.key)));
+    }
+    refresh();
+    const id = setInterval(refresh, 3000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -417,6 +432,10 @@ export default function ChatsList({ onNavigate }) {
           {items.map((item) => {
             const last = item.last;
             const isGroup = item.kind === 'group';
+            const muteKey = isGroup
+              ? muted.groupKey(item.id)
+              : (item.username ? muted.dmKey(item.username) : null);
+            const isMuted = !!(muteKey && mutedKeys.has(muteKey));
             return (
               <div
                 key={`${item.kind}-${item.id}`}
@@ -451,8 +470,14 @@ export default function ChatsList({ onNavigate }) {
                       color: '#F5F5F7',
                       letterSpacing: '-0.01em',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      display: 'flex', alignItems: 'center', gap: 6, minWidth: 0,
                     }}>
-                      {item.title}
+                      <span style={{
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>{item.title}</span>
+                      {isMuted && (
+                        <span style={{ fontSize: 11, color: '#5A5A65', flexShrink: 0 }} title="Заглушено">🔕</span>
+                      )}
                     </div>
                     <div style={{
                       fontSize: 11, color: '#5A5A65',
@@ -485,7 +510,8 @@ export default function ChatsList({ onNavigate }) {
                     {item.unread > 0 && (
                       <div style={{
                         minWidth: 18, height: 18, borderRadius: 9,
-                        background: '#6B8AFE', color: '#fff',
+                        background: isMuted ? '#3F3F45' : '#6B8AFE',
+                        color: isMuted ? '#A8A8B0' : '#fff',
                         fontSize: 10.5, fontWeight: 700,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         padding: '0 5px',

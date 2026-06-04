@@ -129,4 +129,8 @@ export function wipeAll() {
   localStorage.removeItem('morok.contacts.v1');
   localStorage.removeItem('morok.pin_lockout.v1');
   localStorage.removeItem('morok.pin_session.v1');
+  // muted chats live in IndexedDB (so the SW can read them) — best-effort drop.
+  try {
+    if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('morok_muted');
+  } catch { /* ignore */ }
 }

@@ -7,6 +7,7 @@ import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
 import { formatBytes } from '../lib/images.js';
 import { Recorder, isSupported as voiceIsSupported, formatDuration, MAX_DURATION_MS } from '../lib/voice.js';
+import * as muted from '../lib/muted.js';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
@@ -56,6 +57,8 @@ export default function GroupChat({ groupId, onNavigate }) {
   const [recording, setRecording] = useState(false);
   const [recordMs, setRecordMs] = useState(0);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [muteEntry, setMuteEntry] = useState(null);
+  const [muteSheetOpen, setMuteSheetOpen] = useState(false);
   const longPressTimer = useRef(null);
   const scrollerRef = useRef(null);
   const messagesEnd = useRef(null);
@@ -80,6 +83,30 @@ export default function GroupChat({ groupId, onNavigate }) {
   useEffect(() => {
     gstore.markGroupRead(groupId);
   }, [groupId]);
+
+  // Load mute state for this group
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const e = await muted.getMute(muted.groupKey(groupId));
+      if (!cancelled) setMuteEntry(e);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [groupId]);
+
+  async function muteFor(durationMs) {
+    await muted.setMute(muted.groupKey(groupId), durationMs);
+    const e = await muted.getMute(muted.groupKey(groupId));
+    setMuteEntry(e);
+    setMuteSheetOpen(false);
+  }
+
+  async function unmuteGroup() {
+    await muted.unmute(muted.groupKey(groupId));
+    setMuteEntry(null);
+    setMuteSheetOpen(false);
+  }
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -426,6 +453,8 @@ export default function GroupChat({ groupId, onNavigate }) {
         subtitle={`${memberCount} учасників`}
         onBack={() => onNavigate('chats')}
         onTitleClick={() => onNavigate(`groupinfo/${groupId}`)}
+        onMenuClick={() => setMuteSheetOpen(true)}
+        isMuted={!!muteEntry}
       />
 
       {noKey && (
@@ -714,6 +743,56 @@ export default function GroupChat({ groupId, onNavigate }) {
       )}
 
       {/* Message action sheet */}
+      {/* Mute / unmute sheet */}
+      {muteSheetOpen && (
+        <Sheet onClose={() => setMuteSheetOpen(false)}>
+          {muteEntry ? (
+            <>
+              <div style={{
+                padding: '6px 22px 14px',
+                color: '#A8A8B0', fontSize: 13, textAlign: 'center',
+              }}>
+                Заглушено · {muted.formatMuteUntil(muteEntry.until)}
+              </div>
+              <button
+                onClick={unmuteGroup}
+                style={{
+                  width: '100%', padding: '14px 22px',
+                  background: 'transparent', border: 'none', borderTop: '1px solid #232329',
+                  color: '#7B96FF', fontSize: 15, fontWeight: 600,
+                  textAlign: 'center', cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                🔔 Розгасити групу
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{
+                padding: '6px 22px 14px',
+                color: '#A8A8B0', fontSize: 13, textAlign: 'center',
+              }}>
+                Заглушити сповіщення
+              </div>
+              {muted.MUTE_DURATIONS.map((d) => (
+                <button
+                  key={d.label}
+                  onClick={() => muteFor(d.ms)}
+                  style={{
+                    width: '100%', padding: '14px 22px',
+                    background: 'transparent', border: 'none', borderTop: '1px solid #232329',
+                    color: '#F5F5F7', fontSize: 15,
+                    textAlign: 'center', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </>
+          )}
+        </Sheet>
+      )}
+
       {actionMessage && (
         <Sheet onClose={() => setActionMessage(null)}>
           {actionMessage.envelope_id && actionMessage.status !== 'undecryptable' && (
@@ -1073,7 +1152,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
 /* ─── Sub-components ─────────────────────────────────────── */
 
-function CompactHeader({ title, subtitle, onBack, onTitleClick }) {
+function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isMuted }) {
   return (
     <div style={{
       padding: '14px 16px',
@@ -1121,8 +1200,14 @@ function CompactHeader({ title, subtitle, onBack, onTitleClick }) {
           color: '#F5F5F7',
           letterSpacing: '-0.01em',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          {title}
+          <span style={{
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>{title}</span>
+          {isMuted && (
+            <span style={{ fontSize: 12, color: '#6B6B72', flexShrink: 0 }} title="Заглушено">🔕</span>
+          )}
         </div>
         {subtitle && (
           <div style={{
@@ -1135,6 +1220,24 @@ function CompactHeader({ title, subtitle, onBack, onTitleClick }) {
           </div>
         )}
       </div>
+
+      {typeof onMenuClick === 'function' && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onMenuClick(); }}
+          style={{
+            width: 34, height: 34, borderRadius: '50%',
+            background: '#16161B', border: '1px solid #232329',
+            color: '#A8A8B0', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}
+          title="Дії"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
