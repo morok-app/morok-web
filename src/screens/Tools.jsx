@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react';
 import * as dms from '../lib/dms.js';
 import * as burner from '../lib/burner.js';
+import * as contacts from '../lib/contacts.js';
 
 export default function Tools({ onNavigate }) {
   const [dmsCount, setDmsCount] = useState(null);
   const [burnerCount, setBurnerCount] = useState(null);
+  const [contactsCount, setContactsCount] = useState(
+    () => contacts.listExplicitContacts().length
+  );
+  const [blockedCount, setBlockedCount] = useState(
+    () => contacts.listBlocked().length
+  );
 
   useEffect(() => {
     (async () => {
@@ -17,6 +24,10 @@ export default function Tools({ onNavigate }) {
         setBurnerCount(tokens.length);
       } catch { setBurnerCount(0); }
     })();
+    // Contacts and blocked counts are pure-local — refresh whenever this
+    // screen mounts (e.g. user navigates back from ContactsList).
+    setContactsCount(contacts.listExplicitContacts().length);
+    setBlockedCount(contacts.listBlocked().length);
   }, []);
 
   return (
@@ -87,6 +98,36 @@ export default function Tools({ onNavigate }) {
           countLabel={burnerCount === null ? null : burnerCount}
           countSuffix="активних"
           onClick={() => onNavigate('burner')}
+        />
+
+        <ToolCard
+          accent="#4ADE80"
+          accentBg="rgba(74, 222, 128, 0.1)"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          }
+          title="Контакти"
+          description="Збережіть людей, з якими часто спілкуєтесь. Можна додавати локальні нікнейми — їх бачите тільки ви."
+          countLabel={contactsCount}
+          countSuffix={pluralize(contactsCount, 'контакт', 'контакти', 'контактів')}
+          onClick={() => onNavigate('contacts')}
+        />
+
+        <ToolCard
+          accent="#FF6B7A"
+          accentBg="rgba(255, 107, 122, 0.08)"
+          icon={
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+          }
+          title="Заблоковані"
+          description="Юзери, від яких не приймаєте повідомлень. Список локальний — сервер про нього не знає."
+          countLabel={blockedCount}
+          countSuffix={blockedCount === 1 ? 'юзер' : (blockedCount >= 2 && blockedCount <= 4 ? 'юзери' : 'юзерів')}
+          onClick={() => onNavigate('blocked')}
         />
 
         {/* Coming soon section */}
@@ -222,4 +263,14 @@ function ComingSoonCard({ icon, title, description }) {
       </div>
     </div>
   );
+}
+
+function pluralize(n, one, few, many) {
+  if (n === null || n === undefined) return many;
+  const m = n % 100;
+  if (m >= 11 && m <= 14) return many;
+  const r = n % 10;
+  if (r === 1) return one;
+  if (r >= 2 && r <= 4) return few;
+  return many;
 }
