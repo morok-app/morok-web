@@ -13,11 +13,15 @@
 import { useEffect, useState } from 'react';
 import * as convs from '../lib/conversations.js';
 import * as api from '../lib/api.js';
+import * as contacts from '../lib/contacts.js';
 
 export default function PeerProfile({ peerPubkey, onNavigate }) {
   const [conv, setConv] = useState(() => convs.getConversation(peerPubkey));
   const [copied, setCopied] = useState(false);
   const [lookupTried, setLookupTried] = useState(false);
+  const [inContacts, setInContacts] = useState(() => contacts.isContact(peerPubkey));
+  const [blocked, setBlocked] = useState(() => contacts.isBlocked(peerPubkey));
+  const [confirmBlock, setConfirmBlock] = useState(false);
 
   // Opportunistic background lookup: if we have a username, refresh
   // profile info (home_relay especially) so the page completes itself.
@@ -78,6 +82,50 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
       });
     }
     onNavigate(`chat/${peerPubkey}`);
+  }
+
+  function toggleContact() {
+    if (inContacts) {
+      contacts.removeContact(peerPubkey);
+      setInContacts(false);
+    } else {
+      contacts.addContact({
+        pubkey_hex: peerPubkey,
+        username,
+        home_relay: homeRelay,
+      });
+      setInContacts(true);
+      // If we had blocked them earlier, adding to contacts implicitly
+      // unblocks (blockPeer/addContact are mutually exclusive states).
+      if (blocked) {
+        contacts.unblockPeer(peerPubkey);
+        setBlocked(false);
+      }
+    }
+  }
+
+  // Auto-disarm block confirmation after 5s
+  useEffect(() => {
+    if (!confirmBlock) return undefined;
+    const t = setTimeout(() => setConfirmBlock(false), 5000);
+    return () => clearTimeout(t);
+  }, [confirmBlock]);
+
+  function blockClicked() {
+    if (blocked) {
+      // Unblock — single click, no confirmation needed
+      contacts.unblockPeer(peerPubkey);
+      setBlocked(false);
+      return;
+    }
+    if (!confirmBlock) {
+      setConfirmBlock(true);
+      return;
+    }
+    contacts.blockPeer(peerPubkey);
+    setBlocked(true);
+    setInContacts(false);   // blockPeer cascades a removeContact
+    setConfirmBlock(false);
   }
 
   return (
@@ -221,6 +269,42 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
           </svg>
           Написати повідомлення
+        </button>
+
+        <button
+          onClick={toggleContact}
+          disabled={blocked}
+          style={{
+            height: 44, borderRadius: 12,
+            background: inContacts ? 'rgba(74, 222, 128, 0.08)' : '#13131A',
+            border: '1px solid ' + (inContacts ? 'rgba(74, 222, 128, 0.3)' : '#232329'),
+            color: inContacts ? '#4ADE80' : (blocked ? '#5A5A65' : '#F5F5F7'),
+            cursor: blocked ? 'not-allowed' : 'pointer',
+            fontSize: 14, fontWeight: 600,
+            fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            opacity: blocked ? 0.6 : 1,
+          }}
+        >
+          {inContacts ? '✓ В контактах' : '+ Додати в контакти'}
+        </button>
+
+        <button
+          onClick={blockClicked}
+          style={{
+            height: 44, borderRadius: 12,
+            background: confirmBlock ? '#FF4A5C' : 'transparent',
+            border: '1px solid ' + (confirmBlock ? '#FF4A5C' : (blocked ? 'rgba(255, 107, 122, 0.3)' : '#232329')),
+            color: confirmBlock ? '#FFFFFF' : (blocked ? '#4ADE80' : '#FF6B7A'),
+            cursor: 'pointer',
+            fontSize: 13.5, fontWeight: 600,
+            fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          {confirmBlock
+            ? '🚫 Натисніть ще раз — заблокувати'
+            : (blocked ? '✓ Розблокувати' : '🚫 Заблокувати')}
         </button>
       </div>
     </div>

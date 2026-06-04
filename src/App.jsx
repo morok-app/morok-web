@@ -27,6 +27,8 @@ import PeerProfile from './screens/PeerProfile.jsx';
 import Settings from './screens/Settings.jsx';
 import Sessions from './screens/Sessions.jsx';
 import MutedChats from './screens/MutedChats.jsx';
+import ContactsList from './screens/ContactsList.jsx';
+import Blocked from './screens/Blocked.jsx';
 import DeleteAccount from './screens/DeleteAccount.jsx';
 import NewGroup from './screens/NewGroup.jsx';
 import GroupChat from './screens/GroupChat.jsx';
@@ -414,6 +416,8 @@ export default function App() {
     case 'settings': return <Settings onNavigate={navigate} />;
     case 'sessions': return <Sessions onNavigate={navigate} />;
     case 'muted': return <MutedChats onNavigate={navigate} />;
+    case 'contacts': return <ContactsList onNavigate={navigate} />;
+    case 'blocked': return <Blocked onNavigate={navigate} />;
     case 'delete-account': {
       const id = store.loadIdentity();
       if (!id?.pubkey_hex) { navigate('welcome'); return <Splash />; }

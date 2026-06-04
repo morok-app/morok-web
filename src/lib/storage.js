@@ -127,6 +127,7 @@ export function wipeAll() {
   clearPreferences();
   localStorage.removeItem('morok.conv.v1');
   localStorage.removeItem('morok.contacts.v1');
+  localStorage.removeItem('morok.blocked.v1');
   localStorage.removeItem('morok.pin_lockout.v1');
   localStorage.removeItem('morok.pin_session.v1');
   // muted chats live in IndexedDB (so the SW can read them) — best-effort drop.
