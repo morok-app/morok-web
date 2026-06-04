@@ -17,14 +17,14 @@ import * as convs from '../lib/conversations.js';
 const LONG_PRESS_MS = 500;
 
 export default function ContactsList({ onNavigate }) {
-  const [items, setItems] = useState(() => contacts.listContacts());
+  const [items, setItems] = useState(() => contacts.listExplicitContacts());
   const [query, setQuery] = useState('');
   const [actionItem, setActionItem] = useState(null);
   const [renameTarget, setRenameTarget] = useState(null);
   const [renameValue, setRenameValue] = useState('');
 
   function refresh() {
-    setItems(contacts.listContacts());
+    setItems(contacts.listExplicitContacts());
   }
 
   // Filtered view derived from the live list + query
@@ -51,7 +51,7 @@ export default function ContactsList({ onNavigate }) {
 
   function removeClicked() {
     if (!actionItem) return;
-    contacts.removeContact(actionItem.pubkey_hex);
+    contacts.removeFromContacts(actionItem.pubkey_hex);
     setActionItem(null);
     refresh();
   }
@@ -66,9 +66,7 @@ export default function ContactsList({ onNavigate }) {
   function saveRename() {
     if (!renameTarget) return;
     const trimmed = renameValue.trim();
-    contacts.updateContact(renameTarget.pubkey_hex, {
-      nickname: trimmed || null,
-    });
+    contacts.updateContactNickname(renameTarget.pubkey_hex, trimmed || null);
     setRenameTarget(null);
     setRenameValue('');
     refresh();

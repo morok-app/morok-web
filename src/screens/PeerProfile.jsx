@@ -19,7 +19,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
   const [conv, setConv] = useState(() => convs.getConversation(peerPubkey));
   const [copied, setCopied] = useState(false);
   const [lookupTried, setLookupTried] = useState(false);
-  const [inContacts, setInContacts] = useState(() => contacts.isContact(peerPubkey));
+  const [inContacts, setInContacts] = useState(() => contacts.isInContacts(peerPubkey));
   const [blocked, setBlocked] = useState(() => contacts.isBlocked(peerPubkey));
   const [confirmBlock, setConfirmBlock] = useState(false);
 
@@ -86,10 +86,10 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
 
   function toggleContact() {
     if (inContacts) {
-      contacts.removeContact(peerPubkey);
+      contacts.removeFromContacts(peerPubkey);
       setInContacts(false);
     } else {
-      contacts.addContact({
+      contacts.addToContacts({
         pubkey_hex: peerPubkey,
         username,
         home_relay: homeRelay,
