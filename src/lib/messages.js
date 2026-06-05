@@ -373,6 +373,17 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     return null;
   }
 
+  // ── Blocklist filter ────────────────────────────────────
+  // The relay doesn't know about the user's blocklist (privacy), so it
+  // happily delivers everything. Drop blocked-sender DMs silently —
+  // don't fetch the blob, don't decrypt, don't append, don't notify.
+  // The block is therefore effective only client-side, but that's all
+  // we can guarantee without leaking the contact graph.
+  const contactsMod = await import('./contacts.js');
+  if (contactsMod.isBlocked(peer)) {
+    return null;
+  }
+
   if (convs.hasEnvelope(peer, envelopeId)) return null;
 
   let blobBytes;

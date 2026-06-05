@@ -4,6 +4,7 @@ import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
 import * as gstore from '../lib/group_storage.js';
 import * as muted from '../lib/muted.js';
+import * as contacts from '../lib/contacts.js';
 import { formatPeerName } from '../lib/display.js';
 
 const LONG_PRESS_MS = 500;
@@ -76,12 +77,45 @@ function useInboxState() {
 /**
  * Build a unified, sorted list mixing DMs and groups.
  */
-function buildMixedList() {
+/**
+ * Build the unified list of DMs + groups for the chats screen.
+ *
+ * Each item is tagged with a `category`:
+ *   'chat'    — shows up in the main "Чати" tab
+ *   'request' — shows up in "Запити повідомлень" tab
+ *
+ * Categorisation rules for DMs:
+ *   - peer blocked  → item is omitted entirely (privacy-preserving filter)
+ *   - peer is an explicit contact → 'chat'
+ *   - user has sent at least one outgoing message in this conv:
+ *       'chat'   when contactsOnly is OFF (user has engaged → counts as a real chat)
+ *       'request' when contactsOnly is ON (stricter mode: stranger stays in requests
+ *                until explicitly added)
+ *   - otherwise (incoming-only from a stranger) → 'request'
+ *
+ * Groups are always 'chat' (joining a group is itself a consent step).
+ */
+function buildMixedList(contactsOnly) {
   const items = [];
 
   for (const c of convs.listConversations()) {
+    // Drop conversations with blocked peers — they shouldn't surface anywhere.
+    if (contacts.isBlocked(c.peer_pubkey)) continue;
+
     const last = c.messages?.[c.messages.length - 1];
     const unread = (c.messages || []).filter((m) => m.direction === 'in' && !m.read_at).length;
+
+    const isContact = contacts.isInContacts(c.peer_pubkey);
+    const hasOutgoing = (c.messages || []).some((m) => m.direction === 'out');
+    let category;
+    if (isContact) {
+      category = 'chat';
+    } else if (hasOutgoing && !contactsOnly) {
+      category = 'chat';
+    } else {
+      category = 'request';
+    }
+
     items.push({
       kind: 'dm',
       id: c.peer_pubkey,
@@ -91,6 +125,7 @@ function buildMixedList() {
       last,
       unread,
       ts: c.updated_at || last?.ts || 0,
+      category,
       raw: c,
     });
   }
@@ -105,6 +140,7 @@ function buildMixedList() {
       last,
       unread,
       ts: g.updated_at || last?.ts || 0,
+      category: 'chat',
       raw: g,
     });
   }
@@ -115,7 +151,11 @@ function buildMixedList() {
 
 export default function ChatsList({ onNavigate }) {
   const [profile, setProfile] = useState(store.loadProfile());
-  const [items, setItems] = useState(() => buildMixedList());
+  const [contactsOnly, setContactsOnly] = useState(
+    () => !!store.getPreference('contacts_only_mode', false)
+  );
+  const [items, setItems] = useState(() => buildMixedList(contactsOnly));
+  const [activeTab, setActiveTab] = useState('chats');   // 'chats' | 'requests'
   const [actionItem, setActionItem] = useState(null);
   const longPressTimer = useRef(null);
   const inboxState = useInboxState();
@@ -152,9 +192,20 @@ export default function ChatsList({ onNavigate }) {
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => setItems(buildMixedList()), 3000);
+    const id = setInterval(() => setItems(buildMixedList(contactsOnly)), 3000);
     return () => clearInterval(id);
-  }, []);
+  }, [contactsOnly]);
+
+  // Re-poll the Settings preference. Cheap enough — synchronous local-storage
+  // read every 2s — and lets the user flip the toggle in Settings and see
+  // the chat list re-categorise without having to navigate back/forward.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const cur = !!store.getPreference('contacts_only_mode', false);
+      if (cur !== contactsOnly) setContactsOnly(cur);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [contactsOnly]);
 
   function startLongPress(item) {
     cancelLongPress();
@@ -178,7 +229,7 @@ export default function ChatsList({ onNavigate }) {
       gstore.removeGroup(actionItem.id);
     }
     setActionItem(null);
-    setItems(buildMixedList());
+    setItems(buildMixedList(contactsOnly));
   }
 
   async function deleteForAll() {
@@ -217,7 +268,7 @@ export default function ChatsList({ onNavigate }) {
       }
       gstore.removeGroup(item.id);
     }
-    setItems(buildMixedList());
+    setItems(buildMixedList(contactsOnly));
   }
 
   function openItem(item) {
@@ -225,7 +276,21 @@ export default function ChatsList({ onNavigate }) {
     else onNavigate(`group/${item.id}`);
   }
 
-  const isEmpty = items.length === 0;
+  const chatItems = items.filter((it) => it.category === 'chat');
+  const requestItems = items.filter((it) => it.category === 'request');
+  const requestCount = requestItems.length;
+  const requestUnread = requestItems.reduce((sum, it) => sum + (it.unread || 0), 0);
+
+  // If "Запити" tab no longer has items (user accepted/blocked them all),
+  // snap back to the main tab automatically.
+  useEffect(() => {
+    if (activeTab === 'requests' && requestCount === 0) {
+      setActiveTab('chats');
+    }
+  }, [activeTab, requestCount]);
+
+  const visibleItems = activeTab === 'requests' ? requestItems : chatItems;
+  const isEmpty = visibleItems.length === 0;
   const isAnon = profile && !profile.username;
   const isLocked = store.isIdentityEncrypted();
   const myPubkey = store.loadIdentity()?.pubkey_hex;
@@ -402,6 +467,27 @@ export default function ChatsList({ onNavigate }) {
         </div>
       )}
 
+      {/* Tabs — shown only when there are requests, otherwise the row is hidden */}
+      {requestCount > 0 && (
+        <div style={{
+          display: 'flex', gap: 4,
+          padding: '4px 16px 12px',
+        }}>
+          <TabButton
+            active={activeTab === 'chats'}
+            onClick={() => setActiveTab('chats')}
+            label="Чати"
+          />
+          <TabButton
+            active={activeTab === 'requests'}
+            onClick={() => setActiveTab('requests')}
+            label="Запити"
+            badge={requestUnread > 0 ? requestUnread : null}
+            count={requestCount}
+          />
+        </div>
+      )}
+
       {isEmpty ? (
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
@@ -421,15 +507,17 @@ export default function ChatsList({ onNavigate }) {
             </svg>
           </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
-            Поки немає чатів
+            {activeTab === 'requests' ? 'Нема нових запитів' : 'Поки немає чатів'}
           </div>
           <div style={{ fontSize: 13, color: '#6B6B72', maxWidth: 280, lineHeight: 1.5 }}>
-            Натисніть кнопку нижче щоб почати новий чат або групу
+            {activeTab === 'requests'
+              ? 'Сюди потрапляють повідомлення від людей, яких немає у ваших контактах'
+              : 'Натисніть кнопку нижче щоб почати новий чат або групу'}
           </div>
         </div>
       ) : (
         <div style={{ flex: 1, overflowY: 'auto', marginTop: 10 }}>
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const last = item.last;
             const isGroup = item.kind === 'group';
             const muteKey = isGroup
@@ -570,6 +658,37 @@ export default function ChatsList({ onNavigate }) {
                 }}
               >Інфо групи</div>
             )}
+            {actionItem.kind === 'dm' && actionItem.category === 'request' && (
+              <>
+                <div
+                  onClick={() => {
+                    contacts.addToContacts({
+                      pubkey_hex: actionItem.pubkey,
+                      username: actionItem.username,
+                      home_relay: actionItem.raw?.peer_home_relay,
+                    });
+                    setActionItem(null);
+                    setItems(buildMixedList(contactsOnly));
+                  }}
+                  style={{
+                    padding: '14px 20px', cursor: 'pointer',
+                    color: '#4ADE80', fontSize: 14, fontWeight: 600,
+                  }}
+                >✓ Прийняти (додати в контакти)</div>
+                <div
+                  onClick={() => {
+                    contacts.blockPeer(actionItem.pubkey);
+                    setActionItem(null);
+                    setItems(buildMixedList(contactsOnly));
+                  }}
+                  style={{
+                    padding: '14px 20px', cursor: 'pointer',
+                    color: '#FF6B7A', fontSize: 14, fontWeight: 500,
+                  }}
+                >🚫 Заблокувати</div>
+                <div style={{ height: 1, background: '#232329', margin: '4px 0' }} />
+              </>
+            )}
             {actionItem.kind === 'dm' && (
               <>
                 <div
@@ -684,5 +803,50 @@ export default function ChatsList({ onNavigate }) {
         </svg>
       </button>
     </div>
+  );
+}
+
+function TabButton({ active, onClick, label, badge, count }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: '9px 14px',
+        background: active ? '#16161B' : 'transparent',
+        border: '1px solid ' + (active ? '#232329' : 'transparent'),
+        color: active ? '#F5F5F7' : '#6B6B72',
+        borderRadius: 9,
+        fontSize: 13,
+        fontWeight: active ? 600 : 500,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        transition: 'background 0.12s, color 0.12s',
+        letterSpacing: '-0.005em',
+      }}
+    >
+      <span>{label}</span>
+      {count !== undefined && count !== null && (
+        <span style={{
+          fontSize: 10.5,
+          color: active ? '#A8A8B0' : '#5A5A65',
+          fontFamily: 'var(--mono, monospace)',
+        }}>
+          {count}
+        </span>
+      )}
+      {badge !== null && badge !== undefined && badge > 0 && (
+        <span style={{
+          minWidth: 16, height: 16, borderRadius: 8,
+          background: '#6B8AFE', color: '#fff',
+          fontSize: 9.5, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 4px',
+        }}>
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
+    </button>
   );
 }

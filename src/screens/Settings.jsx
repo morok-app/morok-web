@@ -49,6 +49,21 @@ export default function Settings({ onNavigate }) {
   const pushSupported = push.isSupported();
   const pushPermission = push.getPermission();
 
+  // Contacts-only mode: requests from non-contacts get folded into the
+  // "Запити повідомлень" tab in ChatsList and don't surface in the main
+  // chat list. The toggle lives in storage's preference store; ChatsList
+  // polls it every 2s so flipping it here updates the chat list without
+  // requiring navigation.
+  const [contactsOnly, setContactsOnly] = useState(
+    () => !!store.getPreference('contacts_only_mode', false)
+  );
+
+  function toggleContactsOnly() {
+    const next = !contactsOnly;
+    store.setPreference('contacts_only_mode', next);
+    setContactsOnly(next);
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -318,6 +333,15 @@ export default function Settings({ onNavigate }) {
           }
           chevron={!!serverBackup && profile?.tier !== 'free'}
           disabled={busy}
+        />
+
+        <Row
+          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
+          label="Тільки контакти можуть писати"
+          value={contactsOnly ? 'Увімкнено' : 'Вимкнено'}
+          valueColor={contactsOnly ? '#4ADE80' : '#A8A8B0'}
+          onClick={toggleContactsOnly}
+          chevron
         />
 
         {/* Group 2: App */}
