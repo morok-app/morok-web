@@ -157,7 +157,7 @@ html, body {
   border-radius: 12px;
   padding: 0 16px;
   color: var(--text);
-  font-size: 15px;
+  font-size: 16px;
   font-family: var(--font);
   outline: none;
   transition: border-color .15s;
@@ -184,7 +184,7 @@ html, body {
   border-radius: 12px;
   padding: 14px 16px;
   color: var(--text);
-  font-size: 14px;
+  font-size: 16px;
   font-family: var(--mono);
   outline: none;
   resize: vertical;
@@ -397,3 +397,49 @@ html, body {
 
 button { font-family: inherit; }
 input { font-family: inherit; }
+
+/* ====================================================================
+   NATIVE FEEL  — робить веб-у-оболонці схожим на застосунок,
+   а не на сайт. Доданий шар; нічого вище не змінює логіку.
+   ==================================================================== */
+
+/* 1. Прибрати сірий спалах при кожному тапі */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* 2. Не дати iOS авто-масштабувати текст */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* 3. Будь-які поля вводу >=16px — інакше iOS зумить екран при фокусі
+   (головна причина відчуття «це сайт»). Інлайн-стилі композерів
+   правляться окремо у ChatRoom/GroupChat. */
+input, textarea, select { font-size: 16px; }
+
+/* 4. Жодного rubber-band / pull-to-refresh, що відкриває фон за сторінкою */
+html, body, #root { overscroll-behavior: none; }
+
+/* 5. Інерційний скрол + контейнерний overscroll на всіх прокрутках
+   (працює і для інлайн-скролерів через збіг за атрибутом style) */
+.chats-list, .onb-content, [style*="overflow"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* 6. Елементи інтерфейсу не виділяються й не дають iOS-callout при
+   довгому тапі. ВАЖЛИВО: текст повідомлень і поля лишаються виділюваними. */
+.topbar, .bottom-nav, .btn, .tab, .back, .lin-chat-row {
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+input, textarea, [contenteditable] {
+  -webkit-user-select: text; user-select: text;
+}
+
+/* 7. Прибрати 300мс затримку тапу / подвійний-тап-зум на інтерактиві */
+.btn, .tab, .back, .lin-chat-row, button, a { touch-action: manipulation; }
+
+/* 8. Нативний відгук на натиск рядка чату */
+.lin-chat-row { transition: background-color .12s ease; cursor: pointer; }
+.lin-chat-row:active { background: var(--surface-2); }
+
+/* 9. Картинки не тягнуться / не дають флікер довгого тапу в чромі */
+img { -webkit-user-drag: none; user-select: none; }

@@ -1072,7 +1072,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               borderRadius: 19,
               padding: '9px 16px',
               color: '#F5F5F7',
-              fontSize: 14, fontFamily: 'inherit',
+              fontSize: 16, fontFamily: 'inherit',
               outline: 'none', resize: 'none',
               lineHeight: 1.4,
             }}
