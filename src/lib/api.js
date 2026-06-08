@@ -2,7 +2,7 @@
  * Morok relay HTTP client.
  */
 
-import { signAuthChallenge } from './crypto.js';
+import { signAuthChallenge, canonicalJson, sign } from './crypto.js';
 
 // Auto-detect the relay this web client should talk to. When the web is
 // hosted at https://relay1.morok.app/web/ → talk to relay1. When at
@@ -200,10 +200,30 @@ export async function pushUnsubscribe(body) {
  * event onto their WebSocket. Best-effort: if the recipient already
  * acked the message, the queue removal is a no-op but the WS event
  * still goes out (so an online recipient drops it from local store).
+ *
+ * `seed` is required: the sender signs the delete intent so the
+ * recipient's relay (which may be a peer over federation) can verify
+ * cryptographically that the delete is genuine, not a forgery by a
+ * trusted-but-malicious peer. Without the signature the backend will
+ * refuse the request.
  */
-export async function deleteDMMessage(envelopeId, recipientPubkeyHex) {
+export async function deleteDMMessage(envelopeId, recipientPubkeyHex, seed) {
+  if (!seed) {
+    throw new Error('deleteDMMessage requires seed for signing');
+  }
+  const ts = Math.floor(Date.now() / 1000);
+  const message = canonicalJson({
+    envelope_id: envelopeId,
+    kind: 'dm_delete',
+    ts,
+  });
+  const signature_hex = sign(seed, message);
   return http('POST', `/api/v1/messages/${envelopeId}/delete-for-recipient`, {
-    body: { recipient_pubkey_hex: recipientPubkeyHex },
+    body: {
+      recipient_pubkey_hex: recipientPubkeyHex,
+      signature_hex,
+      ts,
+    },
     auth: true,
   });
 }
@@ -212,9 +232,25 @@ export async function deleteDMMessage(envelopeId, recipientPubkeyHex) {
  * Delete a group message. Authorized for the sender of the message
  * OR for the group admin. Removes from every member's inbox and pushes
  * a delete event on each member's channel.
+ *
+ * `seed` is required for the same reason as deleteDMMessage — the
+ * delete intent is signed so it can be verified through the
+ * federation hop chain (sender → host → other relays).
  */
-export async function deleteGroupMessage(groupId, envelopeId) {
+export async function deleteGroupMessage(groupId, envelopeId, seed) {
+  if (!seed) {
+    throw new Error('deleteGroupMessage requires seed for signing');
+  }
+  const ts = Math.floor(Date.now() / 1000);
+  const message = canonicalJson({
+    envelope_id: envelopeId,
+    group_id: groupId,
+    kind: 'group_delete',
+    ts,
+  });
+  const signature_hex = sign(seed, message);
   return http('POST', `/api/v1/groups/${groupId}/messages/${envelopeId}/delete`, {
+    body: { signature_hex, ts },
     auth: true,
   });
 }

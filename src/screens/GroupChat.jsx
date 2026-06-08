@@ -241,8 +241,14 @@ export default function GroupChat({ groupId, onNavigate }) {
       return;
     }
 
+    const seed = getSeedBytes();
+    if (!seed) {
+      alert('Сеанс закінчився.');
+      return;
+    }
+
     try {
-      await api.deleteGroupMessage(groupId, msg.envelope_id);
+      await api.deleteGroupMessage(groupId, msg.envelope_id, seed);
       gstore.deleteMessage(groupId, msg.id);
       setGroup(gstore.getGroup(groupId));
     } catch (e) {

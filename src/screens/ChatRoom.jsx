@@ -225,8 +225,14 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       return;
     }
 
+    const seed = getSeedBytes();
+    if (!seed) {
+      alert('Сеанс закінчився.');
+      return;
+    }
+
     try {
-      await api.deleteDMMessage(msg.envelope_id, peerPubkey);
+      await api.deleteDMMessage(msg.envelope_id, peerPubkey, seed);
       convs.deleteMessage(peerPubkey, msg.id);
       setConv(convs.getConversation(peerPubkey));
     } catch (e) {
