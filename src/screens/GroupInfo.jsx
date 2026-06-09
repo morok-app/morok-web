@@ -1,3 +1,4 @@
+import { shareOrigin } from '../lib/share_origin.js';
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
 import * as gstore from '../lib/group_storage.js';
@@ -47,7 +48,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
     setMessage(null);
     try {
       const info = await api.createInviteToken(groupId, null);
-      const link = `${window.location.origin}/web/#join?t=${info.token}`;
+      const link = `${shareOrigin()}/web/#join?t=${info.token}`;
       setActiveInvite({ ...info, link });
       try {
         await navigator.clipboard.writeText(link);

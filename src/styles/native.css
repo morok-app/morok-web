@@ -12,6 +12,17 @@
  */
 
 body.is-native {
+  /* КЛЮЧОВЕ: фіксуємо body. Android WebView при фокусі на input
+     примусово скролить документ (навіть з overflow:hidden) і після
+     закриття клавіатури лишає його зсунутим — хедер залазить під
+     статус-бар, композер під навігацію. position:fixed повністю
+     забирає в документа можливість скролитись. Скролять тільки
+     внутрішні контейнери екранів. */
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+
   /* Статус-бар зверху — опускаємо контент. */
   padding-top: var(--inset-top, 0px);
 
@@ -49,12 +60,15 @@ body.is-native select {
   font-size: max(16px, 1em);
 }
 
-/* Екран заповнює увесь паддінгований body. 100dvh коректно реагує
-   на появу клавіатури, на відміну від 100vh. */
-body.is-native .screen,
-body.is-native #root,
-body.is-native #root > * {
-  min-height: calc(100dvh - var(--inset-top, 0px) - var(--inset-bottom, 0px));
+/* body тепер position:fixed з паддінгами — внутрішні контейнери
+   просто заповнюють його на 100%, без viewport-математики. */
+body.is-native #root {
+  height: 100%;
+  max-height: 100%;
+}
+body.is-native .screen {
+  min-height: 0;
+  height: 100%;
 }
 
 /* Системний шрифт як fallback до приходу Manrope (без FOUT-жаху). */

@@ -1,8 +1,9 @@
+import { shareOrigin } from '../lib/share_origin.js';
 import { useEffect, useState } from 'react';
 import * as burner from '../lib/burner.js';
 
 function buildShareUrl(token) {
-  return `${window.location.origin}/web/#burner-send?t=${encodeURIComponent(token)}`;
+  return `${shareOrigin()}/web/#burner-send?t=${encodeURIComponent(token)}`;
 }
 
 export default function BurnerList({ onNavigate }) {

@@ -1,3 +1,4 @@
+import { shareOrigin } from '../lib/share_origin.js';
 import { useState, useEffect } from 'react';
 import * as store from '../lib/storage.js';
 import * as api from '../lib/api.js';
@@ -27,7 +28,7 @@ export default function Profile({ onNavigate }) {
   const handle = username ? `@${username}` : `@anon_${pubkeyHex?.slice(0, 8) || '?'}`;
 
   const shareUrl = (() => {
-    const origin = window.location.origin;
+    const origin = shareOrigin();
     if (username) {
       return `${origin}/web/#newchat?u=${encodeURIComponent(username)}`;
     }

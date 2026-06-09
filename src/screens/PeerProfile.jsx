@@ -129,7 +129,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
   }
 
   return (
-    <div className="screen" style={{ background: '#0A0A0B', minHeight: '100vh' }}>
+    <div className="screen" style={{ background: '#0A0A0B' }}>
       {/* Top bar */}
       <div style={{
         padding: '14px 16px',

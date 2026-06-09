@@ -37,4 +37,22 @@ export async function initNative() {
   } catch (e) {
     console.warn('SystemBars init failed (non-fatal):', e);
   }
+
+  // Сторожовий пес проти IME-скролу. Навіть з body{position:fixed}
+  // деякі WebView вміють зсунути visual viewport при фокусі на input
+  // і не повернути назад. Будь-який скрол документа = баг => відкат.
+  const resetScroll = () => {
+    if (window.scrollY !== 0 || window.scrollX !== 0) {
+      window.scrollTo(0, 0);
+    }
+    if (document.documentElement.scrollTop !== 0) {
+      document.documentElement.scrollTop = 0;
+    }
+    if (document.body.scrollTop !== 0) {
+      document.body.scrollTop = 0;
+    }
+  };
+  window.addEventListener('scroll', resetScroll, { passive: true });
+  // Після закриття клавіатури (blur будь-якого input) — теж відкат.
+  document.addEventListener('focusout', () => setTimeout(resetScroll, 50), true);
 }
