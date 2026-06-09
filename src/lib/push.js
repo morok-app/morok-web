@@ -20,6 +20,19 @@ const SW_SCOPE = '/web/';
 let _cachedVapid = null;
 
 export function isSupported() {
+  // Web Push API doesn't work inside a Capacitor WebView. Native push
+  // (FCM on Android, APNS on iOS) needs the @capacitor/push-notifications
+  // plugin and a separate backend path — handled elsewhere when added.
+  // Return false here so the Settings toggle renders disabled, and so
+  // enable() can't be called by mistake.
+  const isNative = !!(
+    typeof window !== 'undefined' && (
+      window.Capacitor?.isNativePlatform?.() ||
+      window.Capacitor?.isNative
+    )
+  );
+  if (isNative) return false;
+
   return (
     typeof window !== 'undefined' &&
     'serviceWorker' in navigator &&

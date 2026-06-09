@@ -4,19 +4,67 @@
 
 import { signAuthChallenge, canonicalJson, sign } from './crypto.js';
 
-// Auto-detect the relay this web client should talk to. When the web is
-// hosted at https://relay1.morok.app/web/ → talk to relay1. When at
-// https://relay2.morok.app/web/ → talk to relay2. Outside the browser
-// (SSR / tests) fall back to relay1.
-const DEFAULT_RELAY = typeof window !== 'undefined' && window.location?.origin
-  ? window.location.origin
-  : 'https://relay1.morok.app';
+// Storage key for the user's chosen relay (only consulted in Capacitor
+// where window.location.origin is meaningless — localhost or the
+// custom capacitor:// scheme).
+const STORAGE_KEY_RELAY = 'morok.relay_url.v1';
 
+/**
+ * Determine which relay this client should talk to.
+ *
+ * Browser: same-origin (web is served from relay1.morok.app or
+ * relay2.morok.app and talks to its own host). No CORS needed.
+ *
+ * Capacitor native (Android/iOS): window.location.origin is
+ * `http://localhost` or `capacitor://localhost` — useless for finding
+ * the real relay. We use a stored choice (Settings) if present, else
+ * fall back to relay1.morok.app. The relay MUST allow this origin via
+ * CORS — see morok_relay/main.py for the allow list.
+ */
+function detectDefaultRelay() {
+  if (typeof window === 'undefined') return 'https://relay1.morok.app';
+
+  // Native runtime check — works for both Capacitor 5+ and older variants.
+  const isNative = !!(
+    window.Capacitor?.isNativePlatform?.() ||
+    window.Capacitor?.isNative
+  );
+  if (isNative) {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_RELAY);
+      if (stored && /^https?:\/\//.test(stored)) {
+        return stored.replace(/\/+$/, '');
+      }
+    } catch { /* fall through */ }
+    return 'https://relay1.morok.app';
+  }
+
+  return window.location.origin;
+}
+
+const DEFAULT_RELAY = detectDefaultRelay();
 let _relayUrl = DEFAULT_RELAY;
 let _sessionToken = null;
 
 export function getRelayUrl() { return _relayUrl; }
-export function setRelayUrl(url) { _relayUrl = url.replace(/\/+$/, ''); }
+
+/**
+ * Switch active relay. On Capacitor this is persisted to localStorage
+ * so the choice survives an app restart; on web it's session-only since
+ * the browser's address bar already encodes the relay.
+ */
+export function setRelayUrl(url) {
+  const clean = url.replace(/\/+$/, '');
+  _relayUrl = clean;
+  const isNative = !!(
+    window?.Capacitor?.isNativePlatform?.() ||
+    window?.Capacitor?.isNative
+  );
+  if (isNative) {
+    try { localStorage.setItem(STORAGE_KEY_RELAY, clean); } catch {}
+  }
+}
+
 export function setSessionToken(token) { _sessionToken = token; }
 export function getSessionToken() { return _sessionToken; }
 
