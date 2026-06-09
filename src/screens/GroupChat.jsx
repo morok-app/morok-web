@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { hapticTap } from '../lib/haptics.js';
 import * as gstore from '../lib/group_storage.js';
 import * as groups from '../lib/groups.js';
 import * as store from '../lib/storage.js';
@@ -198,6 +199,7 @@ export default function GroupChat({ groupId, onNavigate }) {
   function startLongPress(message) {
     cancelLongPress();
     longPressTimer.current = setTimeout(() => {
+      hapticTap();
       if (navigator.vibrate) try { navigator.vibrate(15); } catch {}
       setActionMessage(message);
     }, LONG_PRESS_MS);

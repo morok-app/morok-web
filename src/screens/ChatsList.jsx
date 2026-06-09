@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { hapticTap } from '../lib/haptics.js';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
@@ -225,6 +226,7 @@ export default function ChatsList({ onNavigate }) {
   function startLongPress(item) {
     cancelLongPress();
     longPressTimer.current = setTimeout(() => {
+      hapticTap();
       if (navigator.vibrate) try { navigator.vibrate(15); } catch {}
       setActionItem(item);
     }, LONG_PRESS_MS);

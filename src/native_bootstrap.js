@@ -38,6 +38,32 @@ export async function initNative() {
     console.warn('SystemBars init failed (non-fatal):', e);
   }
 
+  // Кнопка "назад" Android. З власним слухачем поведінка передбачувана:
+  // на кореневих екранах згортаємо застосунок (НЕ вбиваємо), на решті —
+  // звичайний history.back() (працює, бо навігація hash-based).
+  // Кореневі: чати (головний), онбордінг і PIN — з них "назад" нікуди.
+  try {
+    const { App: CapApp } = await import('@capacitor/app');
+    const ROOT_SCREENS = new Set([
+      '', 'splash', 'welcome', 'chats',
+      'pin-unlock', 'pin-setup', 'pin-setup-existing',
+    ]);
+    CapApp.addListener('backButton', () => {
+      const hash = (window.location.hash || '').replace(/^#/, '');
+      const base = hash.split('/')[0].split('?')[0];
+      if (ROOT_SCREENS.has(base)) {
+        CapApp.minimizeApp().catch(() => {});
+      } else if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        // Прямий deep-link без історії — йдемо в чати.
+        window.location.hash = '#chats';
+      }
+    });
+  } catch (e) {
+    console.warn('App back-button init failed (non-fatal):', e);
+  }
+
   // Сторожовий пес проти IME-скролу. Навіть з body{position:fixed}
   // деякі WebView вміють зсунути visual viewport при фокусі на input
   // і не повернути назад. Будь-який скрол документа = баг => відкат.

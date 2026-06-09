@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { hapticTap } from '../lib/haptics.js';
 import * as convs from '../lib/conversations.js';
 import * as msgs from '../lib/messages.js';
 import * as store from '../lib/storage.js';
@@ -169,6 +170,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   function startLongPress(message) {
     cancelLongPress();
     longPressTimer.current = setTimeout(() => {
+      hapticTap();
       setActionMessage(message);
     }, LONG_PRESS_MS);
   }
@@ -467,7 +469,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     : `@${conv.peer_username || conv.peer_pubkey.slice(0, 12) + '…'}`;
   const displaySubtitle = isBurner
     ? 'анонімна скринька'
-    : (conv.peer_home_relay || 'невідомий relay');
+    : (conv.peer_home_relay || '');
 
   // Compute peer color
   const peerHue = parseInt(conv.peer_pubkey.slice(0, 6), 16) % 360;

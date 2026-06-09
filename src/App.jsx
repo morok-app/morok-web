@@ -276,6 +276,22 @@ export default function App() {
           console.warn('onDeleted handler failed:', e);
         }
       },
+      onGroupGone: ({ groupId }) => {
+        // Творець видалив групу на релеї — зносимо локальну копію.
+        // Якщо ця група зараз відкрита, повертаємо користувача в Чати.
+        try {
+          gstore.removeGroup(groupId);
+          window.dispatchEvent(new CustomEvent('morok-group-update', {
+            detail: { groupId, gone: true },
+          }));
+          const hash = (window.location.hash || '').slice(1);
+          if (hash === `group/${groupId}` || hash === `groupinfo/${groupId}`) {
+            window.location.hash = '#chats';
+          }
+        } catch (e) {
+          console.warn('onGroupGone handler failed:', e);
+        }
+      },
       onRead: ({ envelopeId, readerPubkey, groupId }) => {
         // Peer (or some group member) tells us they read our message.
         // For DM: readerPubkey == the peer of our outgoing message.

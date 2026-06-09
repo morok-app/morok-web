@@ -9,6 +9,7 @@
  *   onNew(envelope)
  *   onDeleted({envelopeId, by, groupId})
  *   onRead({envelopeId, readerPubkey, groupId})
+ *   onGroupGone({groupId, by})
  *   onStateChange('connecting'|'open'|'closed'|'error')
  */
 
@@ -17,11 +18,12 @@ import * as api from './api.js';
 const BACKOFF_SECONDS = [1, 2, 5, 10, 30];
 
 export class InboxClient {
-  constructor({ onCatchup, onNew, onDeleted, onRead, onStateChange }) {
+  constructor({ onCatchup, onNew, onDeleted, onRead, onGroupGone, onStateChange }) {
     this.onCatchup = onCatchup;
     this.onNew = onNew;
     this.onDeleted = onDeleted;
     this.onRead = onRead;
+    this.onGroupGone = onGroupGone;
     this.onStateChange = onStateChange;
     this.ws = null;
     this.attempts = 0;
@@ -97,6 +99,14 @@ export class InboxClient {
           envelopeId: msg.envelope_id,
           readerPubkey: msg.reader,
           groupId: msg.group_id || null,
+        });
+        break;
+      case 'group_gone':
+        // Групу видалив її творець на релеї — локальну копію треба
+        // знести (інакше "мертва" група висить у списку вічно).
+        this.onGroupGone?.({
+          groupId: msg.group_id,
+          by: msg.by || null,
         });
         break;
       case 'ping':
