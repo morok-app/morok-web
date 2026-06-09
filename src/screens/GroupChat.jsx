@@ -75,6 +75,13 @@ export default function GroupChat({ groupId, onNavigate }) {
         await groups.refreshGroup(groupId);
         setGroup(gstore.getGroup(groupId));
       } catch (e) {
+        if (groups.isGroupGoneError(e)) {
+          // Групу видалив адмін (або нас прибрали) — зносимо локально.
+          gstore.removeGroup(groupId);
+          alert('Цю групу було видалено.');
+          onNavigate('chats');
+          return;
+        }
         console.warn('group refresh failed:', e);
       }
     })();
@@ -272,6 +279,12 @@ export default function GroupChat({ groupId, onNavigate }) {
       setDraft('');
       setGroup(gstore.getGroup(groupId));
     } catch (e) {
+      if (groups.isGroupGoneError(e)) {
+        gstore.removeGroup(groupId);
+        alert('Цю групу було видалено.');
+        onNavigate('chats');
+        return;
+      }
       alert(`Помилка: ${e.message}`);
     } finally {
       setSending(false);

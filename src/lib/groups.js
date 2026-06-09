@@ -783,3 +783,45 @@ export async function addMemberAndSendKey({
 }
 
 export { parseGroupPayload };
+
+/**
+ * Чи означає помилка від релея, що групи більше не існує (видалена
+ * адміном) або нас із неї прибрали. У такому разі локальну копію
+ * треба знести — інакше "мертва" група висить у списку чатів вічно.
+ */
+export function isGroupGoneError(e) {
+  return !!e && (e.status === 404 || e.status === 403);
+}
+
+/**
+ * Фонова валідація всіх локальних груп проти релея. Видаляє ті,
+ * яких на релеї вже немає. Викликається зі списку чатів (fire &
+ * forget). Повертає true якщо щось видалили (треба перемалювати UI).
+ *
+ * Не частіше ніж раз на VALIDATE_INTERVAL_MS, щоб не довбати relay
+ * GET-ами при кожному рендері списку.
+ */
+let _lastValidateTs = 0;
+const VALIDATE_INTERVAL_MS = 60 * 1000;
+
+export async function validateGroupsAgainstRelay() {
+  const now = Date.now();
+  if (now - _lastValidateTs < VALIDATE_INTERVAL_MS) return false;
+  _lastValidateTs = now;
+
+  const groups = gstore.listGroups ? gstore.listGroups() : [];
+  let removedAny = false;
+  await Promise.allSettled(groups.map(async (g) => {
+    try {
+      await api.getGroupInfo(g.group_id);
+    } catch (e) {
+      if (isGroupGoneError(e)) {
+        gstore.removeGroup(g.group_id);
+        removedAny = true;
+      }
+      // Мережеві/інші помилки ігноруємо — не видаляємо групу через
+      // відсутність інтернету.
+    }
+  }));
+  return removedAny;
+}

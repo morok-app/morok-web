@@ -6,6 +6,7 @@ import * as gstore from '../lib/group_storage.js';
 import * as muted from '../lib/muted.js';
 import * as contacts from '../lib/contacts.js';
 import { formatPeerName } from '../lib/display.js';
+import * as groupsLib from '../lib/groups.js';
 
 const LONG_PRESS_MS = 500;
 
@@ -195,6 +196,20 @@ export default function ChatsList({ onNavigate }) {
     const id = setInterval(() => setItems(buildMixedList(contactsOnly)), 3000);
     return () => clearInterval(id);
   }, [contactsOnly]);
+
+  // Фонова валідація груп: якщо адмін видалив групу на релеї, інші
+  // учасники інакше про це не дізнаються — група висітиме в списку
+  // вічно. Раз на відкриття списку (з троттлінгом у groups.js)
+  // звіряємо локальні групи з релеєм і зносимо мертві.
+  useEffect(() => {
+    let cancelled = false;
+    groupsLib.validateGroupsAgainstRelay()
+      .then((removedAny) => {
+        if (removedAny && !cancelled) setItems(buildMixedList(contactsOnly));
+      })
+      .catch(() => { /* мережа лягла — спробуємо наступного разу */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Re-poll the Settings preference. Cheap enough — synchronous local-storage
   // read every 2s — and lets the user flip the toggle in Settings and see
