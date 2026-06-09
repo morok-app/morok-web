@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/core": "^8.4.0",
     "@noble/ciphers": "^1.1.0",
     "@noble/curves": "^1.6.0",
     "@noble/hashes": "^1.5.0",
