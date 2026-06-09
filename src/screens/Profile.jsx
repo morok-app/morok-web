@@ -117,7 +117,7 @@ export default function Profile({ onNavigate }) {
         <div style={{
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', gap: 14,
-          padding: '12px 0 28px',
+          padding: '12px 0 calc(28px + var(--inset-bottom, 0px))',
         }}>
           <div style={{
             width: 84, height: 84, borderRadius: '50%',

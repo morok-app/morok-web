@@ -15,6 +15,12 @@
   --bubble-in: #22222A;
   --font: 'Manrope', system-ui, -apple-system, sans-serif;
   --mono: 'JetBrains Mono', monospace;
+
+  /* Safe-area insets. Android WebView має баг: env() повертає 0,
+     тому Capacitor 8 (SystemBars, insetsHandling:"css") інжектить
+     правильні значення у --safe-area-inset-*. env() — fallback для веба/iOS. */
+  --inset-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --inset-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -74,7 +80,7 @@ html, body {
   display: flex;
   align-items: center;
   padding: 0 14px;
-  padding-top: env(safe-area-inset-top, 0);
+  padding-top: var(--inset-top);
   gap: 10px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
@@ -106,7 +112,7 @@ html, body {
   flex-shrink: 0;
   display: flex;
   border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-bottom: var(--inset-bottom);
 }
 .bottom-nav .tab {
   flex: 1;
@@ -231,7 +237,7 @@ html, body {
   display: flex;
   flex-direction: column;
   padding: 24px 24px 32px;
-  padding-top: calc(24px + env(safe-area-inset-top, 0));
+  padding-top: calc(24px + var(--inset-top));
   background: var(--bg);
   overflow: hidden;
 }

@@ -1267,7 +1267,7 @@ function Sheet({ children, onClose }) {
           background: '#16161B',
           borderTop: '1px solid #232329',
           borderTopLeftRadius: 22, borderTopRightRadius: 22,
-          padding: '12px 0 28px',
+          padding: '12px 0 calc(28px + var(--inset-bottom, 0px))',
         }}
       >
         <div style={{

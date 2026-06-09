@@ -2,6 +2,7 @@
   "appId": "app.morok.client",
   "appName": "Morok",
   "webDir": "dist",
+  "backgroundColor": "#0A0A0B",
   "android": {
     "allowMixedContent": false,
     "captureInput": true,
@@ -14,6 +15,10 @@
   "plugins": {
     "CapacitorHttp": {
       "enabled": false
+    },
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK"
     }
   }
 }

@@ -272,7 +272,7 @@ export default function DMSCreate({ onNavigate }) {
               width: '100%', background: '#16161B',
               borderTop: '1px solid #232329',
               borderTopLeftRadius: 22, borderTopRightRadius: 22,
-              padding: '12px 0 28px', maxHeight: '70vh', overflowY: 'auto',
+              padding: '12px 0 calc(28px + var(--inset-bottom, 0px))', maxHeight: '70vh', overflowY: 'auto',
             }}
           >
             <div style={{

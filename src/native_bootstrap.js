@@ -1,14 +1,19 @@
 /**
  * Native-platform bootstrap.
  *
- * Sets a `body.is-native` flag so the native-only CSS rules in
- * styles/native.css kick in, and configures Android status bar to
- * match Morok's dark theme (light icons on near-black background).
+ * Ставить прапорець `body.is-native` (вмикає styles/native.css) і
+ * налаштовує системні бари під темну тему Morok.
  *
- * No-ops on the web — safe to call unconditionally from main.jsx.
+ * ВАЖЛИВО (Android 15+ / targetSdk 36 / Capacitor 8):
+ *  - edge-to-edge примусовий: StatusBar.setOverlaysWebView(false) і
+ *    setBackgroundColor() — БІЛЬШЕ НЕ ПРАЦЮЮТЬ (no-op). Старий плагін
+ *    @capacitor/status-bar тут не використовуємо.
+ *  - Замість нього — вбудований у @capacitor/core плагін SystemBars.
+ *    Він (разом із "insetsHandling": "css" у capacitor.config.json)
+ *    інжектить --safe-area-inset-* CSS-змінні, на які спирається CSS.
+ *
+ * No-op у вебі — безпечно викликати з main.jsx завжди.
  */
-
-const NATIVE_BACKGROUND = '#0A0A0B'; // matches every `.screen` background
 
 function isNative() {
   if (typeof window === 'undefined') return false;
@@ -21,25 +26,15 @@ function isNative() {
 export async function initNative() {
   if (!isNative()) return;
 
-  // Tag <body> so native.css rules apply (safe-area padding, system fonts,
-  // disabled tap highlight, etc).
   try {
     document.body.classList.add('is-native');
   } catch { /* DOM not ready — caller already deferred this */ }
 
-  // Status bar styling (Android). The plugin is imported lazily so the
-  // web bundle stays unaffected — Vite tree-shakes the dynamic branch.
   try {
-    const { StatusBar, Style } = await import('@capacitor/status-bar');
-    // Light text+icons (because our app is dark).
-    await StatusBar.setStyle({ style: Style.Light }).catch(() => {});
-    // Solid background colour matching the screen — no translucent overlay.
-    await StatusBar.setBackgroundColor({ color: NATIVE_BACKGROUND }).catch(() => {});
-    // Don't overlay the WebView — give us real space below the status bar.
-    await StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+    const { SystemBars, SystemBarsStyle } = await import('@capacitor/core');
+    // Style.Dark = бари для ТЕМНОГО фону => світлі іконки/текст.
+    await SystemBars.setStyle({ style: SystemBarsStyle.Dark }).catch(() => {});
   } catch (e) {
-    // Plugin missing or call failed — UI still works, just looks slightly
-    // worse on the top edge.
-    console.warn('StatusBar init failed (non-fatal):', e);
+    console.warn('SystemBars init failed (non-fatal):', e);
   }
 }

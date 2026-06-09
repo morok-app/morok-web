@@ -637,7 +637,7 @@ export default function ChatsList({ onNavigate }) {
               width: '100%', background: '#16161B',
               borderTop: '1px solid #232329',
               borderTopLeftRadius: 22, borderTopRightRadius: 22,
-              padding: '12px 0 28px',
+              padding: '12px 0 calc(28px + var(--inset-bottom, 0px))',
             }}
           >
             <div style={{ width: 36, height: 4, background: '#3F3F45', borderRadius: 2, margin: '6px auto 14px' }} />
@@ -741,7 +741,7 @@ export default function ChatsList({ onNavigate }) {
               width: '100%', background: '#16161B',
               borderTop: '1px solid #232329',
               borderTopLeftRadius: 22, borderTopRightRadius: 22,
-              padding: '12px 0 28px',
+              padding: '12px 0 calc(28px + var(--inset-bottom, 0px))',
             }}
           >
             <div style={{ width: 36, height: 4, background: '#3F3F45', borderRadius: 2, margin: '6px auto 18px' }} />

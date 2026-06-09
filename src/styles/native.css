@@ -4,38 +4,36 @@
  * Activated when native_bootstrap.js adds `is-native` to <body>.
  * On the web these rules don't apply — the web build is unchanged.
  *
- * The strategy is to do as little as possible: only touch behaviour
- * that's genuinely different between a browser tab and a native
- * WebView — safe areas, tap feedback, font fallback, native gestures.
- * Component CSS / inline styles are left alone.
+ * ВАЖЛИВО (Android 15+ / Capacitor 8): edge-to-edge примусовий,
+ * env(safe-area-inset-*) у Android WebView повертає 0. Тому всі
+ * відступи беруться з var(--inset-top/--inset-bottom), які визначені
+ * в global.css і живляться від --safe-area-inset-* (інжектить
+ * Capacitor SystemBars з insetsHandling:"css").
  */
 
 body.is-native {
-  /* Notch / Dynamic Island / Android status bar — push content down. */
-  padding-top: env(safe-area-inset-top, 0px);
+  /* Статус-бар зверху — опускаємо контент. */
+  padding-top: var(--inset-top, 0px);
 
-  /* Android gesture navigation indicator at the bottom. */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Жестова панель / кнопки навігації знизу. */
+  padding-bottom: var(--inset-bottom, 0px);
 
-  /* The padding above/below shows the body background colour. Make it
-     match the screen so it looks like the screen extends edge-to-edge. */
+  /* Зони відступів показують фон body — робимо його кольором екрана,
+     щоб виглядало як edge-to-edge. */
   background: #0A0A0B;
 
-  /* Prevent the WebView from doing its own scroll bounce — the inner
-     `.screen` containers handle scrolling. */
+  /* Без власного scroll bounce WebView — скролять внутрішні .screen. */
   overscroll-behavior: none;
 
-  /* Remove the grey flash Android shows when tapping any clickable
-     element. We have our own :active / hover styles. */
+  /* Без сірого спалаху Android при тапі. */
   -webkit-tap-highlight-color: transparent;
 
-  /* Long-press text-selection on every label is jarring on mobile. We
-     re-enable it explicitly for inputs and message bubbles. */
+  /* Long-press виділення тексту на кожному лейблі дратує. */
   -webkit-user-select: none;
   user-select: none;
 }
 
-/* Re-enable text selection where it's actually useful. */
+/* Повертаємо виділення там, де воно потрібне. */
 body.is-native input,
 body.is-native textarea,
 body.is-native [contenteditable="true"],
@@ -44,23 +42,22 @@ body.is-native .selectable {
   user-select: text;
 }
 
-/* Forms shouldn't zoom on focus (iOS does this when font-size < 16px). */
+/* Форми не мають зумитись при фокусі (iOS зумить при font-size < 16px). */
 body.is-native input,
 body.is-native textarea,
 body.is-native select {
   font-size: max(16px, 1em);
 }
 
-/* The screen container fills the full padded body. */
+/* Екран заповнює увесь паддінгований body. 100dvh коректно реагує
+   на появу клавіатури, на відміну від 100vh. */
 body.is-native .screen,
 body.is-native #root,
 body.is-native #root > * {
-  min-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - var(--inset-top, 0px) - var(--inset-bottom, 0px));
 }
 
-/* System font stack fallback — Google Fonts may not load fast enough
-   on a cold WebView start, and a flash of Times-New-Roman looks awful.
-   The custom font is still preferred when it arrives. */
+/* Системний шрифт як fallback до приходу Manrope (без FOUT-жаху). */
 body.is-native {
   font-family:
     'Manrope',
