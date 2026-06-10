@@ -5,7 +5,7 @@
   "backgroundColor": "#0A0A0B",
   "android": {
     "allowMixedContent": false,
-    "captureInput": true,
+    "captureInput": false,
     "webContentsDebuggingEnabled": true
   },
   "server": {

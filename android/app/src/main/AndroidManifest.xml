@@ -38,4 +38,13 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Голосові повідомлення: без RECORD_AUDIO WebView блокує
+         getUserMedia ("Доступ до мікрофону заблоковано"). Capacitor
+         сам показує системний запит дозволу при першому записі. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Хептика на long-press (@capacitor/haptics) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>
