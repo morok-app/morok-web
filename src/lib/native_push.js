@@ -20,7 +20,12 @@ export function isNativePlatform() {
 
 async function plugin() {
   const { PushNotifications } = await import('@capacitor/push-notifications');
-  return PushNotifications;
+  // НЕ повертати проксі плагіна напряму з async-функції! await робить
+  // thenable-перевірку (.then) на значенні, а Capacitor-проксі
+  // перетворює це на виклик нативного метода "then", якого не існує
+  // ("PushNotifications.then() is not implemented on android").
+  // Тому загортаємо в звичайний об'єкт.
+  return { P: PushNotifications };
 }
 
 /**
@@ -44,7 +49,7 @@ async function ensureChannel(P) {
 /** Дозвіл уже надано? ('granted' | 'denied' | 'prompt') */
 export async function permissionState() {
   try {
-    const P = await plugin();
+    const { P } = await plugin();
     const st = await P.checkPermissions();
     return st.receive || 'prompt';
   } catch {
@@ -74,7 +79,7 @@ export async function isEnabled() {
  * Кидає 'permission_denied' якщо користувач відмовив.
  */
 export async function enable() {
-  const P = await plugin();
+  const { P } = await plugin();
   await ensureChannel(P);
 
   const perm = await P.requestPermissions();
@@ -118,7 +123,7 @@ export async function disable() {
   }
   storeToken(null);
   try {
-    const P = await plugin();
+    const { P } = await plugin();
     await P.unregister?.();
   } catch { /* старі версії плагіна без unregister — ок */ }
 }
@@ -134,7 +139,7 @@ export async function refreshIfEnabled() {
   if (!storedToken()) return;
   if ((await permissionState()) !== 'granted') return;
   try {
-    const P = await plugin();
+    const { P } = await plugin();
     await ensureChannel(P);
     P.addListener('registration', async (t) => {
       if (t.value && t.value !== storedToken()) {

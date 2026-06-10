@@ -46,6 +46,10 @@ export default function Settings({ onNavigate }) {
   // Web push state — driven by both browser permission and server subscription
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  // Нативний застосунок (Capacitor): браузерного Notification API в
+  // WebView нема — рядок "Сповіщення" там не має сенсу, фонові
+  // сповіщення в нативі = "Push сповіщення" (FCM).
+  const isNativeApp = !!window.Capacitor?.isNativePlatform?.();
   const pushSupported = push.isSupported();
   const pushPermission = push.getPermission();
 
@@ -347,7 +351,7 @@ export default function Settings({ onNavigate }) {
         {/* Group 2: App */}
         <SectionLabel>Додаток</SectionLabel>
 
-        <Row
+        {!isNativeApp && <Row
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>}
           label="Сповіщення"
           value={
@@ -361,7 +365,7 @@ export default function Settings({ onNavigate }) {
           }
           onClick={(notif.isSupported() && notifPermission !== 'denied') ? toggleNotifications : null}
           chevron={notif.isSupported() && notifPermission !== 'denied'}
-        />
+        />}
 
         <Row
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/><polyline points="22 10 11 21 6 16"/></svg>}
