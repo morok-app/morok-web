@@ -194,7 +194,16 @@ export default function ChatsList({ onNavigate }) {
   }, []);
 
   useEffect(() => {
-    const id = setInterval(() => setItems(buildMixedList(contactsOnly)), 3000);
+    const id = setInterval(() => {
+      setItems(buildMixedList(contactsOnly));
+      // Самотроттлиться всередині (раз на 20с): ловить групи, видалені
+      // адміном, навіть якщо вкладка зі списком висить відкритою. Без
+      // цього звірка працювала ЛИШЕ на mount — якщо групу видалили
+      // поки список уже відкритий, вона не зникала до перезавантаження.
+      groupsLib.validateGroupsAgainstRelay()
+        .then((removedAny) => { if (removedAny) setItems(buildMixedList(contactsOnly)); })
+        .catch(() => {});
+    }, 3000);
     return () => clearInterval(id);
   }, [contactsOnly]);
 
@@ -281,7 +290,11 @@ export default function ChatsList({ onNavigate }) {
           await api.removeGroupMember(item.id, myPubkey);
         }
       } catch (e) {
-        alert(`Помилка: ${e.message}`);
+        // 404/403 = групи на релеї вже немає (адмін видалив раніше).
+        // Це не помилка для користувача — просто чистимо локально.
+        if (!groupsLib.isGroupGoneError(e)) {
+          alert(`Помилка: ${e.message}`);
+        }
       }
       gstore.removeGroup(item.id);
     }

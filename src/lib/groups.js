@@ -802,7 +802,7 @@ export function isGroupGoneError(e) {
  * GET-ами при кожному рендері списку.
  */
 let _lastValidateTs = 0;
-const VALIDATE_INTERVAL_MS = 60 * 1000;
+const VALIDATE_INTERVAL_MS = 20 * 1000;
 
 export async function validateGroupsAgainstRelay() {
   const now = Date.now();
