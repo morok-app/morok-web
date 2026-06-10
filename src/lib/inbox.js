@@ -34,6 +34,12 @@ export class InboxClient {
 
   start() {
     this.shouldRun = true;
+    // Ідемпотентність: якщо сокет уже живий/підключається — не
+    // відкривати другий (важливо для resume з фону).
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN ||
+                    this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
     this._connect();
   }
 

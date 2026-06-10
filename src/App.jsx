@@ -128,6 +128,31 @@ export default function App() {
 
   useEffect(() => () => inboxRef.current?.stop(), []);
 
+  // НАТИВ: у фоні WebView тримає WS живим хвилинами — релей вважає нас
+  // онлайн і свідомо НЕ шле FCM-пуші ("ти ж і так бачиш по WS").
+  // Тому при згортанні закриваємо WS одразу (релей за ~90с точно
+  // бачить офлайн, зазвичай миттєво по FIN), при поверненні —
+  // відновлюємо. Так працюють усі месенджери: у фоні будить FCM.
+  useEffect(() => {
+    if (!window.Capacitor?.isNativePlatform?.()) return undefined;
+    let handle = null;
+    (async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        handle = await CapApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) {
+            inboxRef.current?.start();
+          } else {
+            inboxRef.current?.stop();
+          }
+        });
+      } catch (e) {
+        console.warn('appStateChange listener failed (non-fatal):', e);
+      }
+    })();
+    return () => { try { handle?.remove(); } catch { /* ok */ } };
+  }, []);
+
   // Periodic DMS check-in: every 6 hours while the tab is open.
   // Combined with the on-login check-in, this means active users never
   // accidentally trigger their own DMS.
