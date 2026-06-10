@@ -6,6 +6,7 @@ import * as vault from './lib/vault.js';
 import * as notif from './lib/notifications.js';
 import * as convs from './lib/conversations.js';
 import * as gstore from './lib/group_storage.js';
+import * as nativePush from './lib/native_push.js';
 import * as dms from './lib/dms.js';
 import { formatPeerHandle } from './lib/display.js';
 import { hexToBytes } from './lib/crypto.js';
@@ -157,6 +158,10 @@ export default function App() {
 
     // Anonymous accounts go straight to chats — no forced claim.
     startInbox(seed, pubkeyHex);
+
+    // Натив: якщо пуші були увімкнені — пере-реєструємо FCM-токен
+    // (Firebase іноді його ротує). Fire-and-forget, no-op у вебі.
+    nativePush.refreshIfEnabled().catch(() => {});
 
     // Auto check-in for any armed DMS (fire-and-forget — don't block login)
     dms.checkInAllArmed().then((r) => {

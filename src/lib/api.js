@@ -242,6 +242,14 @@ export async function pushUnsubscribe(body) {
   return http('POST', '/api/v1/push/unsubscribe', { body, auth: true });
 }
 
+export async function pushSubscribeNative(body) {
+  return http('POST', '/api/v1/push/subscribe-native', { body, auth: true });
+}
+
+export async function pushUnsubscribeNative(body) {
+  return http('POST', '/api/v1/push/unsubscribe-native', { body, auth: true });
+}
+
 /**
  * Sender-initiated server-side delete of a DM.
  * Removes the message from the recipient's inbox AND pushes a delete

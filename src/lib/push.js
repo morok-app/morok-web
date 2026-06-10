@@ -13,6 +13,7 @@
  */
 
 import * as api from './api.js';
+import * as nativePush from './native_push.js';
 
 const SW_PATH = '/web/sw.js';
 const SW_SCOPE = '/web/';
@@ -20,6 +21,8 @@ const SW_SCOPE = '/web/';
 let _cachedVapid = null;
 
 export function isSupported() {
+  // Нативний застосунок: web push у WebView не існує, але є FCM.
+  if (nativePush.isNativePlatform()) return true;
   // Web Push API doesn't work inside a Capacitor WebView. Native push
   // (FCM on Android, APNS on iOS) needs the @capacitor/push-notifications
   // plugin and a separate backend path — handled elsewhere when added.
@@ -42,6 +45,9 @@ export function isSupported() {
 }
 
 export function getPermission() {
+  // Натив: дозвіл перевіряється асинхронно в isEnabled/enable;
+  // тут повертаємо 'default', щоб тогл у Settings був доступний.
+  if (nativePush.isNativePlatform()) return 'default';
   if (!('Notification' in window)) return 'denied';
   return Notification.permission;
 }
@@ -84,6 +90,7 @@ export async function getCurrentSubscription() {
  * Returns the active PushSubscription.
  */
 export async function enable() {
+  if (nativePush.isNativePlatform()) return nativePush.enable();
   if (!isSupported()) throw new Error('not_supported');
 
   const reg = await registerSW();
@@ -129,6 +136,7 @@ export async function enable() {
  * Silent on remote-side errors (we still want to clean up locally).
  */
 export async function disable() {
+  if (nativePush.isNativePlatform()) return nativePush.disable();
   const sub = await getCurrentSubscription();
   if (!sub) return;
 
@@ -149,6 +157,7 @@ export async function disable() {
  * Use this to drive the Settings toggle's on/off state.
  */
 export async function isEnabled() {
+  if (nativePush.isNativePlatform()) return nativePush.isEnabled();
   if (!isSupported()) return false;
   if (Notification.permission !== 'granted') return false;
   const sub = await getCurrentSubscription();
