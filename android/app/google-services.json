@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "143373023390",
+    "project_id": "morok-b36a7",
+    "storage_bucket": "morok-b36a7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:143373023390:android:9accf93dcb2e5ce533e38f",
+        "android_client_info": {
+          "package_name": "app.morok.client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCq5XqNETIpQi7_j2xbWB4nlZ6qdc4qDn4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
