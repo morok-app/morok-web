@@ -35,14 +35,21 @@ async function plugin() {
  */
 async function ensureChannel(P) {
   try {
+    // id v2: налаштування каналу Android фіксує ПРИ ПЕРШОМУ створенні
+    // і далі ігнорує зміни. Якщо 'messages' встиг створитися з тихими
+    // дефолтами (система creates канал сама при першій доставці),
+    // врятувати його не можна — тільки новий id.
     await P.createChannel({
-      id: 'messages',
+      id: 'messages_v2',
       name: 'Повідомлення',
       description: 'Нові повідомлення Morok',
-      importance: 4,          // HIGH: звук + heads-up
+      importance: 4,          // HIGH: звук + heads-up банер
       visibility: 0,          // PRIVATE: без тексту на лок-скріні
       vibration: true,
+      lights: true,
     });
+    // Прибираємо старий канал, щоб не висів дублем у налаштуваннях.
+    try { await P.deleteChannel({ id: 'messages' }); } catch { /* не було — ок */ }
   } catch { /* iOS/старі версії — каналів нема, ок */ }
 }
 
