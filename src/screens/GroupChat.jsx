@@ -53,6 +53,55 @@ export default function GroupChat({ groupId, onNavigate }) {
   const [sending, setSending] = useState(false);
   const [showTtlMenu, setShowTtlMenu] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
+
+  // ── Мультивиділення повідомлень ──
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
+  function enterSelectMode() {
+    if (!actionMessage) return;
+    const firstId = actionMessage.id;
+    setActionMessage(null);
+    setSelectedIds(new Set([firstId]));
+    setSelectMode(true);
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+  function toggleSelected(m) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(m.id)) next.delete(m.id); else next.add(m.id);
+      return next;
+    });
+  }
+  function getSelectedMessages() {
+    return (group?.messages || []).filter((m) => selectedIds.has(m.id));
+  }
+  async function batchDeleteForMe() {
+    const toDelete = getSelectedMessages();
+    exitSelectMode();
+    for (const m of toDelete) gstore.deleteMessage(groupId, m.id);
+    setGroup(gstore.getGroup(groupId));
+  }
+  async function batchDeleteForEveryone() {
+    const toDelete = getSelectedMessages();
+    if (!toDelete.length) return;
+    const seed = getSeedBytes();
+    if (!seed) { alert('Сеанс закінчився.'); return; }
+    exitSelectMode();
+    let failed = 0;
+    for (const m of toDelete) {
+      try {
+        if (m.envelope_id) await api.deleteGroupMessage(groupId, m.envelope_id, seed);
+        gstore.deleteMessage(groupId, m.id);
+      } catch { failed += 1; }
+    }
+    setGroup(gstore.getGroup(groupId));
+    if (failed) alert(`Не вдалось видалити у всіх: ${failed} повід.`);
+  }
+
   const [lightboxImage, setLightboxImage] = useState(null);
   const [imageBusy, setImageBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -457,6 +506,9 @@ export default function GroupChat({ groupId, onNavigate }) {
   }
 
   const messages = group.messages || [];
+  const selCanDeleteAll = selectMode && selectedIds.size > 0
+    && (isAdmin || messages.filter((m) => selectedIds.has(m.id))
+        .every((m) => m.direction === 'out' || m.sender_pubkey === myPubkeyHex));
   const noKey = !group.group_key_b64;
   const memberCount = group.member_count || (group.members?.length ?? 0);
 
@@ -469,6 +521,36 @@ export default function GroupChat({ groupId, onNavigate }) {
         }
       `}</style>
 
+      {selectMode ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px',
+          background: '#0E0E12', borderBottom: '1px solid #1E1E27',
+        }}>
+          <button onClick={exitSelectMode} aria-label="Скасувати" style={{
+            width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+            background: 'rgba(255,255,255,0.06)', border: '1px solid #232329',
+            color: '#F5F5F7', cursor: 'pointer', fontSize: 15,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>✕</button>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#F5F5F7', fontFamily: 'JetBrains Mono, monospace' }}>
+            {selectedIds.size} вибрано
+          </div>
+          <button onClick={batchDeleteForMe} disabled={!selectedIds.size} style={{
+            padding: '8px 12px', borderRadius: 10,
+            background: 'rgba(255,255,255,0.06)', border: '1px solid #232329',
+            color: '#F5F5F7', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            opacity: selectedIds.size ? 1 : 0.4,
+          }}>У мене</button>
+          {selCanDeleteAll && (
+            <button onClick={batchDeleteForEveryone} style={{
+              padding: '8px 12px', borderRadius: 10,
+              background: 'rgba(255,107,122,0.12)', border: '1px solid rgba(255,107,122,0.35)',
+              color: '#FF6B7A', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            }}>У всіх</button>
+          )}
+        </div>
+      ) : (
       <CompactHeader
         title={group.name || 'Група без назви'}
         subtitle={`${memberCount} учасників`}
@@ -477,6 +559,7 @@ export default function GroupChat({ groupId, onNavigate }) {
         onMenuClick={() => setMuteSheetOpen(true)}
         isMuted={!!muteEntry}
       />
+      )}
 
       {noKey && (
         <div style={{
@@ -540,12 +623,22 @@ export default function GroupChat({ groupId, onNavigate }) {
           return (
             <div
               key={m.id}
-              onMouseDown={() => startLongPress(m)}
+              onMouseDown={() => { if (!selectMode) startLongPress(m); }}
               onMouseUp={cancelLongPress}
               onMouseLeave={cancelLongPress}
-              onTouchStart={() => startLongPress(m)}
+              onTouchStart={() => { if (!selectMode) startLongPress(m); }}
               onTouchEnd={cancelLongPress}
               onTouchCancel={cancelLongPress}
+              onClickCapture={(e) => {
+                // У режимі виділення тап = тогл, і перехоплюємо клік ДО
+                // внутрішніх обробників (картинка/войс), щоб лайтбокс
+                // чи плеєр не спрацьовували.
+                if (selectMode) {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  toggleSelected(m);
+                }
+              }}
               style={{
                 maxWidth: '80%',
                 alignSelf: isOut ? 'flex-end' : 'flex-start',
@@ -553,6 +646,10 @@ export default function GroupChat({ groupId, onNavigate }) {
                 marginTop: samePrev ? 0 : 6,
                 userSelect: 'none', WebkitUserSelect: 'none',
                 cursor: 'pointer',
+                outline: selectMode && selectedIds.has(m.id) ? '2px solid #6B8AFE' : 'none',
+                outlineOffset: 2,
+                borderRadius: 14,
+                opacity: selectMode && !selectedIds.has(m.id) ? 0.55 : 1,
               }}
             >
               {/* Sender name — only for incoming messages, and only first in group */}
@@ -859,6 +956,19 @@ export default function GroupChat({ groupId, onNavigate }) {
                   ? `📷 Картинка · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
                   : '📷 Картинка')
               : `"${actionMessage.text?.slice(0, 80) || ''}${actionMessage.text?.length > 80 ? '…' : ''}"`}
+          </div>
+          <div
+            onClick={enterSelectMode}
+            style={{
+              padding: '14px 20px', cursor: 'pointer',
+              color: '#F5F5F7', fontSize: 14, fontWeight: 500,
+              display: 'flex', alignItems: 'center', gap: 12,
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            Вибрати
           </div>
           {actionMessage.text && (
             <div
