@@ -70,6 +70,8 @@ export function base64ToBytes(b64) {
 }
 
 export function utf8(s) { return new TextEncoder().encode(s); }
+export function randomBytesSafe(n) { return randomBytes(n); }
+export function sha256Bytes(b) { return sha256(b); }
 export function utf8Decode(b) { return new TextDecoder().decode(b); }
 
 // ────────────────────────────────────────────────────────────
@@ -184,6 +186,90 @@ export function decryptFromPeer({ seed, myPubkeyHex, peerPubkeyHex, blobB64 }) {
   const cipher = xchacha20poly1305(key, nonce);
   const pt = cipher.decrypt(ct);
   return utf8Decode(pt);
+}
+
+// ────────────────────────────────────────────────────────────
+// Sealed Sender (фаза 1) — анонімні до релея DM-конверти
+// ────────────────────────────────────────────────────────────
+// Звичайний DM шифрується статичним ECDH (мій×твій ключ), тому одержувач
+// мусить знати відправника. Sealed ховає відправника від релея, отже й
+// одержувач не може вивести статичний ключ -> ЕФЕМЕРНА пара (як Signal).
+//
+// blob = [ epk(32) | nonce(24) | ct ]
+//   ct = XChaCha20( HKDF(ECDH(eph_priv, recipient_x25519), salt=epk),
+//                   canonical({ sender, ts, payload, sig }) )
+//   sig = Ed25519(seed) над canonical({ to, ts, payload })
+// Одержувач: ECDH(його x25519, epk) -> ключ -> decrypt -> verify(sig).
+// Релей бачить лише одноразовий epk + ct. Особа — всередині шифру.
+
+const SEALED_INFO = utf8('morok-sealed-v1');
+
+// canonicalJson() у цьому модулі повертає Uint8Array. Для sealed нам
+// потрібен стабільний РЯДОК (його ж і шифруємо, і з нього робимо байти
+// для підпису). РЕКУРСИВНА канонізація: JSON.stringify(obj, keys.sort())
+// як replacer-масив працює лише для ключів ВЕРХНЬОГО рівня і спустошує
+// вкладені об'єкти — тому власний обхід із сортуванням на кожному рівні.
+function canonicalString(obj) {
+  if (obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return '[' + obj.map(canonicalString).join(',') + ']';
+  const keys = Object.keys(obj).sort();
+  return '{' + keys.map(
+    (k) => JSON.stringify(k) + ':' + canonicalString(obj[k]),
+  ).join(',') + '}';
+}
+
+function sealedSigMessage(to, ts, payload) {
+  return utf8(canonicalString({ to, ts, payload }));
+}
+
+export function sealedEncrypt({ seed, myPubkeyHex, peerPubkeyHex, payload, to, ts }) {
+  const ephPriv = x25519.utils.randomPrivateKey();
+  const ephPub = x25519.getPublicKey(ephPriv);
+
+  const peerX25519Pub = x25519PubFromEd25519Pub(hexToBytes(peerPubkeyHex));
+  const shared = x25519.getSharedSecret(ephPriv, peerX25519Pub);
+  const key = hkdf(sha256, shared, ephPub, SEALED_INFO, 32);
+
+  const sig = sign(seed, sealedSigMessage(to, ts, payload)); // sign() вже повертає hex
+  const inner = canonicalString({ sender: myPubkeyHex, ts, payload, sig });
+
+  const nonce = randomBytes(24);
+  const ct = xchacha20poly1305(key, nonce).encrypt(utf8(inner));
+  const out = new Uint8Array(32 + 24 + ct.length);
+  out.set(ephPub, 0);
+  out.set(nonce, 32);
+  out.set(ct, 56);
+
+  const deleteKey = randomBytes(32);
+  return {
+    blobB64: bytesToBase64(out),
+    deleteKeyHex: bytesToHex(deleteKey),
+    deleteKeyHashHex: bytesToHex(sha256(deleteKey)),
+  };
+}
+
+export function sealedDecrypt({ seed, myPubkeyHex, blobB64, to }) {
+  const raw = base64ToBytes(blobB64);
+  if (raw.length < 56 + 16) throw new Error('sealed blob too short');
+  const ephPub = raw.slice(0, 32);
+  const nonce = raw.slice(32, 56);
+  const ct = raw.slice(56);
+
+  const myX25519Priv = x25519PrivFromSeed(seed);
+  const shared = x25519.getSharedSecret(myX25519Priv, ephPub);
+  const key = hkdf(sha256, shared, ephPub, SEALED_INFO, 32);
+
+  const inner = JSON.parse(utf8Decode(xchacha20poly1305(key, nonce).decrypt(ct)));
+  if (!inner.sender || !inner.sig || inner.payload === undefined || inner.ts === undefined) {
+    throw new Error('sealed inner malformed');
+  }
+  const ok = ed25519.verify(
+    hexToBytes(inner.sig),
+    sealedSigMessage(to, inner.ts, inner.payload),
+    hexToBytes(inner.sender),
+  );
+  if (!ok) throw new Error('sealed signature invalid');
+  return { senderPubkeyHex: inner.sender, ts: inner.ts, payload: inner.payload };
 }
 
 // ────────────────────────────────────────────────────────────

@@ -18,6 +18,7 @@
  */
 
 import * as api from './api.js';
+import * as sealedTokens from './sealed_tokens.js';
 import * as crypto from './crypto.js';
 import * as convs from './conversations.js';
 import { compressImage } from './images.js';
@@ -26,7 +27,25 @@ import { blobToBase64 } from './voice.js';
 // Kinds that are purely protocol signalling — never shown to the user
 // and never stored in conversation history. Everything else (raw text,
 // {kind:'image'}, future content kinds) is a real message.
-const CONTROL_KINDS = new Set(['group_key', 'group_key_request', 'reaction']);
+const CONTROL_KINDS = new Set(['group_key', 'group_key_request', 'reaction', 'sealed_token']);
+
+/**
+ * Базовий URL домашнього релея контакта для прямого sealed-POST.
+ * Беремо home_relay з адресної книги; якщо невідомий — null
+ * (тоді відправка піде звичайним v1-шляхом).
+ */
+async function peerHomeRelayBase(peerPubkeyHex) {
+  try {
+    const contactsMod = await import('./contacts.js');
+    const row = contactsMod.getByPubkey(peerPubkeyHex);
+    const hr = row?.home_relay;
+    if (!hr) return null;
+    if (/^https?:\/\//.test(hr)) return hr.replace(/\/+$/, '');
+    return `https://${hr}`;
+  } catch {
+    return null;
+  }
+}
 
 export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds }) {
   const ts = Math.floor(Date.now() / 1000);
@@ -76,6 +95,45 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
   };
   convs.appendMessage(peerPubkeyHex, localMsg);
 
+  // ── Спроба SEALED (анонімно до релея) ──
+  // Умови: маю delivery-токен контакта І знаю його домашній релей.
+  // Будь-яка осічка нижче -> тихий fallback на v1. Доставка важливіша
+  // за анонімність: гірший випадок = як було раніше.
+  try {
+    const peerToken = sealedTokens.getPeerToken(peerPubkeyHex);
+    const relayBase = peerToken ? await peerHomeRelayBase(peerPubkeyHex) : null;
+    if (peerToken && relayBase) {
+      const sealed = crypto.sealedEncrypt({
+        seed, myPubkeyHex, peerPubkeyHex,
+        payload: { kind: 'text', text: plaintext },
+        to: peerPubkeyHex, ts,
+      });
+      const ack = await api.sendSealedEnvelope(relayBase, {
+        to: peerPubkeyHex,
+        ts,
+        ttl: ttlSeconds,
+        blob: sealed.blobB64,
+        delivery_token: peerToken,
+        delete_key_hash: sealed.deleteKeyHashHex,
+      });
+      convs.updateMessage(peerPubkeyHex, localMsg.id, {
+        envelope_id: ack.envelope_id,
+        status: 'sent',
+        sealed: true,
+        // delete-ключ тримаємо локально — знадобиться для видалення
+        sealed_delete_key: sealed.deleteKeyHex,
+        sealed_relay: relayBase,
+        expires_at: ack.expires_at || (ts + ttlSeconds),
+      });
+      return { ...localMsg, envelope_id: ack.envelope_id, status: 'sent', sealed: true };
+    }
+  } catch (e) {
+    // Sealed не вдався (старий релей одержувача, мережа, токен застарів)
+    // -> мовчки йдемо у v1 нижче. Це не помилка для користувача.
+    console.warn('sealed send failed, falling back to v1:', e?.message || e);
+  }
+
+  // ── Звичайний v1 (як було) ──
   try {
     const ack = await api.sendEnvelope({
       from: myPubkeyHex,
@@ -365,6 +423,55 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     });
   }
 
+  // ── SEALED DM envelope ──────────────────────────────────
+  // Релей не знає відправника (from=""), тому особа з'являється лише
+  // ПІСЛЯ розшифровки ефемерним ключем + перевірки внутрішнього
+  // підпису. Окрема гілка перед звичайним DM.
+  if (envMeta.sealed) {
+    let sealedBlobBytes;
+    try {
+      sealedBlobBytes = await api.fetchBlob(envelopeId);
+    } catch (e) {
+      console.warn('fetchBlob (sealed) failed:', e);
+      return null;
+    }
+    let opened;
+    try {
+      opened = crypto.sealedDecrypt({
+        seed, myPubkeyHex,
+        blobB64: crypto.bytesToBase64(sealedBlobBytes),
+        to: myPubkeyHex,
+      });
+    } catch (e) {
+      // Підроблений підпис / чужий конверт / биті байти — тихо кидаємо.
+      console.warn('sealed decrypt/verify failed:', e?.message || e);
+      return null;
+    }
+    const sealedPeer = opened.senderPubkeyHex;
+
+    // Блокліст застосовуємо ПІСЛЯ розкриття особи (раніше ми її не знали).
+    const cMod = await import('./contacts.js');
+    if (cMod.isBlocked(sealedPeer)) return null;
+    if (convs.hasEnvelope(sealedPeer, envelopeId)) return null;
+
+    const sealedPayload = opened.payload || {};
+    const sealedText = typeof sealedPayload.text === 'string' ? sealedPayload.text : '';
+    const msg = {
+      id: `recv-${envelopeId.slice(0, 16)}`,
+      envelope_id: envelopeId,
+      direction: 'in',
+      peer_pubkey: sealedPeer,
+      text: sealedText,
+      ts: opened.ts || envMeta.timestamp || envMeta.ts || Math.floor(Date.now() / 1000),
+      ttl: envMeta.ttl_seconds || envMeta.ttl,
+      expires_at: envMeta.expires_at,
+      status: 'received',
+      sealed: true,
+    };
+    convs.appendMessage(sealedPeer, msg);
+    return msg;
+  }
+
   // ── DM envelope ─────────────────────────────────────────
   const peer = envMeta.sender_pubkey_hex || envMeta.from_pubkey || envMeta.from;
   const senderUsername = envMeta.from_username || null;
@@ -454,6 +561,14 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       }
       return null;
     }
+    if (control.kind === 'sealed_token') {
+      // Контакт надіслав мені свій delivery-токен — зберігаємо, щоб
+      // надалі слати ЙОМУ sealed-конверти. Невидиме повідомлення.
+      if (typeof control.token === 'string' && /^[0-9a-f]{64}$/.test(control.token)) {
+        sealedTokens.setPeerToken(peer, control.token);
+      }
+      return null;
+    }
     if (control.kind === 'reaction') {
       // Reaction on a DM we sent or received. Look up the target by
       // envelope_id; if expired or never present locally, drop quietly.
@@ -525,4 +640,38 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   };
   convs.appendMessage(peer, msg);
   return msg;
+}
+
+
+/**
+ * Надіслати контакту МІЙ delivery-токен (невидиме control-повідомлення),
+ * щоб він міг слати мені sealed-конверти. Викликається при відкритті
+ * чату; шле не частіше ніж раз на 24 год на контакта (щоб не спамити
+ * службовими конвертами при кожному відкритті).
+ *
+ * Тихо no-op, якщо релей не підтримує sealed (мій токен = null).
+ */
+const SEALED_TOKEN_SENT_KEY = 'morok.sealed.token_sent.v1';
+
+export async function maybeShareSealedToken({ seed, myPubkeyHex, peerPubkeyHex }) {
+  try {
+    const myToken = await sealedTokens.ensureMyToken();
+    if (!myToken) return;  // старий релей — sealed недоступний
+
+    let sentMap = {};
+    try { sentMap = JSON.parse(localStorage.getItem(SEALED_TOKEN_SENT_KEY) || '{}'); } catch {}
+    const last = sentMap[peerPubkeyHex] || 0;
+    const now = Date.now();
+    if (now - last < 24 * 3600 * 1000) return;  // вже слали недавно
+
+    await sendDM({
+      seed, myPubkeyHex, peerPubkeyHex,
+      plaintext: JSON.stringify({ kind: 'sealed_token', token: myToken }),
+      ttlSeconds: 7 * 24 * 3600,
+    });
+    sentMap[peerPubkeyHex] = now;
+    try { localStorage.setItem(SEALED_TOKEN_SENT_KEY, JSON.stringify(sentMap)); } catch {}
+  } catch (e) {
+    console.warn('maybeShareSealedToken failed (non-fatal):', e?.message || e);
+  }
 }

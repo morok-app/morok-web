@@ -93,7 +93,13 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     let failed = 0;
     for (const m of toDelete) {
       try {
-        if (m.envelope_id) await api.deleteDMMessage(m.envelope_id, peerPubkey, seed);
+        if (m.sealed && m.sealed_delete_key && m.sealed_relay && m.envelope_id) {
+          // Sealed-повідомлення видаляється на релеї одержувача через
+          // delete-ключ (звичайного підписаного деліта в нього немає).
+          await api.deleteSealedEnvelope(m.sealed_relay, m.envelope_id, m.sealed_delete_key);
+        } else if (m.envelope_id) {
+          await api.deleteDMMessage(m.envelope_id, peerPubkey, seed);
+        }
         convs.deleteMessage(peerPubkey, m.id);
       } catch { failed += 1; }
     }
@@ -125,6 +131,16 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     const refreshed = convs.getConversation(peerPubkey);
     setConv(refreshed);
   }, [peerPubkey]);
+
+  // Поділитися своїм sealed-токеном з цим контактом (раз на 24 год,
+  // тротлінг усередині). Дає змогу контакту слати мені анонімні
+  // конверти. Тихо no-op на старому релеї. Fire-and-forget.
+  useEffect(() => {
+    const seed = getSeedBytes();
+    if (!seed || !myPubkeyHex || !peerPubkey) return;
+    msgs.maybeShareSealedToken({ seed, myPubkeyHex, peerPubkeyHex: peerPubkey })
+      .catch(() => {});
+  }, [peerPubkey, myPubkeyHex]);
 
   // Load mute state (re-checks whenever the peer username changes — that's
   // our mute key for DMs since push payloads identify the sender by username).
@@ -283,7 +299,11 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     }
 
     try {
-      await api.deleteDMMessage(msg.envelope_id, peerPubkey, seed);
+      if (msg.sealed && msg.sealed_delete_key && msg.sealed_relay && msg.envelope_id) {
+        await api.deleteSealedEnvelope(msg.sealed_relay, msg.envelope_id, msg.sealed_delete_key);
+      } else {
+        await api.deleteDMMessage(msg.envelope_id, peerPubkey, seed);
+      }
       convs.deleteMessage(peerPubkey, msg.id);
       setConv(convs.getConversation(peerPubkey));
     } catch (e) {

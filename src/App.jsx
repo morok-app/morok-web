@@ -188,6 +188,13 @@ export default function App() {
     // (Firebase іноді його ротує). Fire-and-forget, no-op у вебі.
     nativePush.refreshIfEnabled().catch(() => {});
 
+    // Sealed Sender: реєструємо хеш свого delivery-токена на релеї,
+    // щоб приймати анонімні конверти. Ідемпотентно, no-op на старому
+    // релеї. Fire-and-forget — не блокує логін.
+    import('./lib/sealed_tokens.js')
+      .then((m) => m.ensureMyToken())
+      .catch(() => {});
+
     // Auto check-in for any armed DMS (fire-and-forget — don't block login)
     dms.checkInAllArmed().then((r) => {
       if (r.checkedIn > 0) console.info('DMS auto check-in:', r);

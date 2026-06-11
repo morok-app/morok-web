@@ -250,6 +250,57 @@ export async function pushUnsubscribeNative(body) {
   return http('POST', '/api/v1/push/unsubscribe-native', { body, auth: true });
 }
 
+// ─── Sealed Sender ───────────────────────────────────────────
+
+/** Реєстрація sha256-хеша мого delivery-токена на МОЄМУ релеї. */
+export async function registerInboxToken(body) {
+  return http('POST', '/api/v1/inbox-token', { body, auth: true });
+}
+
+/**
+ * Відправка sealed-конверта НАПРЯМУ на домашній релей одержувача.
+ * Свідомо БЕЗ автентифікації і БЕЗ http()-хелпера: жодних session-
+ * заголовків, жодних слідів нашої особи. relayBase — як-от
+ * "https://relay2.morok.app" (з lookup одержувача).
+ */
+export async function sendSealedEnvelope(relayBase, body) {
+  const base = String(relayBase || '').replace(/\/+$/, '');
+  const res = await fetch(`${base}/api/v1/messages/sealed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let detail = `http_${res.status}`;
+    try { detail = (await res.json())?.detail || detail; } catch { /* ok */ }
+    const err = new Error(detail);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+/** Видалення sealed-конверта пред'явленням delete-ключа (без auth). */
+export async function deleteSealedEnvelope(relayBase, envelopeId, deleteKeyHex) {
+  const base = String(relayBase || '').replace(/\/+$/, '');
+  const res = await fetch(
+    `${base}/api/v1/messages/sealed/${envelopeId}/delete`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ delete_key: deleteKeyHex }),
+    },
+  );
+  if (!res.ok) {
+    let detail = `http_${res.status}`;
+    try { detail = (await res.json())?.detail || detail; } catch { /* ok */ }
+    const err = new Error(detail);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
 /**
  * Sender-initiated server-side delete of a DM.
  * Removes the message from the recipient's inbox AND pushes a delete
