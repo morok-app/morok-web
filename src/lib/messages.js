@@ -667,7 +667,9 @@ export async function maybeShareSealedToken({ seed, myPubkeyHex, peerPubkeyHex }
     await sendDM({
       seed, myPubkeyHex, peerPubkeyHex,
       plaintext: JSON.stringify({ kind: 'sealed_token', token: myToken }),
-      ttlSeconds: 7 * 24 * 3600,
+      // Релей обмежує TTL конверта добою (le=86400). Токен оновлюється
+      // при кожному відкритті чату, тож доба — більш ніж достатньо.
+      ttlSeconds: 86400,
     });
     sentMap[peerPubkeyHex] = now;
     try { localStorage.setItem(SEALED_TOKEN_SENT_KEY, JSON.stringify(sentMap)); } catch {}
