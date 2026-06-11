@@ -1154,8 +1154,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           <button
             onClick={() => setLightboxImage(null)}
             style={{
-              position: 'absolute', top: 16, right: 16,
-              width: 36, height: 36, borderRadius: '50%',
+              // Натив: fixed-оверлей ігнорує паддінги body, тому без
+              // інсета хрестик залазить під статус-бар.
+              position: 'absolute',
+              top: 'calc(16px + var(--inset-top, 0px))',
+              right: 16,
+              width: 44, height: 44, borderRadius: '50%',
               background: 'rgba(255,255,255,0.1)',
               border: '1px solid rgba(255,255,255,0.15)',
               color: '#F5F5F7', cursor: 'pointer',
