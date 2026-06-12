@@ -741,8 +741,8 @@ export async function leaveGroup(groupId, myPubkeyHex) {
   gstore.removeGroup(groupId);
 }
 
-export async function deleteGroupCompletely(groupId) {
-  await api.deleteGroup(groupId);
+export async function deleteGroupCompletely(groupId, seed = null) {
+  await api.deleteGroup(groupId, seed);
   gstore.removeGroup(groupId);
 }
 

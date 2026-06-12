@@ -283,8 +283,21 @@ export default function ChatsList({ onNavigate }) {
       try {
         if (isAdmin) {
           // DELETE /groups/{id} — only the creator may do this; relay
-          // tears down membership for everyone.
-          await api.deleteGroup(item.id);
+          // tears down membership for everyone. Pass seed so the relay
+          // can federate group_gone to members on other relays (signed).
+          let seed = null;
+          try {
+            const vault = await import('../lib/vault.js');
+            seed = vault.getUnlockedSeed?.() || null;
+            if (!seed) {
+              const id = store.loadIdentity();
+              if (id && !id.encrypted && id.seed_hex) {
+                const { hexToBytes } = await import('../lib/crypto.js');
+                seed = hexToBytes(id.seed_hex);
+              }
+            }
+          } catch { /* seed недоступний -> deleteGroup піде без підпису */ }
+          await api.deleteGroup(item.id, seed);
         } else {
           // Leave: remove myself from members.
           await api.removeGroupMember(item.id, myPubkey);

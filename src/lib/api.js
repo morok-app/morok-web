@@ -451,8 +451,26 @@ export async function getGroupInfo(groupId) {
   return http('GET', `/api/v1/groups/${groupId}`, { auth: true });
 }
 
-export async function deleteGroup(groupId) {
-  return http('DELETE', `/api/v1/groups/${groupId}`, { auth: true });
+export async function deleteGroup(groupId, seed = null) {
+  // Без seed — старий шлях: видалення тільки тут, локальні члени
+  // дізнаються по WS, віддалені — ледаче (404 при наступному відкритті).
+  // З seed — підписуємо намір "group_gone", релей-хост форварднe його на
+  // релеї віддалених членів, де підпис ПЕРЕВІРЯЄТЬСЯ незалежно (проти
+  // підробки скомпрометованим хостом). Миттєве зникнення на всіх релеях.
+  if (!seed) {
+    return http('DELETE', `/api/v1/groups/${groupId}`, { auth: true });
+  }
+  const ts = Math.floor(Date.now() / 1000);
+  // Payload мусить збігатися з релейним _verify_delete_sig для group_gone:
+  // {kind:'group_gone', ts, group_id}. canonicalJson сортує ключі.
+  const message = canonicalJson({
+    group_id: groupId,
+    kind: 'group_gone',
+    ts,
+  });
+  const gone_signature_hex = sign(seed, message);
+  const qs = `?gone_signature_hex=${gone_signature_hex}&gone_ts=${ts}`;
+  return http('DELETE', `/api/v1/groups/${groupId}${qs}`, { auth: true });
 }
 
 export async function addGroupMember(groupId, pubkeyHex) {

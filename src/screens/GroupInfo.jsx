@@ -131,7 +131,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
     if (!confirm('Видалити групу для всіх? Це незворотньо.')) return;
     setBusy(true);
     try {
-      await groups.deleteGroupCompletely(groupId);
+      await groups.deleteGroupCompletely(groupId, getSeedBytes());
       onNavigate('chats');
     } catch (e) {
       setMessage('Помилка: ' + e.message);
