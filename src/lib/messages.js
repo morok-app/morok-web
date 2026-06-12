@@ -47,6 +47,46 @@ async function peerHomeRelayBase(peerPubkeyHex) {
   }
 }
 
+/**
+ * Спроба надіслати payload як SEALED-конверт (анонімно до релея).
+ *
+ * Спільне ядро для всіх типів повідомлень (text/image/voice/reaction).
+ * Повертає { envelope_id, expires_at, deleteKeyHex } при успіху або
+ * null при БУДЬ-ЯКІЙ осічці (нема токена контакта / не знаю його релей /
+ * мережа / релей одержувача старий). null => викликач тихо йде своїм
+ * звичайним v1-шляхом. Доставка важливіша за анонімність.
+ */
+async function trySealedSend({ seed, myPubkeyHex, peerPubkeyHex, payload, ts, ttlSeconds }) {
+  try {
+    const peerToken = sealedTokens.getPeerToken(peerPubkeyHex);
+    if (!peerToken) return null;
+    const relayBase = await peerHomeRelayBase(peerPubkeyHex);
+    if (!relayBase) return null;
+
+    const sealed = crypto.sealedEncrypt({
+      seed, myPubkeyHex, peerPubkeyHex,
+      payload, to: peerPubkeyHex, ts,
+    });
+    const ack = await api.sendSealedEnvelope(relayBase, {
+      to: peerPubkeyHex,
+      ts,
+      ttl: ttlSeconds,
+      blob: sealed.blobB64,
+      delivery_token: peerToken,
+      delete_key_hash: sealed.deleteKeyHashHex,
+    });
+    return {
+      envelope_id: ack.envelope_id,
+      expires_at: ack.expires_at || (ts + ttlSeconds),
+      deleteKeyHex: sealed.deleteKeyHex,
+      relayBase,
+    };
+  } catch (e) {
+    console.warn('sealed send failed, falling back to v1:', e?.message || e);
+    return null;
+  }
+}
+
 export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds }) {
   const ts = Math.floor(Date.now() / 1000);
   const blob = crypto.encryptForPeer({
@@ -96,41 +136,22 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
   convs.appendMessage(peerPubkeyHex, localMsg);
 
   // ── Спроба SEALED (анонімно до релея) ──
-  // Умови: маю delivery-токен контакта І знаю його домашній релей.
-  // Будь-яка осічка нижче -> тихий fallback на v1. Доставка важливіша
-  // за анонімність: гірший випадок = як було раніше.
-  try {
-    const peerToken = sealedTokens.getPeerToken(peerPubkeyHex);
-    const relayBase = peerToken ? await peerHomeRelayBase(peerPubkeyHex) : null;
-    if (peerToken && relayBase) {
-      const sealed = crypto.sealedEncrypt({
-        seed, myPubkeyHex, peerPubkeyHex,
-        payload: { kind: 'text', text: plaintext },
-        to: peerPubkeyHex, ts,
-      });
-      const ack = await api.sendSealedEnvelope(relayBase, {
-        to: peerPubkeyHex,
-        ts,
-        ttl: ttlSeconds,
-        blob: sealed.blobB64,
-        delivery_token: peerToken,
-        delete_key_hash: sealed.deleteKeyHashHex,
-      });
-      convs.updateMessage(peerPubkeyHex, localMsg.id, {
-        envelope_id: ack.envelope_id,
-        status: 'sent',
-        sealed: true,
-        // delete-ключ тримаємо локально — знадобиться для видалення
-        sealed_delete_key: sealed.deleteKeyHex,
-        sealed_relay: relayBase,
-        expires_at: ack.expires_at || (ts + ttlSeconds),
-      });
-      return { ...localMsg, envelope_id: ack.envelope_id, status: 'sent', sealed: true };
-    }
-  } catch (e) {
-    // Sealed не вдався (старий релей одержувача, мережа, токен застарів)
-    // -> мовчки йдемо у v1 нижче. Це не помилка для користувача.
-    console.warn('sealed send failed, falling back to v1:', e?.message || e);
+  // Доставка важливіша за анонімність: null -> тихий fallback на v1.
+  const sealedRes = await trySealedSend({
+    seed, myPubkeyHex, peerPubkeyHex,
+    payload: { kind: 'text', text: plaintext },
+    ts, ttlSeconds,
+  });
+  if (sealedRes) {
+    convs.updateMessage(peerPubkeyHex, localMsg.id, {
+      envelope_id: sealedRes.envelope_id,
+      status: 'sent',
+      sealed: true,
+      sealed_delete_key: sealedRes.deleteKeyHex,
+      sealed_relay: sealedRes.relayBase,
+      expires_at: sealedRes.expires_at,
+    });
+    return { ...localMsg, envelope_id: sealedRes.envelope_id, status: 'sent', sealed: true };
   }
 
   // ── Звичайний v1 (як було) ──
@@ -220,6 +241,31 @@ export async function sendDMImage({
     status: 'sending',
   };
   convs.appendMessage(peerPubkeyHex, localMsg);
+
+  // ── Спроба SEALED ──
+  const sealedRes = await trySealedSend({
+    seed, myPubkeyHex, peerPubkeyHex,
+    payload: {
+      kind: 'image',
+      data_b64: compressed.data_b64,
+      mime: compressed.mime,
+      w: compressed.w,
+      h: compressed.h,
+      caption: caption || '',
+    },
+    ts, ttlSeconds,
+  });
+  if (sealedRes) {
+    convs.updateMessage(peerPubkeyHex, localMsg.id, {
+      envelope_id: sealedRes.envelope_id,
+      status: 'sent',
+      sealed: true,
+      sealed_delete_key: sealedRes.deleteKeyHex,
+      sealed_relay: sealedRes.relayBase,
+      expires_at: sealedRes.expires_at,
+    });
+    return { ...localMsg, envelope_id: sealedRes.envelope_id, status: 'sent', sealed: true };
+  }
 
   try {
     const ack = await api.sendEnvelope({
@@ -314,6 +360,29 @@ export async function sendDMVoice({
   };
   convs.appendMessage(peerPubkeyHex, localMsg);
 
+  // ── Спроба SEALED ──
+  const sealedRes = await trySealedSend({
+    seed, myPubkeyHex, peerPubkeyHex,
+    payload: {
+      kind: 'voice',
+      data_b64,
+      mime: mimeType || 'audio/webm',
+      duration_ms: Math.max(0, Math.floor(durationMs || 0)),
+    },
+    ts, ttlSeconds,
+  });
+  if (sealedRes) {
+    convs.updateMessage(peerPubkeyHex, localMsg.id, {
+      envelope_id: sealedRes.envelope_id,
+      status: 'sent',
+      sealed: true,
+      sealed_delete_key: sealedRes.deleteKeyHex,
+      sealed_relay: sealedRes.relayBase,
+      expires_at: sealedRes.expires_at,
+    });
+    return { ...localMsg, envelope_id: sealedRes.envelope_id, status: 'sent', sealed: true };
+  }
+
   try {
     const ack = await api.sendEnvelope({
       from: myPubkeyHex,
@@ -383,6 +452,21 @@ export async function sendDMReaction({
     ttl: ttlSeconds,
     blobB64: blob,
   });
+
+  // ── Спроба SEALED ──
+  const sealedRes = await trySealedSend({
+    seed, myPubkeyHex, peerPubkeyHex,
+    payload: {
+      kind: 'reaction',
+      target_envelope_id: targetEnvelopeId,
+      emoji: op === 'add' ? emoji : '',
+      op,
+    },
+    ts, ttlSeconds,
+  });
+  if (sealedRes) {
+    return { envelope_id: sealedRes.envelope_id, status: 'sent', control: true, sealed: true };
+  }
 
   try {
     const ack = await api.sendEnvelope({
@@ -455,19 +539,51 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     if (convs.hasEnvelope(sealedPeer, envelopeId)) return null;
 
     const sealedPayload = opened.payload || {};
-    const sealedText = typeof sealedPayload.text === 'string' ? sealedPayload.text : '';
+    const sealedKind = typeof sealedPayload.kind === 'string' ? sealedPayload.kind : 'text';
+    const sealedTs = opened.ts || envMeta.timestamp || envMeta.ts || Math.floor(Date.now() / 1000);
+
+    // ── Реакція: не повідомлення, а зміна реакції на існуючому ──
+    if (sealedKind === 'reaction') {
+      const target = sealedPayload.target_envelope_id;
+      const op = sealedPayload.op === 'remove' ? 'remove' : 'add';
+      const emoji = typeof sealedPayload.emoji === 'string' ? sealedPayload.emoji : '';
+      if (target) convs.applyReaction(sealedPeer, target, emoji, op, sealedPeer);
+      return null;
+    }
+
+    // ── Контент: text / image / voice ──
     const msg = {
       id: `recv-${envelopeId.slice(0, 16)}`,
       envelope_id: envelopeId,
       direction: 'in',
       peer_pubkey: sealedPeer,
-      text: sealedText,
-      ts: opened.ts || envMeta.timestamp || envMeta.ts || Math.floor(Date.now() / 1000),
+      text: '',
+      ts: sealedTs,
       ttl: envMeta.ttl_seconds || envMeta.ttl,
       expires_at: envMeta.expires_at,
       status: 'received',
       sealed: true,
     };
+
+    if (sealedKind === 'image') {
+      msg.text = typeof sealedPayload.caption === 'string' ? sealedPayload.caption : '';
+      msg.image = {
+        data_b64: sealedPayload.data_b64,
+        mime: sealedPayload.mime || 'image/jpeg',
+        w: sealedPayload.w,
+        h: sealedPayload.h,
+      };
+    } else if (sealedKind === 'voice') {
+      msg.voice = {
+        data_b64: sealedPayload.data_b64,
+        mime: sealedPayload.mime || 'audio/webm',
+        duration_ms: Math.max(0, Math.floor(sealedPayload.duration_ms || 0)),
+      };
+    } else {
+      // text (default)
+      msg.text = typeof sealedPayload.text === 'string' ? sealedPayload.text : '';
+    }
+
     convs.appendMessage(sealedPeer, msg);
     return msg;
   }
