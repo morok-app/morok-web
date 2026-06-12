@@ -219,7 +219,20 @@ function canonicalString(obj) {
 }
 
 function sealedSigMessage(to, ts, payload) {
+  // LEGACY (v1) формат підпису — без epk. Лишається тільки для
+  // ПЕРЕВІРКИ старих конвертів у польоті; нові конверти НЕ підписуються
+  // цим форматом. Прибрати через кілька релізів після повного розкату.
   return utf8(canonicalString({ to, ts, payload }));
+}
+
+function sealedSigMessageV2(epkHex, to, ts, payload) {
+  // v2: підпис додатково покриває ефемерний публічний ключ конверта.
+  // Без epk внутрішній підпис автентифікує лише (to, ts, payload) —
+  // тобто "хтось колись підписав цей текст для цього одержувача", а не
+  // "цей конкретний шифротекст". Прив'язка до epk жорстко зв'язує
+  // підпис саме з цим конвертом і відсікає re-wrap-сценарії, де чужий
+  // підписаний payload пакується в новий конверт.
+  return utf8(canonicalString({ epk: epkHex, to, ts, payload }));
 }
 
 export function sealedEncrypt({ seed, myPubkeyHex, peerPubkeyHex, payload, to, ts }) {
@@ -230,8 +243,9 @@ export function sealedEncrypt({ seed, myPubkeyHex, peerPubkeyHex, payload, to, t
   const shared = x25519.getSharedSecret(ephPriv, peerX25519Pub);
   const key = hkdf(sha256, shared, ephPub, SEALED_INFO, 32);
 
-  const sig = sign(seed, sealedSigMessage(to, ts, payload)); // sign() вже повертає hex
-  const inner = canonicalString({ sender: myPubkeyHex, ts, payload, sig });
+  // v2: підпис прив'язаний до epk цього конверта (див. sealedSigMessageV2)
+  const sig = sign(seed, sealedSigMessageV2(bytesToHex(ephPub), to, ts, payload)); // sign() вже повертає hex
+  const inner = canonicalString({ sender: myPubkeyHex, ts, payload, sig, v: 2 });
 
   const nonce = randomBytes(24);
   const ct = xchacha20poly1305(key, nonce).encrypt(utf8(inner));
@@ -263,11 +277,24 @@ export function sealedDecrypt({ seed, myPubkeyHex, blobB64, to }) {
   if (!inner.sender || !inner.sig || inner.payload === undefined || inner.ts === undefined) {
     throw new Error('sealed inner malformed');
   }
-  const ok = ed25519.verify(
-    hexToBytes(inner.sig),
-    sealedSigMessage(to, inner.ts, inner.payload),
-    hexToBytes(inner.sender),
+  const sigBytes = hexToBytes(inner.sig);
+  const senderBytes = hexToBytes(inner.sender);
+  // v2 (поточний формат, з epk у підписі); конверти з inner.v === 2
+  // МУСЯТЬ пройти саме v2 — для них legacy-fallback не застосовується,
+  // інакше прибирання epk із підпису не давало б нічого.
+  let ok = ed25519.verify(
+    sigBytes,
+    sealedSigMessageV2(bytesToHex(ephPub), to, inner.ts, inner.payload),
+    senderBytes,
   );
+  // Legacy v1 (конверти, відправлені до апдейту, ще живі до 30 днів TTL).
+  if (!ok && inner.v === undefined) {
+    ok = ed25519.verify(
+      sigBytes,
+      sealedSigMessage(to, inner.ts, inner.payload),
+      senderBytes,
+    );
+  }
   if (!ok) throw new Error('sealed signature invalid');
   return { senderPubkeyHex: inner.sender, ts: inner.ts, payload: inner.payload };
 }
