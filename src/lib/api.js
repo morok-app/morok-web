@@ -257,6 +257,10 @@ export async function registerInboxToken(body) {
   return http('POST', '/api/v1/inbox-token', { body, auth: true });
 }
 
+export async function revokeInboxToken(body) {
+  return http('POST', '/api/v1/inbox-token/revoke', { body, auth: true });
+}
+
 /**
  * Відправка sealed-конверта НАПРЯМУ на домашній релей одержувача.
  * Свідомо БЕЗ автентифікації і БЕЗ http()-хелпера: жодних session-

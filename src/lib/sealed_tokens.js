@@ -1,83 +1,124 @@
 /**
- * Керування delivery-токенами Sealed Sender.
+ * Per-contact delivery-токени Sealed Sender.
  *
- * МІЙ токен: секрет, який я генерую, реєструю на СВОЄМУ релеї (лише
- * sha256) і роздаю контактам по E2EE. Контакт, маючи його, зможе
- * слати мені sealed-конверти (релей перевіряє хеш, не знаючи хто шле).
+ * МОДЕЛЬ (максимальна приватність — релей "тупий"):
+ *   - Для КОЖНОГО контакта я генерую ОКРЕМИЙ свій токен і реєструю його
+ *     sha256 на своєму релеї. Релей зберігає лише НАБІР валідних хешів —
+ *     він НЕ знає, який хеш якому контакту належить. Прив'язка
+ *     контакт↔токен живе ТІЛЬКИ тут, локально.
+ *   - Відкликання одного контакта = unregister його хеша на релеї +
+ *     забути локально. Решта контактів недоторкані (на відміну від
+ *     старої моделі "один токен на всіх", де ротація била по всіх).
+ *   - Релей бачить "пред'явлено валідний хеш", ніколи "контакт X шле".
  *
- * ТОКЕНИ КОНТАКТІВ: секрети, які мені дали інші — щоб слати sealed ЇМ.
- * Зберігаються локально, прив'язані до pubkey контакта.
+ * MIGRATION: старий єдиний токен (my_token.v1) лишається валідним як
+ * legacy — поки конкретний контакт не отримає персональний. Нічого не
+ * ламається: існуючі sealed-розмови продовжують працювати.
  *
- * Усе локально + один POST хеша на релей. Нічого не ламає: поки токенів
- * нема, клієнт просто шле звичайні v1-конверти.
+ * ТОКЕНИ КОНТАКТІВ (щоб слати sealed ЇМ) — без змін: мапа peer→token.
  */
 import * as crypto from './crypto.js';
 import * as api from './api.js';
 
-const MY_TOKEN_KEY = 'morok.sealed.my_token.v1';       // мій секрет (hex)
-const PEER_TOKENS_KEY = 'morok.sealed.peer_tokens.v1'; // { pubkeyHex: tokenHex }
+const LEGACY_MY_TOKEN_KEY = 'morok.sealed.my_token.v1';   // старий єдиний (міграція)
+const MY_TOKENS_KEY = 'morok.sealed.my_tokens.v2';        // { peerHex: tokenHex } — мій токен ДЛЯ контакта
+const PEER_TOKENS_KEY = 'morok.sealed.peer_tokens.v1';    // { peerHex: tokenHex } — токен контакта ДЛЯ МЕНЕ
 
-// ── Мій токен ──────────────────────────────────────────────
-
-export function getMyToken() {
-  try { return localStorage.getItem(MY_TOKEN_KEY) || null; } catch { return null; }
+function tokenHash(tokenHex) {
+  return crypto.bytesToHex(crypto.sha256Bytes(crypto.hexToBytes(tokenHex)));
 }
 
-function setMyToken(hex) {
-  try { localStorage.setItem(MY_TOKEN_KEY, hex); } catch { /* ignore */ }
+// ── Мої токени (per-contact) ───────────────────────────────
+
+function loadMyTokens() {
+  try { return JSON.parse(localStorage.getItem(MY_TOKENS_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveMyTokens(map) {
+  try { localStorage.setItem(MY_TOKENS_KEY, JSON.stringify(map)); }
+  catch { /* ignore */ }
+}
+
+function getLegacyMyToken() {
+  try { return localStorage.getItem(LEGACY_MY_TOKEN_KEY) || null; } catch { return null; }
 }
 
 /**
- * Переконатись, що мій токен існує і зареєстрований на релеї.
- * Ідемпотентно: якщо вже є — лише гарантує реєстрацію (дешевий POST).
+ * Мій персональний токен ДЛЯ конкретного контакта. Генерує і реєструє
+ * хеш на релеї, якщо ще нема. Це той токен, який я віддам контакту, щоб
+ * ВІН міг слати sealed МЕНІ.
+ *
  * Повертає токен (hex) або null, якщо релей не підтримує sealed
- * (старий relay -> тихо вимикаємось, v1 працює).
+ * (старий relay -> тихо вимикаємось у v1).
  */
-export async function ensureMyToken() {
-  let token = getMyToken();
+export async function ensureMyTokenFor(peerPubkeyHex) {
+  if (!peerPubkeyHex) return null;
+  const map = loadMyTokens();
+  let token = map[peerPubkeyHex];
   if (!token) {
     token = crypto.bytesToHex(crypto.randomBytesSafe(32));
-    setMyToken(token);
+    map[peerPubkeyHex] = token;
+    saveMyTokens(map);
   }
-  const tokenHash = crypto.bytesToHex(
-    crypto.sha256Bytes(crypto.hexToBytes(token)),
-  );
   try {
-    await api.registerInboxToken({ token_hash: tokenHash });
+    await api.registerInboxToken({ token_hash: tokenHash(token) });
     return token;
   } catch (e) {
-    // 404 = старий релей без sealed. Не помилка — просто немає фічі.
-    if (e?.status === 404) return null;
-    console.warn('registerInboxToken failed:', e);
+    if (e?.status === 404) return null; // старий релей без sealed
+    console.warn('registerInboxToken (per-contact) failed:', e);
     return null;
   }
 }
 
-/** Ротація мого токена (наприклад, при компрометації). */
-export async function rotateMyToken() {
-  const token = crypto.bytesToHex(crypto.randomBytesSafe(32));
-  setMyToken(token);
-  return ensureMyToken();
+/**
+ * Відкликати мій токен, виданий конкретному контакту: знести його хеш
+ * на релеї (контакт більше не зможе слати мені sealed) і забути
+ * локально. Інші контакти не зачеплені.
+ */
+export async function revokeMyTokenFor(peerPubkeyHex) {
+  const map = loadMyTokens();
+  const token = map[peerPubkeyHex];
+  if (token) {
+    try { await api.revokeInboxToken({ token_hash: tokenHash(token) }); }
+    catch (e) { console.warn('revokeInboxToken failed:', e); }
+    delete map[peerPubkeyHex];
+    saveMyTokens(map);
+  }
 }
 
-// ── Токени контактів ───────────────────────────────────────
+/**
+ * Міграція + сумісність зі старим кодом: при логіні гарантуємо, що
+ * legacy-токен (якщо був) лишається зареєстрованим, щоб діючі sealed-
+ * розмови не обірвались, поки контакти переходять на персональні токени.
+ * No-op, якщо legacy-токена нема.
+ */
+export async function ensureLegacyToken() {
+  const legacy = getLegacyMyToken();
+  if (!legacy) return null;
+  try {
+    await api.registerInboxToken({ token_hash: tokenHash(legacy) });
+    return legacy;
+  } catch (e) {
+    if (e?.status === 404) return null;
+    return null;
+  }
+}
+
+// ── Токени контактів (щоб слати sealed їм) — без змін ──────
 
 function loadPeerTokens() {
   try { return JSON.parse(localStorage.getItem(PEER_TOKENS_KEY) || '{}'); }
   catch { return {}; }
 }
-
 function savePeerTokens(map) {
   try { localStorage.setItem(PEER_TOKENS_KEY, JSON.stringify(map)); }
   catch { /* ignore */ }
 }
 
-/** Токен конкретного контакта (для відправки sealed йому) або null. */
 export function getPeerToken(peerPubkeyHex) {
   return loadPeerTokens()[peerPubkeyHex] || null;
 }
 
-/** Зберегти токен, який контакт надіслав мені. */
 export function setPeerToken(peerPubkeyHex, tokenHex) {
   if (!peerPubkeyHex || !tokenHex) return;
   const map = loadPeerTokens();
@@ -85,7 +126,6 @@ export function setPeerToken(peerPubkeyHex, tokenHex) {
   savePeerTokens(map);
 }
 
-/** Чи можу я слати sealed цьому контакту (маю його токен). */
 export function canSealTo(peerPubkeyHex) {
   return !!getPeerToken(peerPubkeyHex);
 }

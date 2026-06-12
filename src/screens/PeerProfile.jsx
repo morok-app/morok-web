@@ -126,6 +126,13 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
     setBlocked(true);
     setInContacts(false);   // blockPeer cascades a removeContact
     setConfirmBlock(false);
+
+    // Відкликати sealed-токен, виданий цьому контакту: тепер він
+    // криптографічно не зможе слати мені sealed (релей відкине його
+    // конверти). Інші контакти не зачеплені. Fire-and-forget.
+    import('../lib/sealed_tokens.js')
+      .then((m) => m.revokeMyTokenFor(peerPubkey))
+      .catch(() => {});
   }
 
   return (

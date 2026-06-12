@@ -771,7 +771,9 @@ const SEALED_TOKEN_SENT_KEY = 'morok.sealed.token_sent.v1';
 
 export async function maybeShareSealedToken({ seed, myPubkeyHex, peerPubkeyHex }) {
   try {
-    const myToken = await sealedTokens.ensureMyToken();
+    // Персональний токен ДЛЯ ЦЬОГО контакта (per-contact). Кожен контакт
+    // отримує свій — відкликання одного не чіпає інших.
+    const myToken = await sealedTokens.ensureMyTokenFor(peerPubkeyHex);
     if (!myToken) return;  // старий релей — sealed недоступний
 
     let sentMap = {};

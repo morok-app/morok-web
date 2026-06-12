@@ -189,10 +189,12 @@ export default function App() {
     nativePush.refreshIfEnabled().catch(() => {});
 
     // Sealed Sender: реєструємо хеш свого delivery-токена на релеї,
-    // щоб приймати анонімні конверти. Ідемпотентно, no-op на старому
-    // релеї. Fire-and-forget — не блокує логін.
+    // Per-contact токени створюються при відкритті кожного чату
+    // (maybeShareSealedToken). При логіні лише підтримуємо legacy-токен
+    // живим для діючих sealed-розмов (міграція). Ідемпотентно, no-op на
+    // старому релеї або якщо legacy-токена нема. Fire-and-forget.
     import('./lib/sealed_tokens.js')
-      .then((m) => m.ensureMyToken())
+      .then((m) => m.ensureLegacyToken())
       .catch(() => {});
 
     // Auto check-in for any armed DMS (fire-and-forget — don't block login)
