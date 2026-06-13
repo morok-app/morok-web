@@ -358,10 +358,9 @@ export default function ChatsList({ onNavigate }) {
           <div
             onClick={() => onNavigate('profile')}
             style={{
-              fontSize: 12.5, color: '#6B6B72',
+              fontSize: 13, color: '#6B6B72',
               marginTop: 6,
-              fontFamily: 'var(--mono, monospace)',
-              letterSpacing: '0.02em',
+              letterSpacing: '-0.01em',
               cursor: 'pointer',
               display: 'inline-block',
             }}

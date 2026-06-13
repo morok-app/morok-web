@@ -573,7 +573,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             color: '#F5F5F7', cursor: 'pointer', fontSize: 15,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>✕</button>
-          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#F5F5F7', fontFamily: 'JetBrains Mono, monospace' }}>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
             {selectedIds.size} вибрано
           </div>
           <button onClick={batchDeleteForMe} disabled={!selectedIds.size} style={{
@@ -1392,9 +1392,8 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
           </div>
           {subtitle && (
             <div style={{
-              fontSize: 11, color: '#6B6B72',
-              fontFamily: 'var(--mono, monospace)',
-              letterSpacing: '0.02em',
+              fontSize: 11.5, color: '#6B6B72',
+              letterSpacing: '-0.005em',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {subtitle}

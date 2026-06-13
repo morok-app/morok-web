@@ -305,8 +305,8 @@ export default function NewChat({ onNavigate, routeArg }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
-                    fontSize: 14, fontWeight: 600, color: '#F5F5F7',
-                    fontFamily: 'var(--mono, monospace)',
+                    fontSize: 14.5, fontWeight: 600, color: '#F5F5F7',
+                    letterSpacing: '-0.01em',
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
                     @{displayName}

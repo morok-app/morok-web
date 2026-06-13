@@ -63,11 +63,11 @@ export default function BurnerList({ onNavigate }) {
             Анонімна скринька
           </div>
           <div style={{
-            fontSize: 12.5, color: '#6B6B72',
-            marginTop: 8, fontFamily: 'var(--mono, monospace)',
-            letterSpacing: '0.02em',
+            fontSize: 13, color: '#6B6B72',
+            marginTop: 8,
+            letterSpacing: '-0.01em',
           }}>
-            {items === null ? '...' : `активних: ${activeCount}`}
+            {items === null ? '…' : `активних: ${activeCount}`}
           </div>
         </div>
         <button

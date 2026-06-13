@@ -534,3 +534,16 @@ body.is-native .lin-section-row:active { background: #1C1C23; }
   padding: 0 16px;
   margin: 18px 0 8px;
 }
+
+/* Linear UI-компоненти: інтерактив */
+.lin-icon-btn { transition: background .15s, transform .1s cubic-bezier(0.32,0.72,0,1); }
+body.is-native .lin-icon-btn:active { transform: scale(0.9); background: #22222A; }
+.lin-pill-btn { transition: background .15s, transform .1s; }
+body.is-native .lin-pill-btn:active { transform: scale(0.88); }
+.lin-primary-btn { transition: opacity .15s, transform .1s cubic-bezier(0.32,0.72,0,1); }
+body.is-native .lin-primary-btn:not(:disabled):active { transform: scale(0.97); opacity: 0.92; }
+@media (prefers-reduced-motion: reduce) {
+  body.is-native .lin-icon-btn:active,
+  body.is-native .lin-pill-btn:active,
+  body.is-native .lin-primary-btn:active { transform: none; }
+}

@@ -285,8 +285,7 @@ function ContactRow({ contact, onClick, onPressStart, onPressEnd }) {
           {displayName}
         </div>
         <div style={{
-          fontSize: 11.5, color: '#6B6B72',
-          fontFamily: 'var(--mono, monospace)',
+          fontSize: 12.5, color: '#6B6B72',
           marginTop: 2,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>

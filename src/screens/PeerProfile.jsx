@@ -185,10 +185,9 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
 
         {homeRelay && (
           <div style={{
-            fontSize: 12.5, color: '#8E8E99',
+            fontSize: 13, color: '#8E8E99',
             marginTop: 6,
-            fontFamily: 'var(--mono, monospace)',
-            letterSpacing: '0.02em',
+            letterSpacing: '-0.005em',
           }}>
             {homeRelay}
           </div>

@@ -125,9 +125,8 @@ export default function Profile({ onNavigate }) {
         }}>
           <Avatar username={username} pubkey={pubkeyHex} size={84} />
           <div style={{
-            fontSize: 22, fontWeight: 700, color: '#F5F5F7',
+            fontSize: 23, fontWeight: 700, color: '#F5F5F7',
             letterSpacing: '-0.02em',
-            fontFamily: 'var(--mono, monospace)',
           }}>
             {handle}
           </div>

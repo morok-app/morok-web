@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as dms from '../lib/dms.js';
 import * as burner from '../lib/burner.js';
 import * as contacts from '../lib/contacts.js';
+import { TopBar } from '../components/ui.jsx';
 
 export default function Tools({ onNavigate }) {
   const [dmsCount, setDmsCount] = useState(null);
@@ -33,40 +34,12 @@ export default function Tools({ onNavigate }) {
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
 
-      {/* HEADER */}
-      <div style={{
-        padding: '20px 20px 24px',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-      }}>
-        <div>
-          <div style={{
-            fontSize: 27, fontWeight: 800, letterSpacing: '-0.03em',
-            color: '#F5F5F7', lineHeight: 1,
-          }}>
-            Інструменти
-          </div>
-          <div style={{
-            fontSize: 13, color: '#6B6B72',
-            marginTop: 8, fontWeight: 500,
-          }}>
-            Додаткові функції для приватності
-          </div>
-        </div>
-        <button
-          onClick={() => onNavigate('chats')}
-          style={{
-            width: 36, height: 36, borderRadius: '50%',
-            background: '#16161B', border: '1px solid #232329',
-            color: '#A8A8B0', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
+      <TopBar
+        title="Інструменти"
+        subtitle="Додаткові функції для приватності"
+        onBack={() => onNavigate('chats')}
+        backIcon="close"
+      />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
 
