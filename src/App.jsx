@@ -11,6 +11,9 @@ import * as dms from './lib/dms.js';
 import { formatPeerHandle } from './lib/display.js';
 import { hexToBytes } from './lib/crypto.js';
 import { InboxClient } from './lib/inbox.js';
+import ScreenTransition from './components/ScreenTransition.jsx';
+import { resolveDirection } from './lib/nav_direction.js';
+import { installTapHaptics } from './lib/tap_haptics.js';
 
 import Splash from './screens/Splash.jsx';
 import Welcome from './screens/Welcome.jsx';
@@ -70,17 +73,25 @@ function broadcastInboxState(state) {
 export default function App() {
   const [route, setRoute] = useState('splash');
   const [routeArg, setRouteArg] = useState(null);
+  const [navDir, setNavDir] = useState('none');
+  const [screenKey, setScreenKey] = useState('splash');
   const [bootError, setBootError] = useState(null);
   const inboxRef = useRef(null);
   const [pendingSeed, setPendingSeed] = useState(null);
 
   useEffect(() => {
+    let lastHash = window.location.hash || '#splash';
     function parseHash() {
-      const raw = (window.location.hash || '#splash').slice(1);
+      const nextHash = window.location.hash || '#splash';
+      const raw = nextHash.slice(1);
       const [path, qs] = raw.split('?');
       const parts = path.split('/');
+      // Напрямок переходу для slide-анімації (чисто візуально).
+      setNavDir(resolveDirection(lastHash, nextHash));
+      lastHash = nextHash;
       setRoute(parts[0] || 'splash');
       setRouteArg(parts[1] || qs || null);
+      setScreenKey(raw || 'splash');
     }
     parseHash();
     window.addEventListener('hashchange', parseHash);
@@ -127,6 +138,9 @@ export default function App() {
   }, []);
 
   useEffect(() => () => inboxRef.current?.stop(), []);
+
+  // Глобальний тактильний відгук на тапи (no-op у вебі).
+  useEffect(() => { installTapHaptics(); }, []);
 
   // НАТИВ: у фоні WebView тримає WS живим хвилинами — релей вважає нас
   // онлайн і свідомо НЕ шле FCM-пуші ("ти ж і так бачиш по WS").
@@ -443,6 +457,7 @@ export default function App() {
     }
   }
 
+  function renderScreen() {
   switch (route) {
     case 'splash': return <Splash />;
     case 'welcome': return <Welcome onNavigate={navigate} />;
@@ -503,4 +518,11 @@ export default function App() {
     case 'tools': return <Tools onNavigate={navigate} />;
     default: return <Splash />;
   }
+  }
+
+  return (
+    <ScreenTransition routeKey={screenKey} direction={navDir}>
+      {renderScreen()}
+    </ScreenTransition>
+  );
 }

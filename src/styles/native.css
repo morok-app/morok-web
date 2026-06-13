@@ -83,3 +83,75 @@ body.is-native {
     Arial,
     sans-serif;
 }
+
+/* ====================================================================
+   НАТИВНЕ ВІДЧУТТЯ ДОТИКУ (тільки is-native)
+   --------------------------------------------------------------------
+   Три речі, що відрізняють "додаток" від "вебсторінки в рамці":
+   1. hover на тачі не існує — стани :hover "застрягають" після тапу,
+      бо палець не "відводиться" як курсор. Глушимо їх на нативі.
+   2. Миттєвий тактильний відгук: легке стиснення елемента під пальцем
+      ще ДО того, як відрендериться наступний екран. Це те, що мозок
+      читає як "живий" інтерфейс.
+   3. touch-action: manipulation прибирає 300ms затримку подвійного
+      тапу — натискання реагують одразу.
+   ==================================================================== */
+
+/* 1. Глушимо hover на нативі — лишаємо тільки :active. */
+@media (hover: none) {
+  .lin-chat-row:hover { background: transparent !important; }
+}
+
+/* 3. Прибрати tap-delay на всіх інтерактивних елементах. */
+body.is-native .lin-chat-row,
+body.is-native .btn,
+body.is-native .tab,
+body.is-native .topbar .back,
+body.is-native [role="button"],
+body.is-native button {
+  touch-action: manipulation;
+}
+
+/* 2. Press-scale: елемент злегка "вдавлюється" під пальцем.
+   transform-origin center + швидкий transition назад = пружинисто.
+   Списочні рядки тиснемо ледь-ледь (0.985) — сильніше виглядало б
+   неспокійно на довгому списку; кнопки трохи помітніше (0.96). */
+body.is-native .lin-chat-row {
+  transition: background-color .12s ease, transform .12s cubic-bezier(0.32,0.72,0,1);
+}
+body.is-native .lin-chat-row:active {
+  transform: scale(0.985);
+  background: var(--surface-2);
+}
+
+body.is-native .btn {
+  transition: opacity .15s, transform .1s cubic-bezier(0.32,0.72,0,1);
+}
+body.is-native .btn:not(:disabled):active {
+  transform: scale(0.96);
+  opacity: 0.9;
+}
+
+/* Іконкові кнопки в топбарі — кругле стиснення. */
+body.is-native .topbar .back:active {
+  transform: scale(0.9);
+  background: var(--surface-2);
+}
+
+/* Таби нижньої навігації — легке стиснення іконки. */
+body.is-native .bottom-nav .tab {
+  transition: transform .1s cubic-bezier(0.32,0.72,0,1);
+}
+body.is-native .bottom-nav .tab:active {
+  transform: scale(0.92);
+}
+
+/* Поважаємо системне "зменшити рух": вимикаємо press-scale. */
+@media (prefers-reduced-motion: reduce) {
+  body.is-native .lin-chat-row:active,
+  body.is-native .btn:not(:disabled):active,
+  body.is-native .topbar .back:active,
+  body.is-native .bottom-nav .tab:active {
+    transform: none;
+  }
+}
