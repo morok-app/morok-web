@@ -302,188 +302,139 @@ export default function Settings({ onNavigate }) {
       {/* ── ROWS ──────────────────────────────────────────────── */}
       <div style={{
         flex: 1, overflowY: 'auto',
-        padding: '0 4px',
+        padding: '0 14px',
       }}>
 
         {/* Group 1: Security */}
-        <SectionLabel>Захист</SectionLabel>
-
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
-          label="PIN-код"
-          value={hasPin ? 'Встановлено' : 'Не встановлено'}
-          valueColor={hasPin ? '#4ADE80' : '#FF6B7A'}
-          onClick={hasPin ? removePinClicked : setupPinClicked}
-          chevron
-        />
-
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>}
-          label="Бекап на сервері"
-          value={
-            serverBackup === null ? 'перевіряємо...' :
-            serverBackup.exists ? 'Активний' :
-            profile?.tier === 'free' ? 'Преміум' : 'Не створено'
-          }
-          valueColor={
-            serverBackup === null ? '#6B6B72' :
-            serverBackup?.exists ? '#4ADE80' :
-            profile?.tier === 'free' ? '#F59E0B' : '#A8A8B0'
-          }
-          onClick={
-            !serverBackup ? null :
-            serverBackup.exists ? deleteServerBackupClicked :
-            profile?.tier === 'free' ? null : createServerBackupClicked
-          }
-          chevron={!!serverBackup && profile?.tier !== 'free'}
-          disabled={busy}
-        />
-
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
-          label="Тільки контакти можуть писати"
-          value={contactsOnly ? 'Увімкнено' : 'Вимкнено'}
-          valueColor={contactsOnly ? '#4ADE80' : '#A8A8B0'}
-          onClick={toggleContactsOnly}
-          chevron
-        />
+        <div className="lin-group-label">Захист</div>
+        <div className="lin-section">
+          <LinRow
+            label="PIN-код"
+            value={hasPin ? 'Встановлено' : 'Не встановлено'}
+            valueColor={hasPin ? '#4ADE80' : '#FF6B7A'}
+            onClick={hasPin ? removePinClicked : setupPinClicked}
+          />
+          <LinRow
+            label="Бекап на сервері"
+            value={
+              serverBackup === null ? 'перевіряємо…' :
+              serverBackup.exists ? 'Активний' :
+              profile?.tier === 'free' ? 'Преміум' : 'Не створено'
+            }
+            valueColor={
+              serverBackup === null ? '#6B6B72' :
+              serverBackup?.exists ? '#4ADE80' :
+              profile?.tier === 'free' ? '#F59E0B' : '#A8A8B0'
+            }
+            onClick={
+              !serverBackup ? null :
+              serverBackup.exists ? deleteServerBackupClicked :
+              profile?.tier === 'free' ? null : createServerBackupClicked
+            }
+            chevron={!!serverBackup && profile?.tier !== 'free'}
+            disabled={busy}
+          />
+          <LinRow
+            label="Тільки контакти можуть писати"
+            value={contactsOnly ? 'Увімкнено' : 'Вимкнено'}
+            valueColor={contactsOnly ? '#4ADE80' : '#A8A8B0'}
+            onClick={toggleContactsOnly}
+          />
+        </div>
 
         {/* Group 2: App */}
-        <SectionLabel>Додаток</SectionLabel>
-
-        {!isNativeApp && <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>}
-          label="Сповіщення"
-          value={
-            !notif.isSupported() ? 'Недоступно' :
-            notifPermission === 'denied' ? 'Заблоковано' :
-            notifEnabled ? 'Увімкнено' : 'Вимкнено'
-          }
-          valueColor={
-            !notif.isSupported() || notifPermission === 'denied' ? '#FF6B7A' :
-            notifEnabled ? '#4ADE80' : '#6B6B72'
-          }
-          onClick={(notif.isSupported() && notifPermission !== 'denied') ? toggleNotifications : null}
-          chevron={notif.isSupported() && notifPermission !== 'denied'}
-        />}
-
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/><polyline points="22 10 11 21 6 16"/></svg>}
-          label="Підтвердження прочитання"
-          value={readReceiptsEnabled ? 'Увімкнено' : 'Вимкнено'}
-          valueColor={readReceiptsEnabled ? '#4ADE80' : '#6B6B72'}
-          onClick={toggleReadReceipts}
-          chevron
-        />
-
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>}
-          label="Push сповіщення"
-          value={
-            !pushSupported ? 'Недоступно' :
-            pushPermission === 'denied' ? 'Заблоковано' :
-            pushBusy ? '...' :
-            pushEnabled ? 'Увімкнено' : 'Вимкнено'
-          }
-          valueColor={
-            !pushSupported || pushPermission === 'denied' ? '#FF6B7A' :
-            pushEnabled ? '#4ADE80' : '#6B6B72'
-          }
-          onClick={(pushSupported && pushPermission !== 'denied' && !pushBusy) ? togglePush : null}
-          chevron={pushSupported && pushPermission !== 'denied'}
-        />
-
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>}
-          label="Заглушені чати"
-          value="перегляд"
-          valueColor="#A8A8B0"
-          onClick={() => onNavigate('muted')}
-          chevron
-        />
+        <div className="lin-group-label">Додаток</div>
+        <div className="lin-section">
+          {!isNativeApp && <LinRow
+            label="Сповіщення"
+            value={
+              !notif.isSupported() ? 'Недоступно' :
+              notifPermission === 'denied' ? 'Заблоковано' :
+              notifEnabled ? 'Увімкнено' : 'Вимкнено'
+            }
+            valueColor={
+              !notif.isSupported() || notifPermission === 'denied' ? '#FF6B7A' :
+              notifEnabled ? '#4ADE80' : '#6B6B72'
+            }
+            onClick={(notif.isSupported() && notifPermission !== 'denied') ? toggleNotifications : null}
+            chevron={notif.isSupported() && notifPermission !== 'denied'}
+          />}
+          <LinRow
+            label="Підтвердження прочитання"
+            value={readReceiptsEnabled ? 'Увімкнено' : 'Вимкнено'}
+            valueColor={readReceiptsEnabled ? '#4ADE80' : '#6B6B72'}
+            onClick={toggleReadReceipts}
+          />
+          <LinRow
+            label="Push сповіщення"
+            value={
+              !pushSupported ? 'Недоступно' :
+              pushPermission === 'denied' ? 'Заблоковано' :
+              pushBusy ? '…' :
+              pushEnabled ? 'Увімкнено' : 'Вимкнено'
+            }
+            valueColor={
+              !pushSupported || pushPermission === 'denied' ? '#FF6B7A' :
+              pushEnabled ? '#4ADE80' : '#6B6B72'
+            }
+            onClick={(pushSupported && pushPermission !== 'denied' && !pushBusy) ? togglePush : null}
+            chevron={pushSupported && pushPermission !== 'denied'}
+          />
+          <LinRow
+            label="Заглушені чати"
+            value="перегляд"
+            onClick={() => onNavigate('muted')}
+          />
+        </div>
 
         {/* Group 3: Account */}
-        <SectionLabel>Акаунт</SectionLabel>
+        <div className="lin-group-label">Акаунт</div>
+        <div className="lin-section">
+          <LinRow
+            label="Профіль"
+            value={profile?.username ? `@${profile.username}` : 'без імені'}
+            onClick={() => onNavigate('profile')}
+          />
+          <LinRow
+            label="Ключ відновлення"
+            value="24 слова"
+            onClick={() => onNavigate('recovery-key')}
+          />
+          <LinRow
+            label="Історія входів"
+            value="останні 30"
+            onClick={() => onNavigate('sessions')}
+          />
+          <LinRow
+            label="Аварійний вихід"
+            labelColor="#FF6B7A"
+            onClick={emergencyLogoutClicked}
+            chevron={false}
+          />
+        </div>
 
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-          label="Профіль"
-          value={profile?.username ? `@${profile.username}` : 'без імені'}
-          valueColor="#A8A8B0"
-          valueMono
-          onClick={() => onNavigate('profile')}
-          chevron
-        />
-
-        <Row
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>}
-          label="Ключ відновлення"
-          value="24 слова"
-          valueColor="#A8A8B0"
-          onClick={() => onNavigate('recovery-key')}
-          chevron
-        />
-
-        <Row
-          icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <polyline points="12 6 12 12 16 14"/>
-            </svg>
-          }
-          label="Історія входів"
-          value="останні 30"
-          valueColor="#A8A8B0"
-          onClick={() => onNavigate('sessions')}
-          chevron
-        />
-
-        <Row
-          icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-          }
-          label="Аварійний вихід"
-          labelColor="#FF6B7A"
-          iconColor="#FF6B7A"
-          value=""
-          onClick={emergencyLogoutClicked}
-          warn
-        />
-
-        <SectionLabel>Зона ризику</SectionLabel>
-
-        <Row
-          icon={
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-              <path d="M10 11v6"/><path d="M14 11v6"/>
-              <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
-            </svg>
-          }
-          label="Видалити акаунт"
-          labelColor="#FF6B7A"
-          iconColor="#FF6B7A"
-          value="незворотно"
-          valueColor="#FF6B7A"
-          valueMono
-          onClick={() => onNavigate('delete-account')}
-          chevron
-          warn
-        />
+        {/* Danger zone */}
+        <div className="lin-group-label">Зона ризику</div>
+        <div className="lin-section">
+          <LinRow
+            label="Видалити акаунт"
+            labelColor="#FF6B7A"
+            value="незворотно"
+            valueColor="#FF6B7A"
+            onClick={() => onNavigate('delete-account')}
+          />
+        </div>
 
         {/* Footer */}
         <div style={{
-          padding: '40px 20px 24px',
+          padding: '32px 20px 24px',
           textAlign: 'center',
-          fontFamily: 'var(--mono, monospace)',
-          fontSize: 11,
+          fontSize: 12,
           color: '#3F3F45',
-          letterSpacing: '0.05em',
+          letterSpacing: '0.04em',
+          fontWeight: 500,
         }}>
-          MOROK · v0.4 · BETA
+          Morok · v0.4 · beta
         </div>
       </div>
 
@@ -529,6 +480,34 @@ export default function Settings({ onNavigate }) {
 }
 
 /* ─── Sub-components ─────────────────────────────────────── */
+
+function LinRow({
+  label, labelColor = '#ECECF0',
+  value, valueColor = '#8A8A95',
+  onClick, chevron = true, disabled = false,
+}) {
+  const isClickable = !!onClick && !disabled;
+  return (
+    <div
+      className="lin-section-row"
+      onClick={isClickable ? onClick : undefined}
+      style={{
+        cursor: isClickable ? 'pointer' : 'default',
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <span className="row-label" style={{ color: labelColor }}>{label}</span>
+      <span className="row-value">
+        {value ? <span style={{ color: valueColor }}>{value}</span> : null}
+        {chevron && isClickable && (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        )}
+      </span>
+    </div>
+  );
+}
 
 function SectionLabel({ children }) {
   return (

@@ -474,3 +474,63 @@ img { -webkit-user-drag: none; user-select: none; }
 @media (prefers-reduced-motion: reduce) {
   .msg-appear { animation: none; }
 }
+
+/* ====================================================================
+   LINEAR-СЕКЦІЇ (еталон стилю налаштувань)
+   Групи рядків на світлішій поверхні, рядки розділені тонкою лінією.
+   Без рамок навколо кожного рядка, без контурних іконок зліва.
+   ==================================================================== */
+.lin-section {
+  background: #16161C;
+  border-radius: 15px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.lin-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 16px;
+  min-height: 30px;
+  position: relative;
+}
+.lin-section-row + .lin-section-row::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 16px; right: 0;
+  height: 1px;
+  background: #232329;
+}
+.lin-section-row .row-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: #ECECF0;
+  letter-spacing: -0.01em;
+}
+.lin-section-row .row-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #8A8A95;
+  font-weight: 500;
+}
+.lin-section-caption {
+  font-size: 12px;
+  color: #5A5A65;
+  padding: 0 16px;
+  margin: -6px 0 16px;
+  line-height: 1.5;
+}
+body.is-native .lin-section-row:active { background: #1C1C23; }
+
+/* Заголовок групи — дрібний, тихий, як у Linear */
+.lin-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5A5A65;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 16px;
+  margin: 18px 0 8px;
+}
