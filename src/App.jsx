@@ -30,6 +30,7 @@ import Profile from './screens/Profile.jsx';
 import PeerProfile from './screens/PeerProfile.jsx';
 import Settings from './screens/Settings.jsx';
 import Sessions from './screens/Sessions.jsx';
+import RecoveryKey from './screens/RecoveryKey.jsx';
 import MutedChats from './screens/MutedChats.jsx';
 import ContactsList from './screens/ContactsList.jsx';
 import Blocked from './screens/Blocked.jsx';
@@ -485,6 +486,7 @@ export default function App() {
     case 'profile': return <Profile onNavigate={navigate} />;
     case 'settings': return <Settings onNavigate={navigate} />;
     case 'sessions': return <Sessions onNavigate={navigate} />;
+    case 'recovery-key': return <RecoveryKey onNavigate={navigate} />;
     case 'muted': return <MutedChats onNavigate={navigate} />;
     case 'contacts': return <ContactsList onNavigate={navigate} />;
     case 'blocked': return <Blocked onNavigate={navigate} />;

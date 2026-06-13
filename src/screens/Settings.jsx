@@ -420,7 +420,7 @@ export default function Settings({ onNavigate }) {
           label="Ключ відновлення"
           value="24 слова"
           valueColor="#A8A8B0"
-          onClick={() => onNavigate('profile')}
+          onClick={() => onNavigate('recovery-key')}
           chevron
         />
 
