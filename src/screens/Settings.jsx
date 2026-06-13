@@ -269,7 +269,7 @@ export default function Settings({ onNavigate }) {
       }}>
         <div>
           <div style={{
-            fontSize: 32, fontWeight: 700, letterSpacing: '-0.025em',
+            fontSize: 27, fontWeight: 800, letterSpacing: '-0.03em',
             color: '#F5F5F7', lineHeight: 1,
           }}>
             Налаштування

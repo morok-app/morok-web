@@ -449,3 +449,28 @@ input, textarea, [contenteditable] {
 
 /* 9. Картинки не тягнуться / не дають флікер довгого тапу в чромі */
 img { -webkit-user-drag: none; user-select: none; }
+
+/* ====================================================================
+   МІКРОРУХ
+   ==================================================================== */
+
+/* Поява нового повідомлення: легкий fade + підйом знизу.
+   Навішується тільки на ОСТАННЄ повідомлення при додаванні (клас
+   msg-appear), щоб не анімувати всю історію при відкритті чату. */
+@keyframes msgAppear {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.msg-appear {
+  animation: msgAppear 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Поява рядка списку чатів (staggered fade-in при першому показі). */
+@keyframes rowAppear {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-appear { animation: none; }
+}

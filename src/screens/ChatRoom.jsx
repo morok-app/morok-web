@@ -118,6 +118,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
   const scrollerRef = useRef(null);
   const messagesEnd = useRef(null);
+  const prevMsgCount = useRef(null);
   const longPressTimer = useRef(null);
   const fileInputRef = useRef(null);
   const recorderRef = useRef(null);
@@ -529,6 +530,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   }
 
   const messages = conv.messages || [];
+
+  // Анімуємо появу ТІЛЬКИ коли к-сть повідомлень зросла з минулого
+  // рендера (нове прийшло/відправлено) — не при першому відкритті чату,
+  // інакше анімувалася б уся історія. null = перший рендер.
+  const justGrew = prevMsgCount.current !== null && messages.length > prevMsgCount.current;
+  prevMsgCount.current = messages.length;
   const selCanDeleteAll = selectMode && selectedIds.size > 0
     && messages.filter((m) => selectedIds.has(m.id)).every((m) => m.direction === 'out');
 
@@ -626,9 +633,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           const sameNext = nextMsg && nextMsg.direction === m.direction
                        && (nextMsg.ts - m.ts) < 300;
 
-          // Bubble radius — tail when first/last in a group
-          const radius = 16;
-          const tail = 4;
+          // Радіуси бабла: більший базовий радіус (18) виглядає
+          // сучасніше за коробкуваті 16; "хвіст" (6) лишається на тому
+          // куті, що ближче до краю екрана, тільки в ОСТАННЬОГО бабла
+          // групи — так група читається як єдиний блок, а не стос карток.
+          const radius = 18;
+          const tail = 6;
           const borderRadius = isOut
             ? `${radius}px ${samePrev ? tail : radius}px ${sameNext ? tail : radius}px ${radius}px`
             : `${samePrev ? tail : radius}px ${radius}px ${radius}px ${sameNext ? tail : radius}px`;
@@ -636,6 +646,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           return (
             <div
               key={m.id}
+              className={justGrew && idx === messages.length - 1 ? 'msg-appear' : undefined}
               onMouseDown={() => { if (!selectMode) startLongPress(m); }}
               onMouseUp={cancelLongPress}
               onMouseLeave={cancelLongPress}
@@ -653,10 +664,10 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 }
               }}
               style={{
-                maxWidth: '80%',
+                maxWidth: '78%',
                 alignSelf: isOut ? 'flex-end' : 'flex-start',
                 display: 'flex', flexDirection: 'column', gap: 4,
-                marginTop: samePrev ? 0 : 6,
+                marginTop: samePrev ? 2 : 10,
                 userSelect: 'none', WebkitUserSelect: 'none',
                 cursor: 'pointer',
                 outline: selectMode && selectedIds.has(m.id) ? '2px solid #6B8AFE' : 'none',
@@ -667,13 +678,13 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             >
               <div
                 style={{
-                  padding: m.image ? 4 : (m.voice ? '6px 8px' : '9px 13px'),
+                  padding: m.image ? 4 : (m.voice ? '6px 8px' : '10px 14px'),
                   borderRadius,
-                  fontSize: 14, lineHeight: 1.4,
+                  fontSize: 15, lineHeight: 1.4,
                   wordWrap: 'break-word',
-                  background: isOut ? '#6B8AFE' : '#16161B',
-                  color: isOut ? '#FFF' : '#F5F5F7',
-                  border: isOut ? 'none' : '1px solid #1E1E27',
+                  background: isOut ? '#6B8AFE' : '#23232C',
+                  color: isOut ? '#FFF' : '#ECECF0',
+                  border: isOut ? 'none' : '1px solid #2C2C37',
                   letterSpacing: '-0.005em',
                   overflow: 'hidden',
                 }}
@@ -1352,7 +1363,10 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
             width: 34, height: 34, borderRadius: '50%',
             background: isBurner
               ? 'rgba(255, 169, 77, 0.15)'
-              : (peerHue !== undefined ? `hsl(${peerHue}, 45%, 45%)` : '#16161B'),
+              : (peerHue !== undefined
+                  ? `linear-gradient(140deg, hsl(${peerHue} 58% 52%) 0%, hsl(${(peerHue + 40) % 360} 56% 42%) 100%)`
+                  : '#16161B'),
+            boxShadow: isBurner ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.18)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontWeight: 700, fontSize: 13, color: isBurner ? '#FFA94D' : '#fff',
             flexShrink: 0,

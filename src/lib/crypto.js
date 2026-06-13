@@ -85,6 +85,16 @@ export function generateIdentity() {
   return { seed, mnemonic, pubkeyHex: bytesToHex(pubkey) };
 }
 
+/**
+ * Відновлює ті самі 24 слова з seed (seed == BIP39 entropy).
+ * Детерміновано: один і той самий seed завжди дає ту саму мнемоніку.
+ * seed може бути Uint8Array або hex-рядком.
+ */
+export function mnemonicFromSeed(seed) {
+  const bytes = typeof seed === 'string' ? hexToBytes(seed) : seed;
+  return entropyToMnemonic(bytes, wordlist);
+}
+
 export function identityFromMnemonic(mnemonic) {
   const cleaned = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!validateMnemonic(cleaned, wordlist)) {

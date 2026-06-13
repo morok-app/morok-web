@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { hapticTap } from '../lib/haptics.js';
+import AvatarShared from '../components/Avatar.jsx';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
@@ -40,30 +41,8 @@ function formatVoiceDuration(ms) {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function Avatar({ username, pubkey, size = 40, isGroup }) {
-  if (isGroup) {
-    return (
-      <div style={{
-        width: size, height: size, borderRadius: '50%',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'linear-gradient(135deg, var(--accent) 0%, #4A5FB0 100%)',
-        color: '#fff', fontSize: size * 0.5, flexShrink: 0,
-      }}>👥</div>
-    );
-  }
-  const hue = pubkey ? parseInt(pubkey.slice(0, 6), 16) % 360 : 0;
-  // For anon users — use the first char of "anon_xxxx" → 'a'
-  const displayName = username || `anon_${pubkey?.slice(0, 8) || ''}`;
-  const initial = (displayName[0] || '?').toUpperCase();
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: `hsl(${hue}, 45%, 45%)`,
-      color: '#fff', fontWeight: 700, fontSize: size * 0.4,
-      flexShrink: 0,
-    }}>{initial}</div>
-  );
+function Avatar(props) {
+  return <AvatarShared {...props} />;
 }
 
 function useInboxState() {
@@ -358,7 +337,7 @@ export default function ChatsList({ onNavigate }) {
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: 32, fontWeight: 700, letterSpacing: '-0.025em',
+            fontSize: 27, fontWeight: 800, letterSpacing: '-0.03em',
             color: '#F5F5F7', lineHeight: 1,
             display: 'flex', alignItems: 'center', gap: 10,
           }}>

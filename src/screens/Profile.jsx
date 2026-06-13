@@ -4,6 +4,8 @@ import * as store from '../lib/storage.js';
 import * as api from '../lib/api.js';
 import * as vault from '../lib/vault.js';
 import QRCode from 'qrcode';
+import Avatar from '../components/Avatar.jsx';
+import { mnemonicFromSeed } from '../lib/crypto.js';
 
 /**
  * Profile — Linear-style.
@@ -71,11 +73,12 @@ export default function Profile({ onNavigate }) {
     if (identity.mnemonic) return identity.mnemonic;
     const seed = vault.getUnlockedSeed?.();
     if (!seed) return null;
-    return null; // can't reconstruct without re-deriving; leave hidden
+    // seed == BIP39 entropy → відновлюємо ті самі 24 слова детерміновано.
+    try { return mnemonicFromSeed(seed); }
+    catch { return null; }
   })();
 
   // Avatar color from pubkey
-  const hue = pubkeyHex ? parseInt(pubkeyHex.slice(0, 6), 16) % 360 : 220;
 
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
@@ -120,15 +123,7 @@ export default function Profile({ onNavigate }) {
           alignItems: 'center', gap: 14,
           padding: '12px 0 calc(28px + var(--inset-bottom, 0px))',
         }}>
-          <div style={{
-            width: 84, height: 84, borderRadius: '50%',
-            background: `hsl(${hue}, 45%, 45%)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 32, fontWeight: 700, color: '#FFF',
-            letterSpacing: '-0.02em',
-          }}>
-            {handle.replace('@', '')[0].toUpperCase()}
-          </div>
+          <Avatar username={username} pubkey={pubkeyHex} size={84} />
           <div style={{
             fontSize: 22, fontWeight: 700, color: '#F5F5F7',
             letterSpacing: '-0.02em',
@@ -198,7 +193,7 @@ export default function Profile({ onNavigate }) {
         </div>
 
         {/* Mnemonic */}
-        {identity.mnemonic && (
+        {mnemonic && (
           <>
             <SectionLabel>Ключ відновлення</SectionLabel>
             <div style={{
@@ -237,7 +232,7 @@ export default function Profile({ onNavigate }) {
                     gap: 8,
                     marginBottom: 12,
                   }}>
-                    {identity.mnemonic.split(' ').map((w, i) => (
+                    {mnemonic.split(' ').map((w, i) => (
                       <div key={i} style={{
                         display: 'flex', alignItems: 'center', gap: 8,
                         padding: '7px 9px',

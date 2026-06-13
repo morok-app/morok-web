@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import * as convs from '../lib/conversations.js';
 import * as api from '../lib/api.js';
 import * as contacts from '../lib/contacts.js';
+import Avatar from '../components/Avatar.jsx';
 
 export default function PeerProfile({ peerPubkey, onNavigate }) {
   const [conv, setConv] = useState(() => convs.getConversation(peerPubkey));
@@ -50,8 +51,6 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
 
   const username = conv?.peer_username;
   const homeRelay = conv?.peer_home_relay;
-  const hue = parseInt((peerPubkey || '000000').slice(0, 6), 16) % 360;
-  const firstLetter = (username || peerPubkey || '?')[0]?.toUpperCase() || '?';
 
   async function copyPubkey() {
     try {
@@ -172,15 +171,8 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
         padding: '36px 24px 24px',
         textAlign: 'center',
       }}>
-        <div style={{
-          width: 96, height: 96, borderRadius: '50%',
-          background: `hsl(${hue}, 45%, 45%)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 36, fontWeight: 700, color: '#fff',
-          margin: '0 auto 18px',
-          letterSpacing: '-0.02em',
-        }}>
-          {firstLetter}
+        <div style={{ margin: '0 auto 18px', width: 96 }}>
+          <Avatar username={username} pubkey={peerPubkey} size={96} />
         </div>
 
         <div style={{
