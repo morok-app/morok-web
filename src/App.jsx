@@ -229,7 +229,6 @@ export default function App() {
   function startInbox(seed, myPubkeyHex) {
     if (inboxRef.current) inboxRef.current.stop();
     const client = new InboxClient({
-      onStateChange: (s) => setConnState(s),
       onCatchup: async (envelopes) => {
         const touchedPeers = new Set();
         const touchedGroups = new Set();
@@ -377,6 +376,7 @@ export default function App() {
       onStateChange: (s) => {
         console.info('inbox state:', s);
         broadcastInboxState(s);
+        setConnState(s);
       },
     });
     client.start();
