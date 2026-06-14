@@ -20,6 +20,7 @@ export default function ScreenTransition({ routeKey, direction, children }) {
   const [current, setCurrent] = useState({ key: routeKey, node: children });
   const [prev, setPrev] = useState(null);
   const [phase, setPhase] = useState('idle'); // 'idle' | 'enter'
+  const prevKeyRef = useRef(routeKey);
   const reduceMotion = useRef(
     typeof window !== 'undefined' &&
     window.matchMedia &&
@@ -27,18 +28,21 @@ export default function ScreenTransition({ routeKey, direction, children }) {
   );
 
   useEffect(() => {
-    if (routeKey === current.key) {
-      // Той самий екран, оновився лише вміст (напр. новий стан) —
-      // підміняємо без анімації.
+    // КРИТИЧНО: реагуємо ТІЛЬКИ на зміну routeKey. children — новий
+    // об'єкт на кожен рендер App, тож якби ефект залежав від children,
+    // він би перезапускався постійно, скидав таймер прибирання prev-шару,
+    // і старий екран (position:absolute) завис би зверху, блокуючи кліки.
+    if (routeKey === prevKeyRef.current) {
+      // Той самий екран, оновився лише вміст — просто підміняємо вузол,
+      // без анімації, без prev.
       setCurrent({ key: routeKey, node: children });
       return;
     }
+    prevKeyRef.current = routeKey;
 
     if (reduceMotion.current || direction === 'none') {
-      // Без руху: cross-fade лишимо тільки для 'none' (домашні екрани),
-      // reduced-motion — миттєво.
       if (direction === 'none' && !reduceMotion.current) {
-        setPrev({ ...current, fading: true });
+        setPrev({ key: current.key, node: current.node, fading: true });
         setCurrent({ key: routeKey, node: children });
         const t = setTimeout(() => setPrev(null), 200);
         return () => clearTimeout(t);
@@ -48,22 +52,30 @@ export default function ScreenTransition({ routeKey, direction, children }) {
       return;
     }
 
-    // Slide-перехід: старий екран стає prev, новий — current,
-    // на наступний кадр вмикаємо 'enter' (CSS зробить рух).
-    setPrev(current);
+    // Slide-перехід.
+    setPrev({ key: current.key, node: current.node });
     setCurrent({ key: routeKey, node: children });
     setPhase('enter');
 
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => setPhase('idle'));
     });
-    const cleanup = setTimeout(() => setPrev(null), 300);
+    const cleanup = setTimeout(() => setPrev(null), 320);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(cleanup);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeKey, children]);
+  }, [routeKey]);
+
+  // Окремий ефект: коли змінюється лише вміст того самого екрана —
+  // оновити вузол поточного шару (щоб не застрягав старий стан).
+  useEffect(() => {
+    if (routeKey === prevKeyRef.current) {
+      setCurrent((c) => (c.key === routeKey ? { key: routeKey, node: children } : c));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [children]);
 
   const fwd = direction === 'forward';
 
@@ -89,6 +101,7 @@ export default function ScreenTransition({ routeKey, direction, children }) {
           style={{
             ...layerBase,
             zIndex: fwd ? 1 : 3,
+            pointerEvents: 'none',
             transform: prev.fading ? 'none' : (phase === 'enter' ? 'translateX(0)' : exitTo),
             opacity: prev.fading ? 0 : 1,
             transition: prev.fading

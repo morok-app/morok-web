@@ -549,6 +549,7 @@ function ConnBanner({ state }) {
       position: 'fixed',
       top: 'var(--inset-top, 0px)', left: 0, right: 0,
       zIndex: 300,
+      pointerEvents: 'none',
       background: cfg.bg,
       color: cfg.color,
       fontSize: 12, fontWeight: 600, textAlign: 'center',
