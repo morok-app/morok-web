@@ -20,10 +20,11 @@ function gradientFor(pubkey, isGroup) {
   }
   const seed = pubkey ? parseInt(pubkey.slice(0, 6), 16) : 0;
   const hue = seed % 360;
-  // Другий відтінок зміщений на +40° — дає "живий" перехід, не градієнт
-  // одного кольору. S/L фіксовані під темну тему.
-  const h2 = (hue + 40) % 360;
-  return `linear-gradient(140deg, hsl(${hue} 58% 52%) 0%, hsl(${h2} 56% 42%) 100%)`;
+  // Зсув +60° і помітна різниця світлоти (58%→38%) — щоб градієнт читався
+  // навіть у "монохромних" діапазонах (зелений/синій), де менший зсув
+  // виглядав плоско.
+  const h2 = (hue + 60) % 360;
+  return `linear-gradient(145deg, hsl(${hue} 62% 58%) 0%, hsl(${h2} 58% 38%) 100%)`;
 }
 
 export default function Avatar({ username, pubkey, size = 40, isGroup = false }) {
@@ -45,7 +46,7 @@ export default function Avatar({ username, pubkey, size = 40, isGroup = false })
         fontSize: isGroup ? size * 0.5 : size * 0.42,
         flexShrink: 0,
         // Тонкий внутрішній блік згори — об'єм, як у нативних аватарів iOS.
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -2px 6px rgba(0,0,0,0.18)',
+        boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.22), inset 0 -3px 8px rgba(0,0,0,0.22)',
         // М'яка літера, щоб не "дзвеніла" на градієнті.
         textShadow: isGroup ? 'none' : '0 1px 2px rgba(0,0,0,0.25)',
         userSelect: 'none',

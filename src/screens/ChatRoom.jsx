@@ -1381,7 +1381,7 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
             background: isBurner
               ? 'rgba(255, 169, 77, 0.15)'
               : (peerHue !== undefined
-                  ? `linear-gradient(140deg, hsl(${peerHue} 58% 52%) 0%, hsl(${(peerHue + 40) % 360} 56% 42%) 100%)`
+                  ? `linear-gradient(145deg, hsl(${peerHue} 62% 58%) 0%, hsl(${(peerHue + 60) % 360} 58% 38%) 100%)`
                   : '#16161B'),
             boxShadow: isBurner ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.18)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
