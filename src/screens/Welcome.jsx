@@ -158,13 +158,13 @@ export default function Welcome({ onNavigate }) {
 
         <div style={{
           marginTop: 14,
-          fontFamily: 'var(--mono, monospace)',
-          fontSize: 10.5,
+          fontSize: 11,
           color: '#3F3F45',
-          letterSpacing: '0.1em',
+          letterSpacing: '0.02em',
           textAlign: 'center',
+          fontWeight: 500,
         }}>
-          MOROK · v0.4 · BETA
+          Morok · v0.4.1 · beta
         </div>
       </div>
     </div>

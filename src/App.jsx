@@ -76,6 +76,7 @@ export default function App() {
   const [routeArg, setRouteArg] = useState(null);
   const [navDir, setNavDir] = useState('none');
   const [screenKey, setScreenKey] = useState('splash');
+  const [connState, setConnState] = useState('open');
   const [bootError, setBootError] = useState(null);
   const inboxRef = useRef(null);
   const [pendingSeed, setPendingSeed] = useState(null);
@@ -228,6 +229,7 @@ export default function App() {
   function startInbox(seed, myPubkeyHex) {
     if (inboxRef.current) inboxRef.current.stop();
     const client = new InboxClient({
+      onStateChange: (s) => setConnState(s),
       onCatchup: async (envelopes) => {
         const touchedPeers = new Set();
         const touchedGroups = new Set();
@@ -523,8 +525,44 @@ export default function App() {
   }
 
   return (
-    <ScreenTransition routeKey={screenKey} direction={navDir}>
-      {renderScreen()}
-    </ScreenTransition>
+    <>
+      <ConnBanner state={connState} />
+      <ScreenTransition routeKey={screenKey} direction={navDir}>
+        {renderScreen()}
+      </ScreenTransition>
+    </>
+  );
+}
+
+/* Тонка смужка стану з'єднання. Показується лише коли НЕ open —
+   у нормі невидима. Дає юзеру зрозуміти, що застосунок не завис, а
+   перепідключається (WS уже має авто-reconnect, просто мовчки). */
+function ConnBanner({ state }) {
+  if (state === 'open') return null;
+  const cfg = {
+    connecting: { text: 'З\u2019єднання…', bg: '#1E1E27', color: '#8E8E99', pulse: true },
+    closed: { text: 'З\u2019єднання втрачено, відновлюємо…', bg: '#2A1F1A', color: '#FFA94D', pulse: true },
+    error: { text: 'Немає з\u2019єднання, повторюємо…', bg: '#2A1A1E', color: '#FF6B7A', pulse: true },
+  }[state] || { text: 'З\u2019єднання…', bg: '#1E1E27', color: '#8E8E99', pulse: true };
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 'var(--inset-top, 0px)', left: 0, right: 0,
+      zIndex: 300,
+      background: cfg.bg,
+      color: cfg.color,
+      fontSize: 12, fontWeight: 600, textAlign: 'center',
+      padding: '6px 12px',
+      letterSpacing: '-0.005em',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+      animation: 'connBannerIn 0.25s ease-out',
+    }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: '50%',
+        background: cfg.color,
+        animation: cfg.pulse ? 'connPulse 1.2s ease-in-out infinite' : 'none',
+      }} />
+      {cfg.text}
+    </div>
   );
 }

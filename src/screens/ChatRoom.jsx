@@ -615,13 +615,30 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       >
         {messages.length === 0 && (
           <div style={{
-            textAlign: 'center', color: '#5A5A65', fontSize: 12.5,
-            marginTop: 40, lineHeight: 1.6,
+            flex: 1,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center',
+            gap: 14, marginTop: 'auto', marginBottom: 'auto',
+            padding: '0 40px',
           }}>
-            Поки немає повідомлень.<br/>
-            <span style={{ color: '#3F3F45', fontSize: 11.5 }}>
-              Напишіть перше нижче.
-            </span>
+            <div style={{
+              width: 64, height: 64, borderRadius: 18,
+              background: 'linear-gradient(135deg, rgba(123,150,255,0.18) 0%, rgba(90,111,224,0.1) 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: '1px solid rgba(123,150,255,0.15)',
+            }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#7B96FF" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+              </svg>
+            </div>
+            <div style={{ textAlign: 'center', lineHeight: 1.6 }}>
+              <div style={{ color: '#A8A8B0', fontSize: 14, fontWeight: 600 }}>
+                Поки немає повідомлень
+              </div>
+              <div style={{ color: '#5A5A65', fontSize: 12.5, marginTop: 3 }}>
+                Напишіть перше — воно зашифроване наскрізно
+              </div>
+            </div>
           </div>
         )}
         {messages.map((m, idx) => {
