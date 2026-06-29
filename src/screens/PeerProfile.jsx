@@ -14,6 +14,7 @@ import { useEffect, useState } from 'react';
 import * as convs from '../lib/conversations.js';
 import * as api from '../lib/api.js';
 import * as contacts from '../lib/contacts.js';
+import * as safety from '../lib/safety.js';
 import Avatar from '../components/Avatar.jsx';
 
 export default function PeerProfile({ peerPubkey, onNavigate }) {
@@ -285,6 +286,24 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
           }}
         >
           {inContacts ? '✓ В контактах' : '+ Додати в контакти'}
+        </button>
+
+        <button
+          onClick={() => onNavigate(`safety/${peerPubkey}`)}
+          style={{
+            height: 44, borderRadius: 12,
+            background: safety.isVerified(peerPubkey) ? 'rgba(74, 222, 128, 0.08)' : '#13131A',
+            border: '1px solid ' + (safety.isVerified(peerPubkey) ? 'rgba(74, 222, 128, 0.3)' : '#232329'),
+            color: safety.isVerified(peerPubkey) ? '#4ADE80' : '#F5F5F7',
+            cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            {safety.isVerified(peerPubkey) && <polyline points="9 12 11 14 15 10" />}
+          </svg>
+          {safety.isVerified(peerPubkey) ? 'Ключі підтверджено' : 'Номер безпеки (звірити ключі)'}
         </button>
 
         <button

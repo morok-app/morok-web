@@ -28,6 +28,7 @@ import NewChat from './screens/NewChat.jsx';
 import ChatRoom from './screens/ChatRoom.jsx';
 import Profile from './screens/Profile.jsx';
 import PeerProfile from './screens/PeerProfile.jsx';
+import SafetyNumber from './screens/SafetyNumber.jsx';
 import Settings from './screens/Settings.jsx';
 import Sessions from './screens/Sessions.jsx';
 import RecoveryKey from './screens/RecoveryKey.jsx';
@@ -503,6 +504,9 @@ export default function App() {
     case 'peer':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <PeerProfile peerPubkey={routeArg} onNavigate={navigate} />;
+    case 'safety':
+      if (!routeArg) { navigate('chats'); return <Splash />; }
+      return <SafetyNumber peerPubkey={routeArg} onNavigate={navigate} />;
     case 'group':
       if (!routeArg) { navigate('chats'); return <Splash />; }
       return <GroupChat groupId={routeArg} onNavigate={navigate} />;
