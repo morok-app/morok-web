@@ -133,6 +133,19 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     setConv(refreshed);
   }, [peerPubkey]);
 
+  // Burn-after-read: поки у відкритому чаті є повідомлення з активним
+  // таймером зникнення (read_burn_at), оновлюємо щосекунди, щоб вони
+  // зникали на очах, а не лише при наступному заході.
+  useEffect(() => {
+    const hasPending = (conv?.messages || []).some((m) => m.read_burn_at);
+    if (!hasPending) return;
+    const t = setInterval(() => {
+      convs.markConversationRead(peerPubkey);
+      setConv(convs.getConversation(peerPubkey));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [conv, peerPubkey]);
+
   // Поділитися своїм sealed-токеном з цим контактом (раз на 24 год,
   // тротлінг усередині). Дає змогу контакту слати мені анонімні
   // конверти. Тихо no-op на старому релеї. Fire-and-forget.

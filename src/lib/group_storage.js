@@ -25,8 +25,18 @@
  * UI patterns where possible.
  */
 
+import { getReadBurnSeconds } from './conversations.js';
+
 const K = 'morok.groups.v1';
 const HARD_CEILING_SECONDS = 30 * 86400;
+
+/** Найраніший дедлайн зникнення (надсилання vs прочитання). */
+function effectiveExpiry(m) {
+  const a = m.expires_at || Infinity;
+  const b = m.read_burn_at || Infinity;
+  const e = Math.min(a, b);
+  return e === Infinity ? null : e;
+}
 
 function load() {
   try {
@@ -47,7 +57,10 @@ function reap(state) {
     const g = state[gid];
     if (!g.messages) continue;
     const before = g.messages.length;
-    g.messages = g.messages.filter((m) => !m.expires_at || m.expires_at > now);
+    g.messages = g.messages.filter((m) => {
+      const e = effectiveExpiry(m);
+      return !e || e > now;
+    });
     if (g.messages.length !== before) changed = true;
   }
   if (changed) save(state);
@@ -219,10 +232,12 @@ export function markGroupRead(groupId) {
   const g = state[groupId];
   if (!g) return;
   const now = Math.floor(Date.now() / 1000);
+  const burn = getReadBurnSeconds();
   let changed = false;
   for (const m of g.messages || []) {
     if (m.direction === 'in' && !m.read_at) {
       m.read_at = now;
+      if (burn > 0 && !m.read_burn_at) m.read_burn_at = now + burn;
       changed = true;
     }
   }
@@ -250,7 +265,11 @@ export function markOutgoingReadByMember(groupId, envelopeId, readerPubkey) {
   if (!Array.isArray(m.read_by)) m.read_by = [];
   if (m.read_by.includes(readerPubkey)) return null;
   m.read_by.push(readerPubkey);
-  if (!m.read_at) m.read_at = Math.floor(Date.now() / 1000);
+  if (!m.read_at) {
+    m.read_at = Math.floor(Date.now() / 1000);
+    const burn = getReadBurnSeconds();
+    if (burn > 0 && !m.read_burn_at) m.read_burn_at = m.read_at + burn;
+  }
   save(state);
   return m;
 }

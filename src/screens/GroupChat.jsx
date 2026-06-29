@@ -141,6 +141,18 @@ export default function GroupChat({ groupId, onNavigate }) {
     gstore.markGroupRead(groupId);
   }, [groupId]);
 
+  // Burn-after-read: поки є повідомлення з активним таймером — оновлюємо
+  // щосекунди, щоб зникали на очах (як у DM).
+  useEffect(() => {
+    const hasPending = (group?.messages || []).some((m) => m.read_burn_at);
+    if (!hasPending) return;
+    const t = setInterval(() => {
+      gstore.markGroupRead(groupId);
+      setGroup(gstore.getGroup(groupId));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [group, groupId]);
+
   // Load mute state for this group
   useEffect(() => {
     let cancelled = false;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
+import * as convs from '../lib/conversations.js';
 import * as vault from '../lib/vault.js';
 import * as notif from '../lib/notifications.js';
 import * as push from '../lib/push.js';
@@ -61,6 +62,17 @@ export default function Settings({ onNavigate }) {
   const [contactsOnly, setContactsOnly] = useState(
     () => !!store.getPreference('contacts_only_mode', false)
   );
+
+  const [readBurn, setReadBurn] = useState(() => convs.getReadBurnSeconds());
+  const READBURN_ORDER = [0, 30, 300];
+  const READBURN_LABEL = { 0: 'Вимкнено', 30: '30 секунд', 300: '5 хвилин' };
+  function cycleReadBurn() {
+    const i = READBURN_ORDER.indexOf(readBurn);
+    const next = READBURN_ORDER[(i + 1) % READBURN_ORDER.length] ?? 0;
+    convs.setReadBurnSeconds(next);
+    setReadBurn(next);
+    showToast(next === 0 ? 'Зникнення після прочитання вимкнено' : `Зникає через ${READBURN_LABEL[next]} після прочитання`, 'ok');
+  }
 
   function toggleContactsOnly() {
     const next = !contactsOnly;
@@ -339,6 +351,12 @@ export default function Settings({ onNavigate }) {
             value={contactsOnly ? 'Увімкнено' : 'Вимкнено'}
             valueColor={contactsOnly ? '#4ADE80' : '#A8A8B0'}
             onClick={toggleContactsOnly}
+          />
+          <LinRow
+            label="Зникати після прочитання"
+            value={READBURN_LABEL[readBurn] || 'Вимкнено'}
+            valueColor={readBurn === 0 ? '#A8A8B0' : '#4ADE80'}
+            onClick={cycleReadBurn}
           />
         </div>
 

@@ -3,7 +3,37 @@
  */
 
 const K = 'morok.conv.v1';
+const K_BURN = 'morok.read_burn.v1';            // глобальне налаштування (сек) або 'off'
 const HARD_CEILING_SECONDS = 30 * 86400;
+
+// ── Burn-after-read: зникнення ВІД ПРОЧИТАННЯ ──
+// Окремо від TTL-від-надсилання (expires_at). Правило "що раніше":
+// повідомлення зникає, коли настане найраніший із дедлайнів.
+// Налаштування глобальне: 'off' | 30 | 300 (секунди).
+export function getReadBurnSeconds() {
+  try {
+    const v = localStorage.getItem(K_BURN);
+    if (v === null) return 0;            // 0 = вимкнено (за замовчуванням)
+    if (v === 'off') return 0;
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch { return 0; }
+}
+
+export function setReadBurnSeconds(seconds) {
+  try {
+    if (!seconds || seconds <= 0) localStorage.setItem(K_BURN, 'off');
+    else localStorage.setItem(K_BURN, String(seconds));
+  } catch { /* ignore */ }
+}
+
+/** Найраніший дедлайн зникнення повідомлення (надсилання vs прочитання). */
+function effectiveExpiry(m) {
+  const a = m.expires_at || Infinity;     // TTL від надсилання
+  const b = m.read_burn_at || Infinity;   // TTL від прочитання
+  const e = Math.min(a, b);
+  return e === Infinity ? null : e;
+}
 
 function load() {
   try {
@@ -29,8 +59,9 @@ function reap(state) {
     const conv = state[peer];
     const before = conv.messages.length;
     conv.messages = conv.messages.filter((m) => {
-      if (!m.expires_at) return true;
-      return m.expires_at > now;
+      const e = effectiveExpiry(m);
+      if (!e) return true;
+      return e > now;
     });
     if (conv.messages.length !== before) changed = true;
   }
@@ -193,10 +224,12 @@ export function markConversationRead(peerPubkey) {
   const conv = state[peerPubkey];
   if (!conv) return;
   const now = Math.floor(Date.now() / 1000);
+  const burn = getReadBurnSeconds();      // 0 = вимкнено
   let changed = false;
   for (const m of conv.messages) {
     if (m.direction === 'in' && !m.read_at) {
       m.read_at = now;
+      if (burn > 0 && !m.read_burn_at) m.read_burn_at = now + burn;
       changed = true;
     }
   }
@@ -221,6 +254,9 @@ export function markOutgoingRead(peerPubkey, envelopeId, readAt = null) {
   if (!m) return null;
   if (m.read_at) return null;
   m.read_at = readAt || Math.floor(Date.now() / 1000);
+  // Симетрія: коли співрозмовник прочитав — моя копія теж згоряє (no trace).
+  const burn = getReadBurnSeconds();
+  if (burn > 0 && !m.read_burn_at) m.read_burn_at = m.read_at + burn;
   save(state);
   return m;
 }
