@@ -646,9 +646,17 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     return stub;
   }
 
-  // Backfill peer_username if envelope brought one
+  // Оновлюємо peer_username з конверта. Три випадки:
+  //  • є нік  → ставимо/оновлюємо (актуалізація).
+  //  • нема ніка (звільнив) → ЯВНО скидаємо старий у null (explicitNull),
+  //    інакше стара етикетка "прилипає" до розмови назавжди.
+  // Безпечно: сюди доходить лише УСПІШНО розшифрований DM від реального
+  // pubkey (decryptFromPeer вище), тож це справді твій співрозмовник.
+  // Sealed/anon конверти сюди не доходять. Гілку "decrypt failed" не чіпаємо.
   if (senderUsername) {
     convs.ensureConversation({ peerPubkey: peer, peerUsername: senderUsername });
+  } else {
+    convs.ensureConversation({ peerPubkey: peer, peerUsername: null, explicitNull: true });
   }
 
   // Control message?
