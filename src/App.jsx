@@ -531,10 +531,82 @@ export default function App() {
   return (
     <>
       <ConnBanner state={connState} />
+      <DesktopAwareLayout
+        route={route}
+        screenKey={screenKey}
+        navDir={navDir}
+        navigate={navigate}
+        renderScreen={renderScreen}
+      />
+    </>
+  );
+}
+
+/* ── Desktop two-pane layout ──
+ *
+ * <900px: телефонний режим — усе як було (ScreenTransition + один екран).
+ * ≥900px: двопанельний десктоп (як Telegram Desktop):
+ *   ┌──────────────┬──────────────────────────┐
+ *   │  ChatsList   │  активний екран (чат,     │
+ *   │  (постійна)  │  налаштування, профіль…)  │
+ *   └──────────────┴──────────────────────────┘
+ * Auth-роути (welcome/create/login/pin…) — завжди одноекранні.
+ * На десктопі slide-анімацію вимикаємо: панелі статичні, миттєва заміна
+ * правої частини — саме так поводяться нативні десктоп-месенджери.
+ */
+const AUTH_ROUTES = new Set([
+  'splash', 'welcome', 'create', 'login', 'restore',
+  'pin-setup', 'pin-setup-existing', 'pin-unlock', 'claim',
+  'burner-send', 'join',
+]);
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 900px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 900px)');
+    const onChange = (e) => setIsDesktop(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+}
+
+function DesktopAwareLayout({ route, screenKey, navDir, navigate, renderScreen }) {
+  const isDesktop = useIsDesktop();
+
+  // Телефон АБО auth-флоу → класичний одноекранний режим зі slide.
+  if (!isDesktop || AUTH_ROUTES.has(route)) {
+    return (
       <ScreenTransition routeKey={screenKey} direction={navDir}>
         {renderScreen()}
       </ScreenTransition>
-    </>
+    );
+  }
+
+  // Десктоп: зліва постійний список чатів, справа — активний екран.
+  // 'chats' у правій панелі показує placeholder (як порожній Telegram).
+  const rightIsList = route === 'chats';
+  return (
+    <div className="dt-shell">
+      <aside className="dt-left">
+        <ChatsList onNavigate={navigate} />
+      </aside>
+      <main className="dt-right" key={screenKey}>
+        {rightIsList ? <DesktopPlaceholder /> : renderScreen()}
+      </main>
+    </div>
+  );
+}
+
+function DesktopPlaceholder() {
+  return (
+    <div className="dt-placeholder">
+      <div className="dt-placeholder-tile">M</div>
+      <div className="dt-placeholder-title">Оберіть чат</div>
+      <div className="dt-placeholder-sub">або створіть новий, щоб почати розмову</div>
+    </div>
   );
 }
 

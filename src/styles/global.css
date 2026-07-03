@@ -49,7 +49,7 @@ html, body {
 }
 
 /* Mobile-first layout. On larger screens we cap at 480px and center. */
-@media (min-width: 600px) {
+@media (min-width: 600px) and (max-width: 899px) {
   html, body { background: #08080B; }
   body { padding: 20px; }
   #root {
@@ -59,6 +59,96 @@ html, body {
     height: calc(100dvh - 40px);
     background: var(--bg);
   }
+}
+
+/* ====================================================================
+   DESKTOP TWO-PANE (≥900px) — як Telegram Desktop
+   ==================================================================== */
+@media (min-width: 900px) {
+  #root {
+    max-width: none;          /* знімаємо телефонну рамку */
+    height: 100dvh;
+  }
+}
+
+.dt-shell {
+  flex: 1;
+  display: flex;
+  min-height: 0;              /* критично для внутрішніх скролів */
+  height: 100%;
+}
+
+.dt-left {
+  width: 380px;
+  min-width: 320px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+/* Екрани всередині лівої панелі розтягуються на її висоту */
+.dt-left > * { flex: 1; min-height: 0; }
+
+.dt-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+}
+
+.dt-right > * { flex: 1; min-height: 0; }
+
+/* Placeholder правої панелі, коли чат не обрано */
+.dt-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 30%,
+      rgba(123, 150, 255, 0.06) 0%,
+      rgba(160, 123, 255, 0.03) 50%,
+      transparent 75%),
+    radial-gradient(circle, #14141d 1px, transparent 1px);
+  background-size: 100% 100%, 26px 26px;
+}
+
+.dt-placeholder-tile {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: linear-gradient(140deg, #7B96FF 0%, #A07BFF 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 8px;
+  box-shadow: 0 8px 32px rgba(123, 150, 255, 0.22),
+              inset 0 1.5px 0 rgba(255, 255, 255, 0.22);
+}
+
+.dt-placeholder-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.dt-placeholder-sub {
+  font-size: 13.5px;
+  color: var(--text-muted, #6E6E78);
 }
 
 /* ====================================================================
