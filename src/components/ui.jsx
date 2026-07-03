@@ -65,9 +65,9 @@ export function IconButton({ onClick, children, ariaLabel, active = false }) {
       className="lin-icon-btn"
       style={{
         width: 36, height: 36, borderRadius: '50%',
-        background: active ? '#22222A' : '#16161C',
-        border: '1px solid #232329',
-        color: active ? '#ECECF0' : '#A8A8B0',
+        background: active ? '#2A2A34' : '#1E1E27',
+        border: '1px solid #32323E',
+        color: active ? '#F5F5F7' : '#C8C8D2',
         cursor: 'pointer', flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
@@ -82,7 +82,7 @@ export function PillGroup({ children }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center',
-      background: '#16161C', border: '1px solid #232329',
+      background: '#1E1E27', border: '1px solid #32323E',
       borderRadius: 100, padding: 3, gap: 2,
     }}>
       {children}
@@ -98,7 +98,7 @@ export function PillButton({ onClick, children, ariaLabel }) {
       style={{
         width: 32, height: 32, borderRadius: '50%',
         background: 'transparent', border: 'none',
-        color: '#A8A8B0', cursor: 'pointer',
+        color: '#C8C8D2', cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >

@@ -533,6 +533,7 @@ export default function App() {
       <ConnBanner state={connState} />
       <DesktopAwareLayout
         route={route}
+        routeArg={routeArg}
         screenKey={screenKey}
         navDir={navDir}
         navigate={navigate}
@@ -573,7 +574,7 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-function DesktopAwareLayout({ route, screenKey, navDir, navigate, renderScreen }) {
+function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, renderScreen }) {
   const isDesktop = useIsDesktop();
 
   // Телефон АБО auth-флоу → класичний одноекранний режим зі slide.
@@ -586,12 +587,13 @@ function DesktopAwareLayout({ route, screenKey, navDir, navigate, renderScreen }
   }
 
   // Десктоп: зліва постійний список чатів, справа — активний екран.
-  // 'chats' у правій панелі показує placeholder (як порожній Telegram).
+  // activeChatId — щоб список підсвічував відкритий чат/групу.
   const rightIsList = route === 'chats';
+  const activeChatId = (route === 'chat' || route === 'group') ? routeArg : null;
   return (
     <div className="dt-shell">
       <aside className="dt-left">
-        <ChatsList onNavigate={navigate} />
+        <ChatsList onNavigate={navigate} activeChatId={activeChatId} />
       </aside>
       <main className="dt-right" key={screenKey}>
         {rightIsList ? <DesktopPlaceholder /> : renderScreen()}

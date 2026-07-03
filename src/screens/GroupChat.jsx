@@ -1309,6 +1309,7 @@ function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isM
     }}>
       <button
         onClick={onBack}
+        className="dt-back"
         style={{
           width: 34, height: 34, borderRadius: '50%',
           background: '#16161B', border: '1px solid #232329',

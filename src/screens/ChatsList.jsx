@@ -130,7 +130,7 @@ function buildMixedList(contactsOnly) {
   return items;
 }
 
-export default function ChatsList({ onNavigate }) {
+export default function ChatsList({ onNavigate, activeChatId = null }) {
   const [profile, setProfile] = useState(store.loadProfile());
   const [contactsOnly, setContactsOnly] = useState(
     () => !!store.getPreference('contacts_only_mode', false)
@@ -548,7 +548,7 @@ export default function ChatsList({ onNavigate }) {
             return (
               <div
                 key={`${item.kind}-${item.id}`}
-                className="lin-chat-row"
+                className={`lin-chat-row${item.id === activeChatId ? ' dt-active' : ''}`}
                 onClick={() => openItem(item)}
                 onMouseDown={() => startLongPress(item)}
                 onMouseUp={cancelLongPress}

@@ -151,6 +151,21 @@ html, body {
   color: var(--text-muted, #6E6E78);
 }
 
+/* Активний (відкритий) чат у лівій панелі */
+.dt-shell .lin-chat-row.dt-active {
+  background: rgba(123, 150, 255, 0.10);
+  box-shadow: inset 3px 0 0 #7B96FF;
+}
+
+/* Ховер по рядках списку — лише десктоп (на тачі не потрібен) */
+@media (hover: hover) and (min-width: 900px) {
+  .dt-shell .lin-chat-row:hover { background: rgba(255, 255, 255, 0.04); }
+  .dt-shell .lin-chat-row.dt-active:hover { background: rgba(123, 150, 255, 0.13); }
+}
+
+/* Кнопка "назад" у хедері чату зайва, коли список і так зліва */
+.dt-shell .dt-back { display: none; }
+
 /* ====================================================================
    PRIMITIVES
    ==================================================================== */
