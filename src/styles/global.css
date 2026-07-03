@@ -166,6 +166,37 @@ html, body {
 /* Кнопка "назад" у хедері чату зайва, коли список і так зліва */
 .dt-shell .dt-back { display: none; }
 
+/* Кнопки хедера: виразний hover на десктопі — кнопка "відгукується" мишці */
+@media (hover: hover) {
+  .lin-icon-btn:hover, .lin-pill-btn:hover {
+    background: #2E2E3A !important;
+    color: #FFFFFF !important;
+    border-color: #3E3E4C !important;
+  }
+  .lin-pill-btn:hover { background: #32323E !important; }
+}
+
+/* ── Десктоп: контент правої панелі не розтягується на всю ширину ──
+   Сторінкові екрани (Інструменти, Налаштування, Профіль…) отримують
+   клас .dt-page на контейнері праворуч — колонка до 720px по центру.
+   Чат (.dt-chat) лишається на повну ширину, але бульбашки вужчають. */
+@media (min-width: 900px) {
+  .dt-right.dt-page > * > * {
+    width: 100%;
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* бульбашки: перебиваємо телефонний maxWidth 78% → десктопні пропорції.
+     React серіалізує style без пробілу (max-width:78%), але покриваємо
+     обидва варіанти про всяк. */
+  .dt-right [style*="max-width:78%"],
+  .dt-right [style*="max-width: 78%"] {
+    max-width: min(62%, 560px) !important;
+  }
+}
+
 /* ====================================================================
    PRIMITIVES
    ==================================================================== */

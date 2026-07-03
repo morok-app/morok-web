@@ -588,14 +588,16 @@ function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, rend
 
   // Десктоп: зліва постійний список чатів, справа — активний екран.
   // activeChatId — щоб список підсвічував відкритий чат/групу.
+  // dt-page = "сторінкові" екрани (обмежена колонка); чат — повна ширина.
   const rightIsList = route === 'chats';
-  const activeChatId = (route === 'chat' || route === 'group') ? routeArg : null;
+  const isChat = route === 'chat' || route === 'group';
+  const activeChatId = isChat ? routeArg : null;
   return (
     <div className="dt-shell">
       <aside className="dt-left">
         <ChatsList onNavigate={navigate} activeChatId={activeChatId} />
       </aside>
-      <main className="dt-right" key={screenKey}>
+      <main className={`dt-right${isChat || rightIsList ? '' : ' dt-page'}`} key={screenKey}>
         {rightIsList ? <DesktopPlaceholder /> : renderScreen()}
       </main>
     </div>
