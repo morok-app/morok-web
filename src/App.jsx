@@ -577,6 +577,36 @@ function useIsDesktop() {
 function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, renderScreen }) {
   const isDesktop = useIsDesktop();
 
+  const isChat = route === 'chat' || route === 'group';
+
+  // Десктопні клавіші: Esc у чаті/на сторінці → повернутись до списку.
+  // НЕ спрацьовує, якщо відкрита модалка/оверлей (position:fixed) — там
+  // Esc належить модалці, а не навігації.
+  useEffect(() => {
+    if (!isDesktop) return;
+    function onKey(e) {
+      if (e.key !== 'Escape') return;
+      const overlayOpen = !!document.querySelector('#root [style*="position: fixed"], #root [style*="position:fixed"]');
+      if (overlayOpen) return;
+      if (route !== 'chats' && !AUTH_ROUTES.has(route)) {
+        navigate('chats');
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isDesktop, route, navigate]);
+
+  // Автофокус у поле вводу при відкритті чату (тільки десктоп — на мобілі
+  // це вискакує клавіатурою і дратує).
+  useEffect(() => {
+    if (!isDesktop || !isChat) return;
+    const t = setTimeout(() => {
+      const ta = document.querySelector('.dt-right textarea');
+      ta?.focus();
+    }, 80);
+    return () => clearTimeout(t);
+  }, [isDesktop, isChat, screenKey]);
+
   // Телефон АБО auth-флоу → класичний одноекранний режим зі slide.
   if (!isDesktop || AUTH_ROUTES.has(route)) {
     return (
@@ -590,7 +620,6 @@ function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, rend
   // activeChatId — щоб список підсвічував відкритий чат/групу.
   // dt-page = "сторінкові" екрани (обмежена колонка); чат — повна ширина.
   const rightIsList = route === 'chats';
-  const isChat = route === 'chat' || route === 'group';
   const activeChatId = isChat ? routeArg : null;
   return (
     <div className="dt-shell">

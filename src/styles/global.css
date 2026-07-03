@@ -696,3 +696,18 @@ body.is-native .lin-primary-btn:not(:disabled):active { transform: scale(0.97); 
 @media (prefers-reduced-motion: reduce) {
   @keyframes connPulse { 0%,100% { opacity: 1; } }
 }
+
+/* ── Десктоп: тонкий темний скролбар замість системного сірого ── */
+@media (min-width: 900px) {
+  * {
+    scrollbar-width: thin;                    /* Firefox */
+    scrollbar-color: #2E2E3A transparent;
+  }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: #2E2E3A;
+    border-radius: 8px;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: #3E3E4C; }
+}
