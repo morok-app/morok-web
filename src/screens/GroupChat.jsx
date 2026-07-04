@@ -683,6 +683,7 @@ export default function GroupChat({ groupId, onNavigate }) {
           return (
             <div
               key={m.id}
+              className="msg-row"
               onMouseDown={() => { if (!selectMode) startLongPress(m); }}
               onMouseUp={cancelLongPress}
               onMouseLeave={cancelLongPress}
@@ -716,8 +717,17 @@ export default function GroupChat({ groupId, onNavigate }) {
                 outlineOffset: 2,
                 borderRadius: 14,
                 opacity: selectMode && !selectedIds.has(m.id) ? 0.55 : 1,
+                position: 'relative',
               }}
             >
+              {!selectMode && (
+                <button
+                  className={`msg-hover-btn${isOut ? ' out' : ' in'}`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setActionMessage(m); }}
+                  title="Дії"
+                >⋯</button>
+              )}
               {/* Sender name — only for incoming messages, and only first in group */}
               {!isOut && !samePrev && (
                 <div style={{
@@ -1355,7 +1365,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
 function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isMuted }) {
   return (
-    <div style={{
+    <div className="dt-chat-header" style={{
       padding: '14px 16px',
       display: 'flex', alignItems: 'center', gap: 12,
       borderBottom: '1px solid #1E1E27',

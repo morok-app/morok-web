@@ -31,6 +31,15 @@ export default function Settings({ onNavigate }) {
   // Notifications state
   const [notifEnabled, setNotifEnabled] = useState(notif.isPreferenceEnabled());
   const [notifPermission, setNotifPermission] = useState(notif.getPermission());
+  const [soundEnabled, setSoundEnabled] = useState(notif.isSoundEnabled());
+
+  function toggleSound() {
+    const next = !soundEnabled;
+    notif.setSoundEnabled(next);
+    setSoundEnabled(next);
+    if (next) notif.playMessageSound();     // одразу продемонструвати звук
+    showToast(next ? 'Звук повідомлень увімкнено.' : 'Звук вимкнено.');
+  }
 
   // Read receipts toggle
   const [readReceiptsEnabled, setReadReceiptsEnabled] = useState(
@@ -377,6 +386,12 @@ export default function Settings({ onNavigate }) {
             onClick={(notif.isSupported() && notifPermission !== 'denied') ? toggleNotifications : null}
             chevron={notif.isSupported() && notifPermission !== 'denied'}
           />}
+          <LinRow
+            label="Звук повідомлень"
+            value={soundEnabled ? 'Увімкнено' : 'Вимкнено'}
+            valueColor={soundEnabled ? '#4ADE80' : '#6B6B72'}
+            onClick={toggleSound}
+          />
           <LinRow
             label="Підтвердження прочитання"
             value={readReceiptsEnabled ? 'Увімкнено' : 'Вимкнено'}

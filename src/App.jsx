@@ -263,6 +263,11 @@ export default function App() {
           // this, ChatRoom only re-renders on remount (navigate away & back)
           // because it listens to morok-conv-update.
           if (newMsg) {
+            // Звук нового повідомлення (тумблер у Налаштуваннях; троттл
+            // усередині; грає лише на вхідні, не на власне echo).
+            try {
+              if (newMsg.direction !== 'out') notif.playMessageSound();
+            } catch {}
             try {
               if (newMsg.peer_pubkey) {
                 window.dispatchEvent(new CustomEvent('morok-conv-update', {

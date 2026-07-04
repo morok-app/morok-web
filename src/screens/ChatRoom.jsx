@@ -21,6 +21,12 @@ const TTL_OPTIONS = [
 const LONG_PRESS_MS = 500;
 const SCROLL_BOTTOM_THRESHOLD = 80;
 
+// Пам'ять позицій скролу по чатах (живе поки відкрита вкладка).
+// Пішов із чату, погортавши історію → вернувся → ти там же, де був.
+// Якщо був унизу — маркер 'bottom', і після повернення липнемо до низу
+// (щоб нові повідомлення не лишали тебе в минулому).
+const scrollMemory = new Map();
+
 function fmtClock(unix) {
   const d = new Date(unix * 1000);
   return d.toTimeString().slice(0, 5);
@@ -118,6 +124,24 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
   const scrollerRef = useRef(null);
   const messagesEnd = useRef(null);
+
+  // Відновлення позиції скролу при вході + збереження при виході.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    const saved = scrollMemory.get(peerPubkey);
+    if (el && typeof saved === 'number') {
+      // даємо списку домалюватись, тоді ставимо позицію
+      requestAnimationFrame(() => { el.scrollTop = saved; });
+    }
+    return () => {
+      const node = scrollerRef.current;
+      if (!node) return;
+      const atBottom = (node.scrollHeight - node.scrollTop - node.clientHeight) < SCROLL_BOTTOM_THRESHOLD;
+      if (atBottom) scrollMemory.delete(peerPubkey);   // внизу → звичайна поведінка
+      else scrollMemory.set(peerPubkey, node.scrollTop);
+    };
+  }, [peerPubkey]);
+
   const prevMsgCount = useRef(null);
   const longPressTimer = useRef(null);
   const fileInputRef = useRef(null);
@@ -725,7 +749,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           return (
             <div
               key={m.id}
-              className={justGrew && idx === messages.length - 1 ? 'msg-appear' : undefined}
+              className={`msg-row${justGrew && idx === messages.length - 1 ? ' msg-appear' : ''}`}
               onMouseDown={() => { if (!selectMode) startLongPress(m); }}
               onMouseUp={cancelLongPress}
               onMouseLeave={cancelLongPress}
@@ -759,8 +783,17 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 outlineOffset: 2,
                 borderRadius: 14,
                 opacity: selectMode && !selectedIds.has(m.id) ? 0.55 : 1,
+                position: 'relative',
               }}
             >
+              {!selectMode && (
+                <button
+                  className={`msg-hover-btn${isOut ? ' out' : ' in'}`}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setActionMessage(m); }}
+                  title="Дії"
+                >⋯</button>
+              )}
               <div
                 style={{
                   padding: m.image ? 4 : (m.voice ? '6px 8px' : '10px 14px'),
@@ -1407,7 +1440,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack, onTitleClick, onMenuClick, isMuted }) {
   const clickable = typeof onTitleClick === 'function';
   return (
-    <div style={{
+    <div className="dt-chat-header" style={{
       padding: '14px 16px',
       display: 'flex', alignItems: 'center', gap: 12,
       borderBottom: '1px solid #1E1E27',
