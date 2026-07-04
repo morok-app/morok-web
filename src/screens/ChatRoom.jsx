@@ -125,21 +125,40 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   const scrollerRef = useRef(null);
   const messagesEnd = useRef(null);
 
-  // Відновлення позиції скролу при вході + збереження при виході.
+  // Пам'ять скролу. Правильна модель:
+  //  • зберігаємо ЖИВЦЕМ на кожен скрол (не на unmount — там гонка з React);
+  //  • зберігаємо НЕ scrollTop (він пливе, коли приходять нові повідомлення
+  //    і росте висота), а ВІДСТУП ВІД НИЗУ (scrollHeight - scrollTop) —
+  //    він стабільний відносно старого контенту;
+  //  • якщо був унизу — маркер 'bottom': повернення ЗАВЖДИ вниз, жорстко.
   useEffect(() => {
     const el = scrollerRef.current;
+    if (!el) return;
+
+    // Відновлення при вході (після повного рендера списку).
     const saved = scrollMemory.get(peerPubkey);
-    if (el && typeof saved === 'number') {
-      // даємо списку домалюватись, тоді ставимо позицію
-      requestAnimationFrame(() => { el.scrollTop = saved; });
-    }
-    return () => {
+    const restore = () => {
       const node = scrollerRef.current;
       if (!node) return;
-      const atBottom = (node.scrollHeight - node.scrollTop - node.clientHeight) < SCROLL_BOTTOM_THRESHOLD;
-      if (atBottom) scrollMemory.delete(peerPubkey);   // внизу → звичайна поведінка
-      else scrollMemory.set(peerPubkey, node.scrollTop);
+      if (saved === undefined || saved === 'bottom') {
+        node.scrollTop = node.scrollHeight;              // низ, жорстко
+      } else {
+        node.scrollTop = Math.max(0, node.scrollHeight - saved);
+      }
     };
+    // два кадри: перший — DOM зібрався, другий — картинки/лейаут дотяглись
+    requestAnimationFrame(() => requestAnimationFrame(restore));
+
+    // Живе збереження позиції на кожен скрол.
+    const onScroll = () => {
+      const node = scrollerRef.current;
+      if (!node) return;
+      const fromBottom = node.scrollHeight - node.scrollTop;
+      const atBottom = (fromBottom - node.clientHeight) < SCROLL_BOTTOM_THRESHOLD;
+      scrollMemory.set(peerPubkey, atBottom ? 'bottom' : fromBottom);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
   }, [peerPubkey]);
 
   const prevMsgCount = useRef(null);

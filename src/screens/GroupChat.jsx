@@ -20,6 +20,10 @@ const TTL_OPTIONS = [
 const LONG_PRESS_MS = 500;
 const SCROLL_BOTTOM_THRESHOLD = 80;
 
+// Пам'ять позицій скролу по групах (живе поки відкрита вкладка).
+// Зберігаємо відступ від низу або 'bottom' — див. ефект нижче.
+const groupScrollMemory = new Map();
+
 function fmtClock(unix) {
   const d = new Date(unix * 1000);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -204,6 +208,36 @@ export default function GroupChat({ groupId, onNavigate }) {
       messagesEnd.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [group?.messages?.length]);
+
+  // Вхід у групу: жорстко вниз (або на збережену позицію, якщо гортав
+  // історію). Пам'ять — відступ від низу, живцем на кожен скрол.
+  // Без цього вхід лишає скрол там, де браузер поставив (зазвичай
+  // не внизу) — старий баг "lands mid-list".
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const saved = groupScrollMemory.get(groupId);
+    const restore = () => {
+      const node = scrollerRef.current;
+      if (!node) return;
+      if (saved === undefined || saved === 'bottom') {
+        node.scrollTop = node.scrollHeight;
+      } else {
+        node.scrollTop = Math.max(0, node.scrollHeight - saved);
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(restore));
+
+    const remember = () => {
+      const node = scrollerRef.current;
+      if (!node) return;
+      const fromBottom = node.scrollHeight - node.scrollTop;
+      const atBottom = (fromBottom - node.clientHeight) < SCROLL_BOTTOM_THRESHOLD;
+      groupScrollMemory.set(groupId, atBottom ? 'bottom' : fromBottom);
+    };
+    el.addEventListener('scroll', remember, { passive: true });
+    return () => el.removeEventListener('scroll', remember);
+  }, [groupId]);
 
   function onScroll() {
     const el = scrollerRef.current;
