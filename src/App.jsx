@@ -12,6 +12,7 @@ import { formatPeerHandle } from './lib/display.js';
 import { hexToBytes } from './lib/crypto.js';
 import { InboxClient } from './lib/inbox.js';
 import ScreenTransition from './components/ScreenTransition.jsx';
+import Avatar from './components/Avatar.jsx';
 import { resolveDirection } from './lib/nav_direction.js';
 import { installTapHaptics } from './lib/tap_haptics.js';
 
@@ -560,6 +561,72 @@ export default function App() {
  * На десктопі slide-анімацію вимикаємо: панелі статичні, миттєва заміна
  * правої частини — саме так поводяться нативні десктоп-месенджери.
  */
+/* ── Живий заголовок вкладки ──
+ * "(3) Morok" коли є непрочитані; назва чату коли відкритий; миготіння
+ * favicon у фоновій вкладці при непрочитаних. Рахуємо на realtime-події
+ * (morok-conv-update / morok-group-update) + перехід між чатами.
+ */
+function totalUnread() {
+  let n = 0;
+  try {
+    for (const c of convs.listConversations()) n += convs.countUnread(c.peer_pubkey);
+    for (const g of gstore.listGroups()) n += gstore.countUnread(g.group_id);
+  } catch {}
+  return n;
+}
+
+function useTabTitle(route, routeArg) {
+  useEffect(() => {
+    let flashTimer = null;
+    let flashOn = false;
+
+    function chatLabel() {
+      try {
+        if (route === 'chat' && routeArg) {
+          const c = convs.getConversation(routeArg);
+          return c?.peer_username ? `@${c.peer_username}` : null;
+        }
+        if (route === 'group' && routeArg) {
+          const g = gstore.getGroup(routeArg);
+          return g?.name || null;
+        }
+      } catch {}
+      return null;
+    }
+
+    function apply() {
+      const unread = totalUnread();
+      const label = chatLabel();
+      const base = label ? `${label} — Morok` : 'Morok';
+      document.title = unread > 0 ? `(${unread}) ${base}` : base;
+
+      // Миготіння favicon лише у фоновій вкладці з непрочитаними.
+      const hidden = document.visibilityState === 'hidden';
+      if (unread > 0 && hidden && !flashTimer) {
+        flashTimer = setInterval(() => {
+          flashOn = !flashOn;
+          document.title = flashOn ? `● (${totalUnread()}) ${base}` : `(${totalUnread()}) ${base}`;
+        }, 1200);
+      } else if ((unread === 0 || !hidden) && flashTimer) {
+        clearInterval(flashTimer);
+        flashTimer = null;
+      }
+    }
+
+    apply();
+    const onUpdate = () => apply();
+    window.addEventListener('morok-conv-update', onUpdate);
+    window.addEventListener('morok-group-update', onUpdate);
+    document.addEventListener('visibilitychange', onUpdate);
+    return () => {
+      window.removeEventListener('morok-conv-update', onUpdate);
+      window.removeEventListener('morok-group-update', onUpdate);
+      document.removeEventListener('visibilitychange', onUpdate);
+      if (flashTimer) clearInterval(flashTimer);
+    };
+  }, [route, routeArg]);
+}
+
 const AUTH_ROUTES = new Set([
   'splash', 'welcome', 'create', 'login', 'restore',
   'pin-setup', 'pin-setup-existing', 'pin-unlock', 'claim',
@@ -581,6 +648,7 @@ function useIsDesktop() {
 
 function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, renderScreen }) {
   const isDesktop = useIsDesktop();
+  useTabTitle(route, routeArg);
 
   const isChat = route === 'chat' || route === 'group';
 
@@ -688,9 +756,13 @@ function QuickSwitcher({ navigate }) {
     .map((c) => ({
       kind: 'dm', id: c.peer_pubkey,
       label: c.peer_username ? `@${c.peer_username}` : `${c.peer_pubkey.slice(0, 10)}…`,
+      username: c.peer_username || null,
+      pubkey: c.peer_pubkey,
     }));
   const grps = gstore.listGroups().map((g) => ({
     kind: 'group', id: g.group_id, label: g.name || 'Група',
+    username: g.name || null,
+    pubkey: g.group_id,
   }));
   const all = [...dms, ...grps];
   const hits = needle
@@ -751,9 +823,7 @@ function QuickSwitcher({ navigate }) {
               display: 'flex', alignItems: 'center', gap: 10,
             }}
           >
-            <span style={{ fontSize: 12, color: '#6E6E78', width: 42, flexShrink: 0 }}>
-              {h.kind === 'dm' ? 'чат' : 'група'}
-            </span>
+            <Avatar username={h.username} pubkey={h.pubkey} size={26} isGroup={h.kind === 'group'} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.label}</span>
           </div>
         ))}
