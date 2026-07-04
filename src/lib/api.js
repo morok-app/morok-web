@@ -24,10 +24,16 @@ const STORAGE_KEY_RELAY = 'morok.relay_url.v1';
 function detectDefaultRelay() {
   if (typeof window === 'undefined') return 'https://relay1.morok.app';
 
-  // Native runtime check — works for both Capacitor 5+ and older variants.
+  // Native runtime check — Capacitor (Android/iOS) АБО Tauri (Windows/
+  // Linux/macOS десктоп). В обох origin безглуздий (tauri://localhost),
+  // тож беремо збережений вибір або дефолтний relay1.
   const isNative = !!(
     window.Capacitor?.isNativePlatform?.() ||
-    window.Capacitor?.isNative
+    window.Capacitor?.isNative ||
+    window.__TAURI__ ||
+    window.__TAURI_INTERNALS__ ||
+    /^tauri:/.test(window.location?.protocol || '') ||
+    (window.location?.protocol === 'http:' && window.location?.hostname === 'tauri.localhost')
   );
   if (isNative) {
     try {
