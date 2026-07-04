@@ -377,9 +377,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     fileInputRef.current?.click();
   }
 
-  async function onImagePicked(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  async function sendImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       alert('Це не картинка.');
@@ -408,6 +406,27 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       setImageBusy(false);
     }
   }
+
+  async function onImagePicked(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    await sendImageFile(file);
+  }
+
+  // Десктоп: drag-n-drop картинки у вікно чату + Ctrl+V скріншота з буфера.
+  const [dragOver, setDragOver] = useState(false);
+  useEffect(() => {
+    function onPaste(e) {
+      const item = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith('image/'));
+      if (!item) return;
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) sendImageFile(file);
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peerPubkey, draft, ttlSeconds]);
 
   async function startRecording() {
     if (recording || voiceBusy || sending || imageBusy) return;
@@ -566,7 +585,37 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   const peerHue = parseInt(conv.peer_pubkey.slice(0, 6), 16) % 360;
 
   return (
-    <div className="screen" style={{ background: '#0A0A0B' }}>
+    <div
+      className="screen"
+      style={{ background: '#0A0A0B', position: 'relative' }}
+      onDragOver={(e) => {
+        if (Array.from(e.dataTransfer?.types || []).includes('Files')) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        // рахуємо leave лише коли покинули сам контейнер, не дітей
+        if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget)) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = Array.from(e.dataTransfer?.files || []).find((f) => f.type.startsWith('image/'));
+        if (file) sendImageFile(file);
+      }}
+    >
+      {dragOver && (
+        <div style={{
+          position: 'absolute', inset: 8, zIndex: 50, borderRadius: 16,
+          border: '2px dashed #7B96FF', background: 'rgba(123,150,255,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+          color: '#C8CFFF', fontSize: 15, fontWeight: 600,
+        }}>
+          Відпустіть, щоб надіслати картинку
+        </div>
+      )}
       <style>{`
         @keyframes morokPulse {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -683,6 +732,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               onTouchStart={() => { if (!selectMode) startLongPress(m); }}
               onTouchEnd={cancelLongPress}
               onTouchCancel={cancelLongPress}
+              onContextMenu={(e) => {
+                // Десктоп: права кнопка миші = меню дій (як long-press).
+                e.preventDefault();
+                cancelLongPress();
+                if (!selectMode) setActionMessage(m);
+              }}
               onClickCapture={(e) => {
                 // У режимі виділення тап = тогл, і перехоплюємо клік ДО
                 // внутрішніх обробників (картинка/войс), щоб лайтбокс

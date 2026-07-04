@@ -359,9 +359,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     fileInputRef.current?.click();
   }
 
-  async function onImagePicked(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  async function sendImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       alert('Це не картинка.');
@@ -387,6 +385,27 @@ export default function GroupChat({ groupId, onNavigate }) {
       setImageBusy(false);
     }
   }
+
+  async function onImagePicked(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    await sendImageFile(file);
+  }
+
+  // Десктоп: Ctrl+V скріншота з буфера → надіслати в групу.
+  const [dragOver, setDragOver] = useState(false);
+  useEffect(() => {
+    function onPaste(e) {
+      const item = Array.from(e.clipboardData?.items || []).find((i) => i.type.startsWith('image/'));
+      if (!item) return;
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) sendImageFile(file);
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, draft, ttlSeconds]);
 
   async function startRecording() {
     if (recording || voiceBusy || sending || imageBusy) return;
@@ -525,7 +544,36 @@ export default function GroupChat({ groupId, onNavigate }) {
   const memberCount = group.member_count || (group.members?.length ?? 0);
 
   return (
-    <div className="screen" style={{ background: '#0A0A0B' }}>
+    <div
+      className="screen"
+      style={{ background: '#0A0A0B', position: 'relative' }}
+      onDragOver={(e) => {
+        if (Array.from(e.dataTransfer?.types || []).includes('Files')) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget)) setDragOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = Array.from(e.dataTransfer?.files || []).find((f) => f.type.startsWith('image/'));
+        if (file) sendImageFile(file);
+      }}
+    >
+      {dragOver && (
+        <div style={{
+          position: 'absolute', inset: 8, zIndex: 50, borderRadius: 16,
+          border: '2px dashed #7B96FF', background: 'rgba(123,150,255,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+          color: '#C8CFFF', fontSize: 15, fontWeight: 600,
+        }}>
+          Відпустіть, щоб надіслати картинку
+        </div>
+      )}
       <style>{`
         @keyframes morokPulse {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -641,6 +689,12 @@ export default function GroupChat({ groupId, onNavigate }) {
               onTouchStart={() => { if (!selectMode) startLongPress(m); }}
               onTouchEnd={cancelLongPress}
               onTouchCancel={cancelLongPress}
+              onContextMenu={(e) => {
+                // Десктоп: права кнопка миші = меню дій (як long-press).
+                e.preventDefault();
+                cancelLongPress();
+                if (!selectMode) setActionMessage(m);
+              }}
               onClickCapture={(e) => {
                 // У режимі виділення тап = тогл, і перехоплюємо клік ДО
                 // внутрішніх обробників (картинка/войс), щоб лайтбокс

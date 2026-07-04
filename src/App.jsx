@@ -629,6 +629,7 @@ function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, rend
       <main className={`dt-right${isChat || rightIsList ? '' : ' dt-page'}`} key={screenKey}>
         {rightIsList ? <DesktopPlaceholder /> : renderScreen()}
       </main>
+      <QuickSwitcher navigate={navigate} />
     </div>
   );
 }
@@ -639,6 +640,119 @@ function DesktopPlaceholder() {
       <div className="dt-placeholder-tile">M</div>
       <div className="dt-placeholder-title">Оберіть чат</div>
       <div className="dt-placeholder-sub">або створіть новий, щоб почати розмову</div>
+    </div>
+  );
+}
+
+/* ── Ctrl+K: швидкий перемикач чатів (десктоп) ──
+ * Палітра поверх усього: пошук по нікнеймах/юзернеймах/назвах груп,
+ * ↑↓ — вибір, Enter — перейти, Esc — закрити. Як у Telegram/Slack.
+ */
+function QuickSwitcher({ navigate }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const [idx, setIdx] = useState(0);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen((v) => !v);
+        setQ('');
+        setIdx(0);
+      } else if (e.key === 'Escape' && open) {
+        e.stopPropagation();
+        setOpen(false);
+      }
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 30);
+  }, [open]);
+
+  if (!open) return null;
+
+  // Кандидати: DM-розмови + групи, відфільтровані за запитом.
+  const needle = q.trim().toLowerCase();
+  const dms = convs.listConversations()
+    .filter((c) => (c.messages?.length || 0) > 0)
+    .map((c) => ({
+      kind: 'dm', id: c.peer_pubkey,
+      label: c.peer_username ? `@${c.peer_username}` : `${c.peer_pubkey.slice(0, 10)}…`,
+    }));
+  const grps = gstore.listGroups().map((g) => ({
+    kind: 'group', id: g.group_id, label: g.name || 'Група',
+  }));
+  const all = [...dms, ...grps];
+  const hits = needle
+    ? all.filter((x) => x.label.toLowerCase().includes(needle))
+    : all.slice(0, 8);
+  const sel = Math.min(idx, Math.max(0, hits.length - 1));
+
+  function go(item) {
+    setOpen(false);
+    navigate(item.kind === 'dm' ? `chat/${item.id}` : `group/${item.id}`);
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 300,
+        background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        paddingTop: '18vh',
+      }}
+      onClick={() => setOpen(false)}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 480, maxWidth: '90vw',
+          background: '#14141B', border: '1px solid #2A2A34',
+          borderRadius: 16, overflow: 'hidden',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+        }}
+      >
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => { setQ(e.target.value); setIdx(0); }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setIdx((i) => Math.min(i + 1, hits.length - 1)); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
+            else if (e.key === 'Enter' && hits[sel]) { e.preventDefault(); go(hits[sel]); }
+          }}
+          placeholder="Куди перейти?  (↑↓ + Enter)"
+          style={{
+            width: '100%', padding: '15px 18px', boxSizing: 'border-box',
+            background: 'transparent', border: 'none', outline: 'none',
+            color: '#F5F5F7', fontSize: 15.5, fontFamily: 'inherit',
+            borderBottom: hits.length ? '1px solid #232329' : 'none',
+          }}
+        />
+        {hits.map((h, i) => (
+          <div
+            key={`${h.kind}-${h.id}`}
+            onClick={() => go(h)}
+            onMouseEnter={() => setIdx(i)}
+            style={{
+              padding: '11px 18px', cursor: 'pointer', fontSize: 14.5,
+              color: i === sel ? '#FFFFFF' : '#C8C8D2',
+              background: i === sel ? 'rgba(123,150,255,0.14)' : 'transparent',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}
+          >
+            <span style={{ fontSize: 12, color: '#6E6E78', width: 42, flexShrink: 0 }}>
+              {h.kind === 'dm' ? 'чат' : 'група'}
+            </span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
