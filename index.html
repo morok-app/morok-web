@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0A0A0C" />
 
-    <!-- PWA: маніфест + іконки (файли лежать у public/) -->
-    <link rel="manifest" href="/web/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/web/icon-192.png" />
+    <!-- PWA: маніфест + іконки (файли лежать у public/). Відносні шляхи —
+         vite сам підставить правильний base (web: /web/, Tauri: ./) -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
 
     <title>Morok — приватний месенджер без телефону</title>
     <meta name="description" content="Месенджер який нічого про вас не зберігає. Без телефону, без email, без імені." />
