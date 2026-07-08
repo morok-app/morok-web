@@ -529,10 +529,16 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       console.warn('mail decrypt failed:', e?.message || e);
       return null;
     }
+    const mailStore = await import('./mail_store.js');
+    const isNew = await mailStore.addEmail({
+      envelopeId,
+      ts: envMeta.ts || Math.floor(Date.now() / 1000),
+      email,
+    });
     return {
       __mail: true,
       envelope_id: envelopeId,
-      ts: envMeta.ts || Math.floor(Date.now() / 1000),
+      isNew,        // false → дубль (повторний catchup), звук не грати
       email,
     };
   }

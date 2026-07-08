@@ -239,8 +239,6 @@ export default function App() {
             const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
             client.ack(env.envelope_id);
             if (newMsg?.__mail) {
-              // ЕТАП 1b: тимчасовий доказ, що конвеєр працює. Скринька/UI — далі.
-              console.log('📬 MAIL (catchup):', newMsg.email);
               window.dispatchEvent(new CustomEvent('morok-mail-update', { detail: newMsg }));
               continue;
             }
@@ -267,9 +265,7 @@ export default function App() {
           client.ack(env.envelope_id);
 
           if (newMsg?.__mail) {
-            // ЕТАП 1b: тимчасовий доказ, що конвеєр працює. Скринька/UI — далі.
-            console.log('📬 MAIL (new):', newMsg.email);
-            try { notif.playMessageSound(); } catch {}
+            if (newMsg.isNew) { try { notif.playMessageSound(); } catch {} }
             window.dispatchEvent(new CustomEvent('morok-mail-update', { detail: newMsg }));
             return;
           }

@@ -133,5 +133,6 @@ export function wipeAll() {
   // muted chats live in IndexedDB (so the SW can read them) — best-effort drop.
   try {
     if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('morok_muted');
+  if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('morok_mail');
   } catch { /* ignore */ }
 }
