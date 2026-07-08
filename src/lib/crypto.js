@@ -272,6 +272,29 @@ export function sealedEncrypt({ seed, myPubkeyHex, peerPubkeyHex, payload, to, t
   };
 }
 
+// ── morok.email: розшифрування поштового конверта (формат morok-mail-v1) ──
+// БЕЗ перевірки підпису: автентичність гарантує relay (пошту формує лише
+// SMTP-приймач релея). JSON.parse стійкий до будь-якого вмісту листа.
+// Крос-перевірено Python(pynacl) ↔ цей код: збіг байт-у-байт.
+const MAIL_INFO_V1 = utf8('morok-mail-v1');
+
+export function mailOpen({ seed, blobB64 }) {
+  const raw = base64ToBytes(blobB64);
+  if (raw.length < 56 + 16) throw new Error('mail blob too short');
+  const ephPub = raw.slice(0, 32);
+  const nonce = raw.slice(32, 56);
+  const ct = raw.slice(56);
+
+  const myX25519Priv = x25519PrivFromSeed(seed);
+  const shared = x25519.getSharedSecret(myX25519Priv, ephPub);
+  const key = hkdf(sha256, shared, ephPub, MAIL_INFO_V1, 32);
+
+  const json = utf8Decode(xchacha20poly1305(key, nonce).decrypt(ct));
+  const payload = JSON.parse(json);
+  if (payload.kind !== 'email') throw new Error('not an email payload');
+  return payload; // { kind:'email', from, subject, date, text, html, attachments, spf, received_at }
+}
+
 export function sealedDecrypt({ seed, myPubkeyHex, blobB64, to }) {
   const raw = base64ToBytes(blobB64);
   if (raw.length < 56 + 16) throw new Error('sealed blob too short');

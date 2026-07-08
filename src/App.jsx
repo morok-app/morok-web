@@ -238,6 +238,12 @@ export default function App() {
           try {
             const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
             client.ack(env.envelope_id);
+            if (newMsg?.__mail) {
+              // ЕТАП 1b: тимчасовий доказ, що конвеєр працює. Скринька/UI — далі.
+              console.log('📬 MAIL (catchup):', newMsg.email);
+              window.dispatchEvent(new CustomEvent('morok-mail-update', { detail: newMsg }));
+              continue;
+            }
             if (newMsg?.peer_pubkey) touchedPeers.add(newMsg.peer_pubkey);
             if (env.group_id) touchedGroups.add(env.group_id);
           } catch (e) { console.warn('catchup failed:', e); }
@@ -259,6 +265,14 @@ export default function App() {
         try {
           const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
           client.ack(env.envelope_id);
+
+          if (newMsg?.__mail) {
+            // ЕТАП 1b: тимчасовий доказ, що конвеєр працює. Скринька/UI — далі.
+            console.log('📬 MAIL (new):', newMsg.email);
+            try { notif.playMessageSound(); } catch {}
+            window.dispatchEvent(new CustomEvent('morok-mail-update', { detail: newMsg }));
+            return;
+          }
 
           // Tell the open chat/group view to refresh from store. Without
           // this, ChatRoom only re-renders on remount (navigate away & back)

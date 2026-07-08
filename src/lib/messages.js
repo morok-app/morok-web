@@ -507,6 +507,36 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     });
   }
 
+  // ── MAIL envelope (morok.email) ─────────────────────────
+  // channel==='mail' → окремий формат morok-mail-v1, розшифровуємо
+  // crypto.mailOpen (не sealedDecrypt). Повертаємо mail-маркер, який
+  // App.jsx направляє у поштову скриньку, а не в чати.
+  if (envMeta.channel === 'mail') {
+    let mailBlob;
+    try {
+      mailBlob = await api.fetchBlob(envelopeId);
+    } catch (e) {
+      console.warn('fetchBlob (mail) failed:', e);
+      return null;
+    }
+    let email;
+    try {
+      email = crypto.mailOpen({
+        seed,
+        blobB64: crypto.bytesToBase64(mailBlob),
+      });
+    } catch (e) {
+      console.warn('mail decrypt failed:', e?.message || e);
+      return null;
+    }
+    return {
+      __mail: true,
+      envelope_id: envelopeId,
+      ts: envMeta.ts || Math.floor(Date.now() / 1000),
+      email,
+    };
+  }
+
   // ── SEALED DM envelope ──────────────────────────────────
   // Релей не знає відправника (from=""), тому особа з'являється лише
   // ПІСЛЯ розшифровки ефемерним ключем + перевірки внутрішнього
