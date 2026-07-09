@@ -36,11 +36,10 @@ export default function MailAliases({ onNavigate }) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  async function createAlias(alias) {
+  async function createAlias(alias, primary = false) {
     setBusy(true); setErr(null);
     try {
-      const hasPrimary = data?.aliases?.some((a) => a.primary && a.status !== 'dead');
-      await api.mailCreateAlias({ alias, primary: !hasPrimary });
+      await api.mailCreateAlias({ alias, primary });
       setShowCreate(false); setCustomName('');
       await reload();
     } catch (e) {
@@ -109,6 +108,31 @@ export default function MailAliases({ onNavigate }) {
           }}>{err}</div>
         )}
 
+        {/* ── Основна адреса (username → email), якщо ще не активована ── */}
+        {data && !data.aliases?.some((a) => a.primary && a.status !== 'dead') && (
+          <div style={{
+            background: 'rgba(123,150,255,0.07)', border: '1px solid rgba(123,150,255,0.3)',
+            borderRadius: 14, padding: 16, marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 6 }}>
+              Основна адреса
+            </div>
+            <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.5, marginBottom: 12 }}>
+              Ваш нік у Morok стане вашою поштою: <b style={{ color: TEXT }}>@нік → нік@morok.email</b>.
+              Основну адресу не можна вбити — це ваша постійна скринька.
+            </div>
+            <button
+              onClick={() => createAlias(null, true)}
+              disabled={busy}
+              style={{
+                background: ACCENT, color: '#0A0A0B', border: 'none', borderRadius: 10,
+                padding: '10px 16px', fontSize: 13.5, fontWeight: 700,
+                cursor: 'pointer', opacity: busy ? 0.5 : 1,
+              }}
+            >Активувати мою адресу</button>
+          </div>
+        )}
+
         {/* ── Створення ── */}
         {showCreate && (
           <div style={{
@@ -164,17 +188,10 @@ export default function MailAliases({ onNavigate }) {
           <div style={{ textAlign: 'center', padding: '50px 24px', color: MUTED }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✉️</div>
             <div style={{ fontSize: 15, color: TEXT, marginBottom: 6 }}>Адрес поки немає</div>
-            <div style={{ fontSize: 13, lineHeight: 1.5, marginBottom: 18 }}>
-              Створіть першу — вона стане вашою основною адресою.<br />
-              Далі можна додавати аліаси для сайтів і розсилок.
+            <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+              Активуйте основну адресу вище, а для сайтів і розсилок<br />
+              створюйте окремі аліаси кнопкою «+ Нова».
             </div>
-            <button
-              onClick={() => setShowCreate(true)}
-              style={{
-                background: ACCENT, color: '#0A0A0B', border: 'none', borderRadius: 12,
-                padding: '12px 22px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-              }}
-            >Створити адресу</button>
           </div>
         )}
 
