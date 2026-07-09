@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import * as mailStore from '../lib/mail_store.js';
+import * as backup from '../lib/mail_backup.js';
+import * as vault from '../lib/vault.js';
 import { TopBar } from '../components/ui.jsx';
 
 const ACCENT = '#7B96FF';
@@ -27,6 +29,36 @@ function parseFrom(from) {
 export default function Mail({ onNavigate }) {
   const [emails, setEmails] = useState(null);   // null = завантаження
   const [openId, setOpenId] = useState(null);   // відкритий лист (envelope_id)
+  const [backupMsg, setBackupMsg] = useState(null);
+
+  async function handleExport() {
+    try {
+      const seed = vault.getUnlockedSeed();
+      if (!seed) { setBackupMsg('Спершу розблокуйте акаунт'); return; }
+      const n = await backup.exportToFile(seed);
+      setBackupMsg(`Експортовано листів: ${n}`);
+    } catch (e) {
+      setBackupMsg('Помилка експорту: ' + (e?.message || e));
+    }
+    setTimeout(() => setBackupMsg(null), 3000);
+  }
+
+  async function handleImportFile(ev) {
+    const file = ev.target.files?.[0];
+    ev.target.value = '';
+    if (!file) return;
+    try {
+      const seed = vault.getUnlockedSeed();
+      if (!seed) { setBackupMsg('Спершу розблокуйте акаунт'); return; }
+      const obj = await backup.readBackupFile(file);
+      const r = await backup.importBackup(seed, obj);
+      setBackupMsg(`Імпортовано нових: ${r.imported} (пропущено дублів: ${r.skipped})`);
+      reload();
+    } catch (e) {
+      setBackupMsg('Помилка імпорту: ' + (e?.message || e));
+    }
+    setTimeout(() => setBackupMsg(null), 4000);
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -156,6 +188,40 @@ export default function Mail({ onNavigate }) {
             </button>
           );
         })}
+
+        {/* ── Бекап скриньки ── */}
+        {emails && emails.length >= 0 && (
+          <div style={{
+            marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 16,
+          }}>
+            {backupMsg && (
+              <div style={{ fontSize: 12.5, color: ACCENT, marginBottom: 10 }}>{backupMsg}</div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleExport}
+                style={{
+                  flex: 1, background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`,
+                  borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >⤓ Експорт скриньки</button>
+              <label
+                style={{
+                  flex: 1, background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`,
+                  borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                ⤒ Імпорт
+                <input type="file" accept=".morokmail,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
+              </label>
+            </div>
+            <div style={{ fontSize: 11.5, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
+              Пошта зберігається лише на цьому пристрої. Робіть бекап — файл
+              зашифрований вашим ключем, відкрити його зможете тільки ви.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
