@@ -97,6 +97,34 @@ async function http(method, path, { body, auth } = {}) {
 }
 
 // ────────────────────────────────────────────────────────────
+// Mail (morok.email) — аліаси
+// ────────────────────────────────────────────────────────────
+
+export async function mailListAliases() {
+  return http('GET', '/api/v1/mail/aliases', { auth: true });
+}
+
+/** alias: бажаний local-part або null (згенерувати). primary: bool */
+export async function mailCreateAlias({ alias = null, primary = false } = {}) {
+  return http('POST', '/api/v1/mail/aliases', {
+    auth: true,
+    body: { alias, primary },
+  });
+}
+
+export async function mailPauseAlias(alias) {
+  return http('POST', `/api/v1/mail/aliases/${encodeURIComponent(alias)}/pause`, { auth: true });
+}
+
+export async function mailResumeAlias(alias) {
+  return http('POST', `/api/v1/mail/aliases/${encodeURIComponent(alias)}/resume`, { auth: true });
+}
+
+export async function mailKillAlias(alias) {
+  return http('DELETE', `/api/v1/mail/aliases/${encodeURIComponent(alias)}`, { auth: true });
+}
+
+// ────────────────────────────────────────────────────────────
 // Health
 // ────────────────────────────────────────────────────────────
 

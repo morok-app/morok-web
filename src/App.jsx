@@ -48,6 +48,7 @@ import BurnerList from './screens/BurnerList.jsx';
 import BurnerSend from './screens/BurnerSend.jsx';
 import Tools from './screens/Tools.jsx';
 import Mail from './screens/Mail.jsx';
+import MailAliases from './screens/MailAliases.jsx';
 
 const PENDING_KEY = 'morok.pending_route.v1';
 
@@ -541,6 +542,7 @@ export default function App() {
     case 'burner-send':
       return <BurnerSend routeArg={routeArg} />;
     case 'mail': return <Mail onNavigate={navigate} />;
+    case 'mail-aliases': return <MailAliases onNavigate={navigate} />;
     case 'tools': return <Tools onNavigate={navigate} />;
     default: return <Splash />;
   }
