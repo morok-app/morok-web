@@ -347,6 +347,14 @@ export function generateSymmetricKey() {
  * Encrypt arbitrary bytes with a known 32-byte symmetric key.
  * Output: nonce(24) ‖ ciphertext+tag, base64.
  */
+// Ключ для локальних бекапів пошти, похідний від сіда.
+// Доменно відокремлений (info="morok-mail-backup-v1") — це НЕ той ключ,
+// що DM/mail/sealed. Формат зафіксовано назавжди.
+const MAIL_BACKUP_INFO = utf8('morok-mail-backup-v1');
+export function mailBackupKey(seed) {
+  return hkdf(sha256, seed, new Uint8Array(0), MAIL_BACKUP_INFO, 32);
+}
+
 export function encryptWithKey(keyBytes, plaintextBytes) {
   if (keyBytes.length !== 32) throw new Error('key must be 32 bytes');
   const nonce = randomBytes(24);
