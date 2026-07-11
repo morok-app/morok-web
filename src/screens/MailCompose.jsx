@@ -85,7 +85,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           await mailStore.addEmail({
             envelopeId: `sent-${now}-${Math.random().toString(36).slice(2, 8)}`,
             ts: now,
-            email: { ...payload, out: true, from: `→ ${parsed.local}@${MAIL_DOMAIN}` },
+            email: { ...payload, out: true },
           });
           window.dispatchEvent(new CustomEvent('morok-mail-update'));
         } catch { /* не критично */ }
