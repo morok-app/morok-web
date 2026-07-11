@@ -295,6 +295,25 @@ export function mailOpen({ seed, blobB64 }) {
   return payload; // { kind:'email', from, subject, date, text, html, attachments, spf, received_at }
 }
 
+// morok.email — ЗАШИФРУВАННЯ листа для внутрішньої пошти Morok↔Morok.
+// Дзеркало mailOpen: той самий формат morok-mail-v1, шифруємо на pubkey
+// адресата (його Ed25519 → Montgomery). Результат відкриє mailOpen у нього.
+export function mailSeal({ recipientPubkeyHex, payload }) {
+  const recipEdPub = hexToBytes(recipientPubkeyHex);
+  const recipX = edwardsToMontgomeryPub(recipEdPub);
+  const ephPriv = x25519.utils.randomPrivateKey();
+  const ephPub = x25519.getPublicKey(ephPriv);
+  const shared = x25519.getSharedSecret(ephPriv, recipX);
+  const key = hkdf(sha256, shared, ephPub, MAIL_INFO_V1, 32);
+  const nonce = randomBytes(24);
+  const ct = xchacha20poly1305(key, nonce).encrypt(utf8(JSON.stringify(payload)));
+  const blob = new Uint8Array(ephPub.length + nonce.length + ct.length);
+  blob.set(ephPub, 0);
+  blob.set(nonce, ephPub.length);
+  blob.set(ct, ephPub.length + nonce.length);
+  return bytesToBase64(blob);
+}
+
 export function sealedDecrypt({ seed, myPubkeyHex, blobB64, to }) {
   const raw = base64ToBytes(blobB64);
   if (raw.length < 56 + 16) throw new Error('sealed blob too short');

@@ -120,6 +120,17 @@ export async function mailResumeAlias(alias) {
   return http('POST', `/api/v1/mail/aliases/${encodeURIComponent(alias)}/resume`, { auth: true });
 }
 
+export async function mailResolve(alias) {
+  return http('GET', `/api/v1/mail/resolve/${encodeURIComponent(alias)}`, { auth: true });
+}
+
+export async function mailSendInternal({ toAlias, blobB64 }) {
+  return http('POST', '/api/v1/mail/send', {
+    auth: true,
+    body: { to_alias: toAlias, blob_b64: blobB64 },
+  });
+}
+
 export async function mailKillAlias(alias) {
   return http('DELETE', `/api/v1/mail/aliases/${encodeURIComponent(alias)}`, { auth: true });
 }

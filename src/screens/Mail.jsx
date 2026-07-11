@@ -101,7 +101,7 @@ export default function Mail({ onNavigate }) {
   // ── СПИСОК ──
   const unread = (emails || []).filter((e) => !e.read).length;
   return (
-    <div className="screen" style={{ background: BG, minHeight: '100%' }}>
+    <div className="screen" style={{ background: BG, minHeight: '100%', position: 'relative' }}>
       <TopBar
         title="Пошта"
         subtitle={
@@ -223,6 +223,18 @@ export default function Mail({ onNavigate }) {
           </div>
         )}
       </div>
+
+      {/* кнопка «написати» */}
+      <button
+        onClick={() => onNavigate('mail-compose')}
+        title="Написати лист"
+        style={{
+          position: 'absolute', right: 20, bottom: 20, width: 56, height: 56,
+          borderRadius: 28, background: ACCENT, color: '#0A0A0B', border: 'none',
+          fontSize: 26, fontWeight: 700, cursor: 'pointer', lineHeight: 1,
+          boxShadow: '0 6px 20px rgba(107,138,254,0.4)',
+        }}
+      >✎</button>
     </div>
   );
 }
