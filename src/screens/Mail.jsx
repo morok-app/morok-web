@@ -147,7 +147,7 @@ export default function Mail({ onNavigate }) {
 
         {emails?.map((m) => {
           const { name } = parseFrom(m.email?.from);
-          const spfBad = m.email?.spf && m.email.spf !== 'pass' && m.email.spf !== 'none';
+          const spfBad = m.email?.spf && !['pass', 'none', 'internal'].includes(m.email.spf);
           return (
             <button
               key={m.envelope_id}
@@ -280,7 +280,9 @@ function MailReader({ msg, onBack, onDelete }) {
             </div>
           </div>
           <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Tag label={`SPF: ${e.spf || 'none'}`} ok={e.spf === 'pass'} />
+            {e.spf === 'internal'
+              ? <Tag label="🔒 Morok" ok />
+              : <Tag label={`SPF: ${e.spf || 'none'}`} ok={e.spf === 'pass'} />}
             {e.html && (
               <button
                 onClick={() => setShowHtml((v) => !v)}

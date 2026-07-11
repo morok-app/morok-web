@@ -80,8 +80,15 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
 
       if (r?.status === 'sent' || r?.status === 'duplicate') {
         setStatus({ type: 'ok', msg: `Надіслано на ${parsed.local}@${MAIL_DOMAIN}` });
-        // локальна копія у «мою» скриньку — щоб бачити відправлене
-        // (позначаємо out=true у payload-обгортці)
+        // локальна копія відправленого у власну скриньку
+        try {
+          await mailStore.addEmail({
+            envelopeId: `sent-${now}-${Math.random().toString(36).slice(2, 8)}`,
+            ts: now,
+            email: { ...payload, out: true, from: `→ ${parsed.local}@${MAIL_DOMAIN}` },
+          });
+          window.dispatchEvent(new CustomEvent('morok-mail-update'));
+        } catch { /* не критично */ }
         setTimeout(() => onNavigate('mail'), 900);
       } else {
         setStatus({ type: 'err', msg: 'Не вдалося надіслати' });
