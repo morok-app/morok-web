@@ -49,6 +49,7 @@ import BurnerSend from './screens/BurnerSend.jsx';
 import Tools from './screens/Tools.jsx';
 import Mail from './screens/Mail.jsx';
 import MailAliases from './screens/MailAliases.jsx';
+import MailCompose from './screens/MailCompose.jsx';
 
 const PENDING_KEY = 'morok.pending_route.v1';
 
@@ -480,6 +481,8 @@ export default function App() {
   }
 
   function renderScreen() {
+    const _prof = store.loadProfile();
+    const mailPrimaryAddress = _prof?.username ? `${_prof.username}@morok.email` : 'Morok';
   switch (route) {
     case 'splash': return <Splash />;
     case 'welcome': return <Welcome onNavigate={navigate} />;
@@ -543,6 +546,7 @@ export default function App() {
       return <BurnerSend routeArg={routeArg} />;
     case 'mail': return <Mail onNavigate={navigate} />;
     case 'mail-aliases': return <MailAliases onNavigate={navigate} />;
+    case 'mail-compose': return <MailCompose onNavigate={navigate} myPrimaryAddress={mailPrimaryAddress} />;
     case 'tools': return <Tools onNavigate={navigate} />;
     default: return <Splash />;
   }
