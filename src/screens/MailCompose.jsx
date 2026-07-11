@@ -27,9 +27,11 @@ function extractLocal(input) {
 }
 
 export default function MailCompose({ onNavigate, myPrimaryAddress }) {
-  const [to, setTo] = useState('');
-  const [subject, setSubject] = useState('');
-  const [text, setText] = useState('');
+  const _draft = typeof window !== 'undefined' ? window.__morokMailDraft : null;
+  if (typeof window !== 'undefined') window.__morokMailDraft = null;
+  const [to, setTo] = useState(_draft?.to || '');
+  const [subject, setSubject] = useState(_draft?.subject || '');
+  const [text, setText] = useState(_draft?.text || '');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);   // {type:'ok'|'err', msg}
 

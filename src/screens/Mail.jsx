@@ -117,6 +117,7 @@ export default function Mail({ onNavigate }) {
       msg={open}
       onBack={() => setOpenId(null)}
       onDelete={() => handleDelete(open.envelope_id)}
+      onNavigate={onNavigate}
     />;
   }
 
@@ -264,11 +265,39 @@ const footBtn = {
 };
 
 // ─────────────────────────────────────────── читання
-function MailReader({ msg, onBack, onDelete }) {
+function MailReader({ msg, onBack, onDelete, onNavigate }) {
   const e = msg.email || {};
   const out = !!e.out;
   const { name, addr } = parseFrom(e.from);
   const [showHtml, setShowHtml] = useState(!!e.html);
+
+  // адреса для відповіді: тільки внутрішні @morok.email (зовнішня відправка — Фаза 3)
+  const replyAddr = (() => {
+    const src = out ? (e.to_alias ? `${e.to_alias}@morok.email` : '') : (parseFrom(e.from).addr || '');
+    return /@morok\.email$/i.test(src) ? src : '';
+  })();
+  const isExternalInbound = !out && !replyAddr;
+
+  function openDraft(draft) {
+    window.__morokMailDraft = draft;
+    onNavigate('mail-compose');
+  }
+  function handleReply() {
+    const subj = (e.subject || '').replace(/^\s*re:\s*/i, '');
+    openDraft({
+      to: replyAddr,
+      subject: `Re: ${subj}`,
+      text: `\n\n----- ${out ? 'Ваш лист' : 'Оригінал'} -----\n${(e.text || '').split('\n').map(l => '> ' + l).join('\n')}`,
+    });
+  }
+  function handleForward() {
+    const subj = (e.subject || '').replace(/^\s*fwd:\s*/i, '');
+    openDraft({
+      to: '',
+      subject: `Fwd: ${subj}`,
+      text: `\n\n----- Переслано -----\nВід: ${out ? 'ви' : (parseFrom(e.from).name || parseFrom(e.from).addr)}\nТема: ${e.subject || '(без теми)'}\n\n${e.text || ''}`,
+    });
+  }
 
   const who = out
     ? { label: 'Кому', name: e.to_alias ? `${e.to_alias}@morok.email` : '—', addr: '' }
@@ -339,6 +368,19 @@ function MailReader({ msg, onBack, onDelete }) {
           </div>
         )}
 
+        {/* дії */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
+          {replyAddr && (
+            <button onClick={handleReply} style={actBtn(true)}>↩ Відповісти</button>
+          )}
+          <button onClick={handleForward} style={actBtn(false)}>↪ Переслати</button>
+        </div>
+        {isExternalInbound && (
+          <div style={{ fontSize: 12, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
+            Відповідь на зовнішню пошту зʼявиться пізніше. Переслати можна на адресу @morok.email.
+          </div>
+        )}
+
         {Array.isArray(e.attachments) && e.attachments.length > 0 && (
           <div style={{ marginTop: 22 }}>
             <div style={{ fontSize: 13, color: MUTED, marginBottom: 8, fontWeight: 600 }}>
@@ -368,6 +410,15 @@ function MailReader({ msg, onBack, onDelete }) {
       </div>
     </div>
   );
+}
+
+function actBtn(primary) {
+  return {
+    background: primary ? 'rgba(123,150,255,0.12)' : 'transparent',
+    color: primary ? ACCENT : TEXT,
+    border: `1px solid ${primary ? 'rgba(123,150,255,0.3)' : BORDER}`,
+    borderRadius: 10, padding: '10px 16px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
+  };
 }
 
 function Tag({ label, ok }) {
