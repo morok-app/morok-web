@@ -512,6 +512,13 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   // crypto.mailOpen (не sealedDecrypt). Повертаємо mail-маркер, який
   // App.jsx направляє у поштову скриньку, а не в чати.
   if (envMeta.channel === 'mail') {
+    // синхрон: якщо цей лист уже у скриньці — не тягнемо блоб повторно
+    const mailStore = await import('./mail_store.js');
+    try {
+      const have = await mailStore.getEmail(envelopeId);
+      if (have) return { __mail: true, envelope_id: envelopeId, isNew: false, email: have.email };
+    } catch { /* ignore */ }
+
     let mailBlob;
     try {
       mailBlob = await api.fetchBlob(envelopeId);
@@ -529,7 +536,6 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       console.warn('mail decrypt failed:', e?.message || e);
       return null;
     }
-    const mailStore = await import('./mail_store.js');
     const isNew = await mailStore.addEmail({
       envelopeId,
       ts: envMeta.ts || Math.floor(Date.now() / 1000),
