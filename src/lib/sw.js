@@ -22,12 +22,13 @@ self.addEventListener('push', (event) => {
 
   const from = data.from_username || null;
   const isGroup = !!data.group_id;
+  const isMail = data.kind === 'mail';
   const title = 'Morok';
-  const body = from
-    ? (isGroup
-        ? `@${from} у групі`
-        : `Нове повідомлення від @${from}`)
-    : (isGroup ? 'Нове повідомлення у групі' : 'Нове повідомлення');
+  const body = isMail
+    ? 'Новий лист · morok.email'
+    : from
+      ? (isGroup ? `@${from} у групі` : `Нове повідомлення від @${from}`)
+      : (isGroup ? 'Нове повідомлення у групі' : 'Нове повідомлення');
 
   event.waitUntil((async () => {
     // If any tab is currently focused, the user is reading right now —
@@ -40,7 +41,7 @@ self.addEventListener('push', (event) => {
 
     await self.registration.showNotification(title, {
       body,
-      tag: data.group_id ? `group-${data.group_id}` : 'dm',
+      tag: isMail ? 'mail' : (data.group_id ? `group-${data.group_id}` : 'dm'),
       renotify: false,
       requireInteraction: false,
       data: {
