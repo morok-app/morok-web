@@ -240,11 +240,15 @@ export default function App() {
         for (const env of envelopes) {
           try {
             const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
-            client.ack(env.envelope_id);
             if (newMsg?.__mail) {
+              // Синхрон між пристроями: пошту НЕ ack-аємо — конверт лишається
+              // в черзі, щоб його підхопили й інші пристрої акаунта. Дублі
+              // відсікає локальна дедуплікація (addEmail за envelope_id).
+              // Сервер приберe конверт за TTL.
               window.dispatchEvent(new CustomEvent('morok-mail-update', { detail: newMsg }));
               continue;
             }
+            client.ack(env.envelope_id);
             if (newMsg?.peer_pubkey) touchedPeers.add(newMsg.peer_pubkey);
             if (env.group_id) touchedGroups.add(env.group_id);
           } catch (e) { console.warn('catchup failed:', e); }
@@ -265,13 +269,14 @@ export default function App() {
       onNew: async (env) => {
         try {
           const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
-          client.ack(env.envelope_id);
 
           if (newMsg?.__mail) {
+            // Синхрон: пошту не ack-аємо (див. catchup). Звук — лише на справді нові.
             if (newMsg.isNew) { try { notif.playMessageSound(); } catch {} }
             window.dispatchEvent(new CustomEvent('morok-mail-update', { detail: newMsg }));
             return;
           }
+          client.ack(env.envelope_id);
 
           // Tell the open chat/group view to refresh from store. Without
           // this, ChatRoom only re-renders on remount (navigate away & back)
