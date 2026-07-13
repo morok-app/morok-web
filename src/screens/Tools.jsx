@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as dms from '../lib/dms.js';
 import * as burner from '../lib/burner.js';
 import * as contacts from '../lib/contacts.js';
+import * as mailStore from '../lib/mail_store.js';
 import { TopBar } from '../components/ui.jsx';
 
 export default function Tools({ onNavigate }) {
@@ -13,6 +14,15 @@ export default function Tools({ onNavigate }) {
   const [blockedCount, setBlockedCount] = useState(
     () => contacts.listBlocked().length
   );
+  const [mailUnread, setMailUnread] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () => mailStore.unreadCount().then((n) => { if (alive) setMailUnread(n); }).catch(() => {});
+    load();
+    window.addEventListener('morok-mail-update', load);
+    return () => { alive = false; window.removeEventListener('morok-mail-update', load); };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -53,6 +63,8 @@ export default function Tools({ onNavigate }) {
           }
           title="Пошта"
           description="Анонімна email-скринька. Створюйте адреси @morok.email — листи приходять зашифрованими лише для вас, сервер їх не зберігає."
+          countLabel={mailUnread > 0 ? mailUnread : null}
+          countSuffix=" нових"
           onClick={() => onNavigate('mail')}
         />
 
