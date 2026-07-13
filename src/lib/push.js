@@ -103,23 +103,18 @@ export async function enable() {
 
   const vapid = await fetchVapidKey();
 
-  // If there's an existing subscription with a different VAPID key
-  // (e.g. relay regenerated keys), drop it and resubscribe.
+  // ЗАВЖДИ пересоздаємо підписку. Стара може бути «зомбі»: Google вже
+  // вважає її expired/unsubscribed (сервер ловить 410), а браузер і далі
+  // віддає її з getSubscription(). Пересоздання — копійки, і гарантує
+  // живий endpoint + актуальний VAPID-ключ.
   let sub = await reg.pushManager.getSubscription();
   if (sub) {
-    const existingKey = sub.options?.applicationServerKey;
-    if (existingKey) {
-      // Compare by converting to base64url and matching prefixes — quick check.
-      // Easier: always re-subscribe; cheap.
-    }
+    try { await sub.unsubscribe(); } catch { /* ignore */ }
   }
-
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapid),
-    });
-  }
+  sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapid),
+  });
 
   const json = sub.toJSON();
   await api.pushSubscribe({
