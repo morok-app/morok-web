@@ -359,14 +359,9 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
         </div>
 
         {showHtml && e.html ? (
-          <iframe
-            title="email-html" sandbox="" srcDoc={e.html}
-            style={{ width: '100%', minHeight: 320, border: `1px solid ${BORDER}`, borderRadius: 14, background: '#fff' }}
-          />
+          <EmailHtml html={e.html} />
         ) : (
-          <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: TEXT, fontSize: 14.5, lineHeight: 1.6 }}>
-            {e.text || '(порожній лист)'}
-          </div>
+          <EmailText text={e.text} />
         )}
 
         {/* дії */}
@@ -409,6 +404,72 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// HTML-лист: пісочниця без скриптів, авто-висота по вмісту, типографіка всередині.
+// sandbox="allow-same-origin" (БЕЗ allow-scripts): скрипти листа не виконуються,
+// але ми можемо виміряти висоту вмісту; allow-popups — посилання у нову вкладку.
+function EmailHtml({ html }) {
+  const [h, setH] = useState(240);
+  const doc = `<!doctype html><html><head><meta charset="utf-8">
+<base target="_blank">
+<style>
+  html,body{margin:0;padding:0;background:#fff}
+  body{padding:18px 20px;font:14px/1.55 -apple-system,'Segoe UI',Roboto,sans-serif;
+       color:#1a1a1e;word-break:break-word;overflow-wrap:anywhere}
+  img{max-width:100%!important;height:auto!important}
+  table{max-width:100%!important}
+  a{color:#4a6cf7}
+  blockquote{margin:8px 0;padding:2px 12px;border-left:3px solid #d0d4ff;color:#555}
+</style></head><body>${html}</body></html>`;
+  return (
+    <iframe
+      title="email-html"
+      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+      srcDoc={doc}
+      onLoad={(ev) => {
+        try {
+          const b = ev.target.contentDocument?.body;
+          if (b) setH(Math.min(Math.max(b.scrollHeight + 8, 120), 1400));
+        } catch { /* opaque — лишаємо дефолт */ }
+      }}
+      style={{
+        width: '100%', height: h, border: `1px solid ${BORDER}`,
+        borderRadius: 14, background: '#fff', display: 'block',
+      }}
+    />
+  );
+}
+
+// Текстовий лист: цитати ("> ...") — приглушені з рискою, решта — звичайний текст.
+function EmailText({ text }) {
+  const lines = (text || '').split('\n');
+  const blocks = [];
+  let buf = [], quoted = null;
+  for (const ln of lines) {
+    const q = /^\s*>/.test(ln);
+    if (quoted === null) quoted = q;
+    if (q !== quoted) { blocks.push({ quoted, body: buf.join('\n') }); buf = []; quoted = q; }
+    buf.push(q ? ln.replace(/^\s*>\s?/, '') : ln);
+  }
+  if (buf.length) blocks.push({ quoted, body: buf.join('\n') });
+  if (!blocks.length) return <div style={{ color: MUTED, fontSize: 14 }}>(порожній лист)</div>;
+  return (
+    <div>
+      {blocks.map((b, i) => b.quoted ? (
+        <div key={i} style={{
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: MUTED,
+          fontSize: 13.5, lineHeight: 1.55, borderLeft: `3px solid ${BORDER}`,
+          paddingLeft: 12, margin: '10px 0',
+        }}>{b.body}</div>
+      ) : (
+        <div key={i} style={{
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: TEXT,
+          fontSize: 14.5, lineHeight: 1.65,
+        }}>{b.body}</div>
+      ))}
     </div>
   );
 }
