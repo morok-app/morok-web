@@ -516,7 +516,11 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     const mailStore = await import('./mail_store.js');
     try {
       const have = await mailStore.getEmail(envelopeId);
-      if (have) return { __mail: true, envelope_id: envelopeId, isNew: false, email: have.email };
+      if (have) {
+        // запис існує (лист або надгробок видаленого) — блоб не тягнемо,
+        // подію не шлемо як новий; надгробок лишає лист мертвим назавжди
+        return { __mail: true, envelope_id: envelopeId, isNew: false, email: have.email };
+      }
     } catch { /* ignore */ }
 
     let mailBlob;

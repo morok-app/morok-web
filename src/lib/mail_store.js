@@ -64,7 +64,7 @@ export async function addEmail({ envelopeId, ts, email }) {
   const db = await openDb();
   const store = tx(db, 'readwrite');
   const existing = await reqAsPromise(store.get(envelopeId));
-  if (existing) return false; // дубль (повторний catchup)
+  if (existing) return false; // дубль або надгробок видаленого — не відновлюємо
   await reqAsPromise(store.put({
     envelope_id: envelopeId,
     ts: ts || Math.floor(Date.now() / 1000),
@@ -86,7 +86,7 @@ export async function listEmails({ limit = 50, beforeTs = null } = {}) {
     cur.onsuccess = () => {
       const c = cur.result;
       if (!c || out.length >= limit) return resolve(out);
-      out.push(c.value);
+      if (!c.value?.deleted) out.push(c.value);
       c.continue();
     };
     cur.onerror = () => reject(cur.error);
@@ -108,8 +108,35 @@ export async function markRead(envelopeId, read = true) {
 }
 
 export async function removeEmail(envelopeId) {
+  // НЕ стираємо запис повністю: конверт живе в черзі relay до 7 діб
+  // (для мультипристрою), і без сліду catchup «воскресив» би лист.
+  // Лишаємо надгробок: тільки id + deleted, ЖОДНОГО вмісту на диску.
   const db = await openDb();
-  await reqAsPromise(tx(db, 'readwrite').delete(envelopeId));
+  await reqAsPromise(tx(db, 'readwrite').put({
+    envelope_id: envelopeId,
+    ts: Math.floor(Date.now() / 1000),
+    read: true,
+    deleted: true,
+    email: null,
+  }));
+}
+
+/** Прибрати старі надгробки (конверти в черзі relay живуть 7 діб). */
+export async function sweepTombstones(maxAgeDays = 9) {
+  const db = await openDb();
+  const store = tx(db, 'readwrite');
+  const cutoff = Math.floor(Date.now() / 1000) - maxAgeDays * 86400;
+  return new Promise((resolve, reject) => {
+    let n = 0;
+    const cur = store.openCursor();
+    cur.onsuccess = () => {
+      const c = cur.result;
+      if (!c) return resolve(n);
+      if (c.value?.deleted && (c.value.ts || 0) < cutoff) { c.delete(); n++; }
+      c.continue();
+    };
+    cur.onerror = () => reject(cur.error);
+  });
 }
 
 export async function unreadCount() {
@@ -121,7 +148,7 @@ export async function unreadCount() {
     cur.onsuccess = () => {
       const c = cur.result;
       if (!c) return resolve(n);
-      if (!c.value.read) n++;
+      if (!c.value.read && !c.value.deleted) n++;
       c.continue();
     };
     cur.onerror = () => reject(cur.error);

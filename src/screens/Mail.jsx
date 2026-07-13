@@ -67,6 +67,7 @@ export default function Mail({ onNavigate }) {
 
   useEffect(() => {
     reload();
+    mailStore.sweepTombstones().catch(() => {});
     const onUpdate = () => reload();
     window.addEventListener('morok-mail-update', onUpdate);
     return () => window.removeEventListener('morok-mail-update', onUpdate);
