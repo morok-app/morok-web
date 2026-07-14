@@ -411,9 +411,26 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
 // HTML-лист: пісочниця без скриптів, авто-висота по вмісту, типографіка всередині.
 // sandbox="allow-same-origin" (БЕЗ allow-scripts): скрипти листа не виконуються,
 // але ми можемо виміряти висоту вмісту; allow-popups — посилання у нову вкладку.
+// Чи є у листі зовнішній контент (потенційні трекери/пікселі)?
+function hasRemoteContent(html) {
+  return /(?:src|background|href)\s*=\s*["']?https?:\/\//i.test(html || '')
+    || /url\(\s*["']?https?:\/\//i.test(html || '');
+}
+
 function EmailHtml({ html }) {
   const [h, setH] = useState(240);
+  const [showRemote, setShowRemote] = useState(false);
+  const remote = hasRemoteContent(html);
+
+  // CSP: за замовчуванням БЛОКУЄМО будь-який зовнішній ресурс (img/стилі/шрифти/
+  // fetch) — це вбиває трекінг-пікселі («лист прочитано + твій IP»). Коли юзер
+  // натискає «показати зображення» — дозволяємо тільки картинки по https.
+  const csp = showRemote
+    ? "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; font-src data:;"
+    : "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:;";
+
   const doc = `<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${csp}">
 <base target="_blank">
 <style>
   html,body{margin:0;padding:0;background:#fff}
@@ -424,22 +441,45 @@ function EmailHtml({ html }) {
   a{color:#4a6cf7}
   blockquote{margin:8px 0;padding:2px 12px;border-left:3px solid #d0d4ff;color:#555}
 </style></head><body>${html}</body></html>`;
+
   return (
-    <iframe
-      title="email-html"
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      srcDoc={doc}
-      onLoad={(ev) => {
-        try {
-          const b = ev.target.contentDocument?.body;
-          if (b) setH(Math.min(Math.max(b.scrollHeight + 8, 120), 1400));
-        } catch { /* opaque — лишаємо дефолт */ }
-      }}
-      style={{
-        width: '100%', height: h, border: `1px solid ${BORDER}`,
-        borderRadius: 14, background: '#fff', display: 'block',
-      }}
-    />
+    <div>
+      {remote && !showRemote && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+          background: 'rgba(255,169,77,0.08)', border: `1px solid rgba(255,169,77,0.25)`,
+          borderRadius: 12, padding: '9px 12px', marginBottom: 8, flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 12.5, color: '#FFA94D' }}>
+            🛡 Зовнішні зображення заблоковано (захист від трекінгу)
+          </span>
+          <button
+            onClick={() => setShowRemote(true)}
+            style={{
+              fontSize: 12.5, fontWeight: 600, color: TEXT, cursor: 'pointer',
+              background: 'transparent', border: `1px solid ${BORDER}`,
+              borderRadius: 8, padding: '5px 12px',
+            }}
+          >Показати</button>
+        </div>
+      )}
+      <iframe
+        key={showRemote ? 'remote' : 'blocked'}
+        title="email-html"
+        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        srcDoc={doc}
+        onLoad={(ev) => {
+          try {
+            const b = ev.target.contentDocument?.body;
+            if (b) setH(Math.min(Math.max(b.scrollHeight + 8, 120), 1400));
+          } catch { /* opaque — лишаємо дефолт */ }
+        }}
+        style={{
+          width: '100%', height: h, border: `1px solid ${BORDER}`,
+          borderRadius: 14, background: '#fff', display: 'block',
+        }}
+      />
+    </div>
   );
 }
 
