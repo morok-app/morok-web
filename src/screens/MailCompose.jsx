@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import * as api from '../lib/api.js';
 import * as crypto from '../lib/crypto.js';
 import * as vault from '../lib/vault.js';
@@ -34,6 +34,19 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
   const [text, setText] = useState(_draft?.text || '');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);   // {type:'ok'|'err', msg}
+  const [aliases, setAliases] = useState([]);   // активні аліаси відправника
+  const [fromAlias, setFromAlias] = useState(null); // null=завантаж; ''=анонім
+
+  useEffect(() => {
+    api.mailListAliases()
+      .then((d) => {
+        const active = (d.aliases || []).filter((a) => a.status === 'active');
+        setAliases(active);
+        const primary = active.find((a) => a.primary) || active[0];
+        setFromAlias(primary ? primary.alias : '');
+      })
+      .catch(() => { setAliases([]); setFromAlias(''); });
+  }, []);
 
   async function send() {
     setStatus(null);
@@ -60,25 +73,28 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         setBusy(false); return;
       }
 
-      // 2) payload у форматі скриньки (як зовнішній лист)
+      // 2) payload. from — обраний аліас або «анонім». УВАГА: серверний
+      //    mail_from (перевірений) все одно переб'є це поле в отримувача,
+      //    тут from лише для локальної копії «Відправлені».
+      const fromAddr = fromAlias ? `${fromAlias}@${MAIL_DOMAIN}` : 'Анонімний відправник';
       const now = Math.floor(Date.now() / 1000);
       const payload = {
         kind: 'email',
         v: 1,
         to_alias: parsed.local,
-        from: myPrimaryAddress || 'Morok',
+        from: fromAddr,
         subject: subject.trim() || '(без теми)',
         date: new Date().toUTCString(),
         text: text,
         html: null,
         attachments: [],
-        spf: 'internal',           // внутрішній лист — довірений за визначенням
+        spf: 'internal',
         received_at: now,
       };
 
       // 3) шифруємо на pubkey адресата (E2EE) і відправляємо
       const blobB64 = crypto.mailSeal({ recipientPubkeyHex: res.pubkey_hex, payload });
-      const r = await api.mailSendInternal({ toAlias: parsed.local, blobB64 });
+      const r = await api.mailSendInternal({ toAlias: parsed.local, blobB64, fromAlias: fromAlias || null });
 
       if (r?.status === 'sent' || r?.status === 'duplicate') {
         setStatus({ type: 'ok', msg: `Надіслано на ${parsed.local}@${MAIL_DOMAIN}` });
@@ -121,6 +137,21 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           🔒 Внутрішні листи Morok→Morok шифруються наскрізно й ідуть без
           зовнішньої пошти. Наразі доступні лише адреси <b style={{ color: TEXT }}>@{MAIL_DOMAIN}</b>.
         </div>
+
+        <Field label="Від">
+          <select
+            value={fromAlias ?? ''}
+            onChange={(e) => setFromAlias(e.target.value)}
+            style={{ ...inputStyle, appearance: 'auto', cursor: 'pointer' }}
+          >
+            {aliases.map((a) => (
+              <option key={a.alias} value={a.alias}>
+                {a.alias}@{MAIL_DOMAIN}{a.primary ? ' (основна)' : ''}
+              </option>
+            ))}
+            <option value="">Анонімно (без адреси)</option>
+          </select>
+        </Field>
 
         <Field label="Кому">
           <input

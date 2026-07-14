@@ -540,6 +540,22 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       console.warn('mail decrypt failed:', e?.message || e);
       return null;
     }
+    // ── ДОВІРА ДО ВІДПРАВНИКА ──
+    // Внутрішній лист: блоб будував клієнт-відправник, тож полю from/spf у
+    // блобі НЕ довіряємо. Особу беремо ТІЛЬКИ із серверних метаданих конверта
+    // (mail_from перевірено сервером = аліас реально належить відправнику).
+    // Зовнішній лист: блоб будував релей → блобу можна довіряти.
+    if (envMeta.mail_origin === 'internal') {
+      email.spf = 'internal';
+      email.internal = true;
+      if (envMeta.mail_from) {
+        email.from = `${envMeta.mail_from}@morok.email`;
+        email.from_verified = true;
+      } else {
+        email.from = 'Анонімний відправник';
+        email.from_verified = false;
+      }
+    }
     const isNew = await mailStore.addEmail({
       envelopeId,
       ts: envMeta.ts || Math.floor(Date.now() / 1000),

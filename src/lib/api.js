@@ -124,10 +124,10 @@ export async function mailResolve(alias) {
   return http('GET', `/api/v1/mail/resolve/${encodeURIComponent(alias)}`, { auth: true });
 }
 
-export async function mailSendInternal({ toAlias, blobB64 }) {
+export async function mailSendInternal({ toAlias, blobB64, fromAlias }) {
   return http('POST', '/api/v1/mail/send', {
     auth: true,
-    body: { to_alias: toAlias, blob_b64: blobB64 },
+    body: { to_alias: toAlias, blob_b64: blobB64, from_alias: fromAlias || null },
   });
 }
 
