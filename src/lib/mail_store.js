@@ -98,6 +98,12 @@ export async function getEmail(envelopeId) {
   return (await reqAsPromise(tx(db, 'readonly').get(envelopeId))) || null;
 }
 
+/** Перезаписати наявний запис (оновлення статусу тощо). */
+export async function updateEmail(rec) {
+  const db = await openDb();
+  await reqAsPromise(tx(db, 'readwrite').put(rec));
+}
+
 export async function markRead(envelopeId, read = true) {
   const db = await openDb();
   const store = tx(db, 'readwrite');

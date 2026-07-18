@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import * as mailStore from '../lib/mail_store.js';
 import * as backup from '../lib/mail_backup.js';
 import * as vault from '../lib/vault.js';
+import * as api from '../lib/api.js';
 import { TopBar } from '../components/ui.jsx';
 
 const ACCENT = '#7B96FF';
@@ -72,6 +73,28 @@ export default function Mail({ onNavigate }) {
     window.addEventListener('morok-mail-update', onUpdate);
     return () => window.removeEventListener('morok-mail-update', onUpdate);
   }, [reload]);
+
+  // статуси зовнішніх вихідних (⏳/✓/✗) — підтягуємо при відкритті «Відправлених»
+  useEffect(() => {
+    if (tab !== 'out') return;
+    (async () => {
+      try {
+        const { items } = await api.mailOutboundStatus();
+        if (!items?.length) return;
+        let changed = false;
+        for (const it of items) {
+          const rec = await mailStore.getEmail(`out-${it.ref}`).catch(() => null);
+          if (rec?.email && rec.email.ext_status !== it.status) {
+            rec.email.ext_status = it.status;
+            rec.email.ext_error = it.error || null;
+            await mailStore.updateEmail(rec);
+            changed = true;
+          }
+        }
+        if (changed) reload();
+      } catch { /* тихо */ }
+    })();
+  }, [tab, reload]);
 
   const inbox = (all || []).filter((m) => !m.email?.out);
   const sent = (all || []).filter((m) => m.email?.out);
@@ -219,7 +242,16 @@ export default function Mail({ onNavigate }) {
                 <div style={{
                   fontSize: 13.5, color: unreadRow ? TEXT : MUTED, fontWeight: unreadRow ? 600 : 400,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 1,
-                }}>{m.email?.subject || '(без теми)'}</div>
+                }}>
+                  {m.email?.external && (
+                    <span style={{ marginRight: 6 }} title={m.email.ext_error || ''}>
+                      {m.email.ext_status === 'delivered' ? '✓'
+                        : m.email.ext_status === 'failed' ? '✗'
+                        : '⏳'}
+                    </span>
+                  )}
+                  {m.email?.subject || '(без теми)'}
+                </div>
                 <div style={{
                   fontSize: 12.5, color: MUTED,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',

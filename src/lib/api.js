@@ -124,6 +124,17 @@ export async function mailResolve(alias) {
   return http('GET', `/api/v1/mail/resolve/${encodeURIComponent(alias)}`, { auth: true });
 }
 
+export async function mailSendExternal({ toAddr, fromAlias, subject, text }) {
+  return http('POST', '/api/v1/mail/send', {
+    auth: true,
+    body: { to_alias: toAddr, from_alias: fromAlias, subject, text },
+  });
+}
+
+export async function mailOutboundStatus() {
+  return http('GET', '/api/v1/mail/outbound/status', { auth: true });
+}
+
 export async function mailSendInternal({ toAlias, blobB64, fromAlias }) {
   return http('POST', '/api/v1/mail/send', {
     auth: true,

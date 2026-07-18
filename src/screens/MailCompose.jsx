@@ -14,16 +14,17 @@ const MUTED = '#8A8A96';
 
 const MAIL_DOMAIN = 'morok.email';
 
-// «щось@morok.email» або «щось» → local-part; чужі домени відсікаємо
-function extractLocal(input) {
+// «нік», «нік@morok.email» → внутрішній; «хтось@gmail.com» → зовнішній
+function parseRecipient(input) {
   const v = (input || '').trim().toLowerCase();
   if (!v) return null;
   if (v.includes('@')) {
     const [local, dom] = v.split('@');
-    if (dom !== MAIL_DOMAIN) return { error: `Внутрішня пошта — тільки @${MAIL_DOMAIN}. Для зовнішніх адрес відправка зʼявиться пізніше.` };
-    return { local };
+    if (dom === MAIL_DOMAIN) return { kind: 'internal', local };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return { error: 'Некоректна адреса' };
+    return { kind: 'external', addr: v };
   }
-  return { local: v };
+  return { kind: 'internal', local: v };
 }
 
 export default function MailCompose({ onNavigate, myPrimaryAddress }) {
@@ -50,7 +51,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
 
   async function send() {
     setStatus(null);
-    const parsed = extractLocal(to);
+    const parsed = parseRecipient(to);
     if (!parsed || parsed.error) {
       setStatus({ type: 'err', msg: parsed?.error || 'Вкажіть адресу отримувача' });
       return;
@@ -64,6 +65,44 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
       const seed = vault.getUnlockedSeed();
       if (!seed) { setStatus({ type: 'err', msg: 'Розблокуйте акаунт' }); setBusy(false); return; }
 
+      // ── ЗОВНІШНІЙ лист: у чергу відправки (не E2E) ──
+      if (parsed.kind === 'external') {
+        if (!fromAlias) {
+          setStatus({ type: 'err', msg: 'Для зовнішніх листів оберіть адресу «Від» (анонімно не можна)' });
+          setBusy(false); return;
+        }
+        const r = await api.mailSendExternal({
+          toAddr: parsed.addr, fromAlias,
+          subject: subject.trim(), text,
+        });
+        if (r?.status === 'queued') {
+          const now = Math.floor(Date.now() / 1000);
+          try {
+            await mailStore.addEmail({
+              envelopeId: `out-${r.ref}`,
+              ts: now,
+              email: {
+                kind: 'email', v: 1, out: true, external: true,
+                ext_ref: r.ref, ext_status: 'queued',
+                to_addr: parsed.addr,
+                from: `${fromAlias}@${MAIL_DOMAIN}`,
+                subject: subject.trim() || '(без теми)',
+                date: new Date().toUTCString(),
+                text, html: null, attachments: [],
+                received_at: now,
+              },
+            });
+            window.dispatchEvent(new CustomEvent('morok-mail-update'));
+          } catch { /* не критично */ }
+          setStatus({ type: 'ok', msg: `Лист у черзі відправки на ${parsed.addr}` });
+          setTimeout(() => onNavigate('mail'), 900);
+        } else {
+          setStatus({ type: 'err', msg: 'Не вдалося поставити в чергу' });
+        }
+        setBusy(false); return;
+      }
+
+      // ── ВНУТРІШНІЙ (E2EE) ──
       // 1) резолв адресата → його pubkey
       let res;
       try {
@@ -134,8 +173,9 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           background: 'rgba(123,150,255,0.06)', border: `1px solid ${BORDER}`,
           borderRadius: 12, padding: '10px 14px',
         }}>
-          🔒 Внутрішні листи Morok→Morok шифруються наскрізно й ідуть без
-          зовнішньої пошти. Наразі доступні лише адреси <b style={{ color: TEXT }}>@{MAIL_DOMAIN}</b>.
+          {parseRecipient(to)?.kind === 'external'
+            ? <>🔓 Зовнішній лист піде звичайною поштою (SMTP+TLS). Він <b style={{ color: TEXT }}>не наскрізно шифрований</b> — сервер бачить вміст до моменту доставки, після чого стирає його.</>
+            : <>🔒 Листи Morok→Morok шифруються наскрізно. Зовнішні адреси (Gmail тощо) теж працюють — але без E2E.</>}
         </div>
 
         <Field label="Від">
