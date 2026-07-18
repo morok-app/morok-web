@@ -3,6 +3,7 @@ import * as api from '../lib/api.js';
 import * as crypto from '../lib/crypto.js';
 import * as vault from '../lib/vault.js';
 import * as mailStore from '../lib/mail_store.js';
+import { compressImage } from '../lib/images.js';
 import { TopBar } from '../components/ui.jsx';
 
 const ACCENT = '#7B96FF';
@@ -35,6 +36,8 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
   const [text, setText] = useState(_draft?.text || '');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState(null);   // {type:'ok'|'err', msg}
+  const [atts, setAtts] = useState([]);         // [{filename, content_type, b64, size}]
+  const [attBusy, setAttBusy] = useState(false);
   const [aliases, setAliases] = useState([]);   // активні аліаси відправника
   const [fromAlias, setFromAlias] = useState(null); // null=завантаж; ''=анонім
 
@@ -48,6 +51,35 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
       })
       .catch(() => { setAliases([]); setFromAlias(''); });
   }, []);
+
+  async function addImages(ev) {
+    const files = Array.from(ev.target.files || []);
+    ev.target.value = '';
+    if (!files.length) return;
+    if (atts.length + files.length > 5) {
+      setStatus({ type: 'err', msg: 'Максимум 5 зображень' });
+      return;
+    }
+    setAttBusy(true);
+    try {
+      for (const f of files) {
+        // компресія як у месенджері, але з поштовим бюджетом (~800KB)
+        const c = await compressImage(f, { maxDim: 2048, rawBudgetBytes: 800 * 1024 });
+        setAtts((prev) => [...prev, {
+          filename: (f.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg',
+          content_type: c.mime || 'image/jpeg',
+          b64: c.data_b64,
+          size: Math.round(c.data_b64.length * 0.75),
+        }]);
+      }
+    } catch (e) {
+      setStatus({ type: 'err', msg: e?.message || 'Не вдалося додати зображення' });
+    } finally { setAttBusy(false); }
+  }
+
+  function removeAtt(i) {
+    setAtts((prev) => prev.filter((_, idx) => idx !== i));
+  }
 
   async function send() {
     setStatus(null);
@@ -74,6 +106,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         const r = await api.mailSendExternal({
           toAddr: parsed.addr, fromAlias,
           subject: subject.trim(), text,
+          attachments: atts.map(({ filename, content_type, b64 }) => ({ filename, content_type, b64 })),
         });
         if (r?.status === 'queued') {
           const now = Math.floor(Date.now() / 1000);
@@ -88,7 +121,8 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
                 from: `${fromAlias}@${MAIL_DOMAIN}`,
                 subject: subject.trim() || '(без теми)',
                 date: new Date().toUTCString(),
-                text, html: null, attachments: [],
+                text, html: null,
+                attachments: atts.map(({ filename, content_type, b64 }) => ({ filename, content_type, b64 })),
                 received_at: now,
               },
             });
@@ -126,7 +160,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         date: new Date().toUTCString(),
         text: text,
         html: null,
-        attachments: [],
+        attachments: atts.map(({ filename, content_type, b64 }) => ({ filename, content_type, b64 })),
         spf: 'internal',
         received_at: now,
       };
@@ -222,6 +256,51 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
             style={{ ...inputStyle, resize: 'vertical', minHeight: 180, lineHeight: 1.5 }}
           />
         </Field>
+
+        {/* вкладення */}
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <label style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`,
+              borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', opacity: attBusy ? 0.6 : 1,
+            }}>
+              📎 {attBusy ? 'Стискаю…' : 'Додати фото'}
+              <input type="file" accept="image/*" multiple onChange={addImages}
+                     disabled={attBusy} style={{ display: 'none' }} />
+            </label>
+            {atts.length > 0 && (
+              <span style={{ fontSize: 12, color: MUTED }}>
+                {atts.length} фото · ~{Math.round(atts.reduce((s, a) => s + a.size, 0) / 1024)}KB
+              </span>
+            )}
+          </div>
+          {atts.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              {atts.map((a, i) => (
+                <div key={i} style={{ position: 'relative' }}>
+                  <img
+                    src={`data:${a.content_type};base64,${a.b64}`}
+                    alt={a.filename}
+                    style={{
+                      width: 72, height: 72, objectFit: 'cover',
+                      borderRadius: 10, border: `1px solid ${BORDER}`, display: 'block',
+                    }}
+                  />
+                  <button
+                    onClick={() => removeAtt(i)}
+                    style={{
+                      position: 'absolute', top: -6, right: -6, width: 20, height: 20,
+                      borderRadius: '50%', background: '#FF6B6B', color: '#fff',
+                      border: 'none', fontSize: 12, lineHeight: 1, cursor: 'pointer',
+                    }}
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {status && (
           <div style={{

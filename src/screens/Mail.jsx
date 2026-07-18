@@ -34,7 +34,7 @@ function parseFrom(from) {
 function counterpart(msg) {
   const e = msg.email || {};
   if (e.out) {
-    const to = e.to_alias ? `${e.to_alias}@morok.email` : 'отримувач';
+    const to = e.to_addr || (e.to_alias ? `${e.to_alias}@morok.email` : 'отримувач');
     return { title: to, initialSrc: to };
   }
   const { name, addr } = parseFrom(e.from);
@@ -333,7 +333,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
   }
 
   const who = out
-    ? { label: 'Кому', name: e.to_alias ? `${e.to_alias}@morok.email` : '—', addr: '' }
+    ? { label: 'Кому', name: e.to_addr || (e.to_alias ? `${e.to_alias}@morok.email` : '—'), addr: '' }
     : { label: 'Від', name: name || addr || 'Невідомий', addr: name && addr && name !== addr ? addr : '' };
 
   return (
