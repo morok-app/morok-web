@@ -46,8 +46,10 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
       .then((d) => {
         const active = (d.aliases || []).filter((a) => a.status === 'active');
         setAliases(active);
+        // Reply-чернетка може диктувати «Від» — аліас, на який прийшов лист
+        const wanted = _draft?.fromAlias && active.find((a) => a.alias === _draft.fromAlias);
         const primary = active.find((a) => a.primary) || active[0];
-        setFromAlias(primary ? primary.alias : '');
+        setFromAlias(wanted ? wanted.alias : (primary ? primary.alias : ''));
       })
       .catch(() => { setAliases([]); setFromAlias(''); });
   }, []);

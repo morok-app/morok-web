@@ -305,11 +305,14 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
   const [showHtml, setShowHtml] = useState(!!e.html);
 
   // адреса для відповіді: тільки внутрішні @morok.email (зовнішня відправка — Фаза 3)
-  const replyAddr = (() => {
-    const src = out ? (e.to_alias ? `${e.to_alias}@morok.email` : '') : (parseFrom(e.from).addr || '');
-    return /@morok\.email$/i.test(src) ? src : '';
-  })();
-  const isExternalInbound = !out && !replyAddr;
+  // Відповідь: вхідні — адресa відправника (внутрішня чи зовнішня — слати вміємо);
+  // свої відправлені — адресат.
+  const replyAddr = out
+    ? (e.to_addr || (e.to_alias ? `${e.to_alias}@morok.email` : ''))
+    : (parseFrom(e.from).addr || '');
+  const canReply = !!replyAddr && replyAddr.includes('@');
+  // відповідаємо тим аліасом, на який прийшов лист (не палимо основну адресу)
+  const replyFromAlias = !out && e.to_alias ? e.to_alias : null;
 
   function openDraft(draft) {
     window.__morokMailDraft = draft;
@@ -319,6 +322,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
     const subj = (e.subject || '').replace(/^\s*re:\s*/i, '');
     openDraft({
       to: replyAddr,
+      fromAlias: replyFromAlias,
       subject: `Re: ${subj}`,
       text: `\n\n----- ${out ? 'Ваш лист' : 'Оригінал'} -----\n${(e.text || '').split('\n').map(l => '> ' + l).join('\n')}`,
     });
@@ -398,16 +402,11 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
 
         {/* дії */}
         <div style={{ display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
-          {replyAddr && (
+          {canReply && (
             <button onClick={handleReply} style={actBtn(true)}>↩ Відповісти</button>
           )}
           <button onClick={handleForward} style={actBtn(false)}>↪ Переслати</button>
         </div>
-        {isExternalInbound && (
-          <div style={{ fontSize: 12, color: MUTED, marginTop: 8, lineHeight: 1.5 }}>
-            Відповідь на зовнішню пошту зʼявиться пізніше. Переслати можна на адресу @morok.email.
-          </div>
-        )}
 
         {Array.isArray(e.attachments) && e.attachments.length > 0 && (
           <div style={{ marginTop: 22 }}>
