@@ -99,6 +99,10 @@ export default function MailAliases({ onNavigate }) {
         }
       />
 
+      <style>{`
+        .mk-in:focus { border-color: #7B96FF !important; outline: none; }
+        .mk-in { transition: border-color 0.15s; }
+      `}</style>
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 32px' }}>
 
         {err && (
@@ -144,6 +148,7 @@ export default function MailAliases({ onNavigate }) {
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
               <input
+                className="mk-in"
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value.toLowerCase())}
                 placeholder="вигадай-свою"
@@ -203,7 +208,7 @@ export default function MailAliases({ onNavigate }) {
               key={a.alias}
               style={{
                 background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 14,
-                padding: '13px 15px', marginBottom: 10,
+                padding: '12px 14px', marginBottom: 9,
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>

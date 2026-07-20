@@ -202,6 +202,13 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         backIcon="arrow"
       />
 
+      <style>{`
+        .mk-in:focus { border-color: #7B96FF !important; outline: none; }
+        .mk-in { transition: border-color 0.15s; }
+        .mk-sel { appearance: none; -webkit-appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A8A96' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+          background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px !important; }
+      `}</style>
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 32px' }}>
 
         <div style={{
@@ -216,9 +223,10 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
 
         <Field label="Від">
           <select
+            className="mk-in mk-sel"
             value={fromAlias ?? ''}
             onChange={(e) => setFromAlias(e.target.value)}
-            style={{ ...inputStyle, appearance: 'auto', cursor: 'pointer' }}
+            style={{ ...inputStyle, cursor: 'pointer' }}
           >
             {aliases.map((a) => (
               <option key={a.alias} value={a.alias}>
@@ -231,6 +239,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
 
         <Field label="Кому">
           <input
+            className="mk-in"
             value={to}
             onChange={(e) => setTo(e.target.value)}
             placeholder={`нік@${MAIL_DOMAIN}`}
@@ -242,6 +251,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
 
         <Field label="Тема">
           <input
+            className="mk-in"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Без теми"
@@ -251,6 +261,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
 
         <Field label="Текст">
           <textarea
+            className="mk-in"
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Ваш лист…"

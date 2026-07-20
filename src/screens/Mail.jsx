@@ -216,16 +216,16 @@ export default function Mail({ onNavigate }) {
               key={m.envelope_id}
               onClick={() => handleOpen(m)}
               style={{
-                width: '100%', textAlign: 'left', display: 'flex', gap: 12, alignItems: 'center',
+                width: '100%', textAlign: 'left', display: 'flex', gap: 11, alignItems: 'center',
                 background: 'transparent', border: 'none', borderBottom: `1px solid ${BORDER}`,
-                padding: '12px 4px', cursor: 'pointer',
+                padding: '10px 4px', cursor: 'pointer',
               }}
             >
               <div style={{
-                width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
                 background: avatarColor(cp.initialSrc), color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 17, fontWeight: 700,
+                fontSize: 16, fontWeight: 700,
               }}>{initial(cp.initialSrc)}</div>
 
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -265,7 +265,7 @@ export default function Mail({ onNavigate }) {
 
         {/* бекап — тихий футер */}
         {all !== null && (
-          <div style={{ marginTop: 22, paddingTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ marginTop: 20, paddingTop: 12, borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <button onClick={handleExport} style={footBtn}>Експорт</button>
             <label style={footBtn}>
               Імпорт
@@ -362,14 +362,14 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 40px' }}>
         <div style={{
           background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 14,
-          padding: '14px 16px', marginBottom: 16,
+          padding: '12px 14px', marginBottom: 14,
         }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{
-              width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+              width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
               background: avatarColor(who.name), color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 18, fontWeight: 700,
+              fontSize: 16, fontWeight: 700,
             }}>{initial(who.name)}</div>
             <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 1 }}>{who.label}</div>
