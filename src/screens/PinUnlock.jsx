@@ -12,6 +12,8 @@ import { decryptWithSecret } from '../lib/vault.js';
  *
  * 5 wrong attempts → 30s lockout, escalating per vault's lockout policy.
  */
+const isDesktop = typeof window !== 'undefined' && !('ontouchstart' in window);
+
 export default function PinUnlock({ onUnlocked, onForgotPin }) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(null);
@@ -164,6 +166,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
           autoFocus
           value={pin}
           disabled={locked}
+          onBlur={() => setTimeout(() => inputRef.current?.focus(), 50)}
           onChange={(e) => tryUnlock(e.target.value)}
           style={{
             position: 'absolute', opacity: 0, pointerEvents: 'none',
@@ -178,7 +181,9 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
             cursor: 'pointer', padding: 10,
           }}
         >
-          Натисніть тут якщо клавіатура не з'явилась
+          {isDesktop
+            ? '⌨ Введіть 6 цифр із клавіатури'
+            : "Натисніть тут якщо клавіатура не з'явилась"}
         </div>
 
         {error && (

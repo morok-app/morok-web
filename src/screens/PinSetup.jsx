@@ -19,6 +19,8 @@ import { encryptWithSecret } from '../lib/vault.js';
  *   1) Enter new PIN (6 digits, auto-advances when full)
  *   2) Confirm by entering again
  */
+const isDesktop = typeof window !== 'undefined' && !('ontouchstart' in window);
+
 export default function PinSetup({
   onNavigate,
   prefilledSeed,
@@ -186,6 +188,7 @@ export default function PinSetup({
           inputMode="numeric"
           autoFocus
           value={currentValue}
+          onBlur={() => setTimeout(() => inputRef.current?.focus(), 50)}
           onChange={(e) => handleInput(e.target.value, step === 'enter' ? 'pin' : 'confirm')}
           style={{
             position: 'absolute',
@@ -204,7 +207,9 @@ export default function PinSetup({
             padding: 10,
           }}
         >
-          Натисніть тут якщо клавіатура не з'явилась
+          {isDesktop
+            ? '⌨ Введіть 6 цифр із клавіатури'
+            : "Натисніть тут якщо клавіатура не з'явилась"}
         </div>
 
         {error && (
