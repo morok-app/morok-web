@@ -51,7 +51,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
           }}>
             Увійти в акаунт
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
             Введіть свої 24 слова
           </div>
         </div>
@@ -74,7 +74,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
 
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
@@ -113,7 +113,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
           onBlur={(e) => e.target.style.borderColor = '#232329'}
         />
 
-        <p style={{ fontSize: 11.5, color: '#5A5A65', marginTop: 10, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 10, lineHeight: 1.5 }}>
           Вставте всі 24 слова через пробіл. Регістр не має значення.
         </p>
 
@@ -156,7 +156,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
             onClick={() => onNavigate('restore')}
             style={{
               background: 'transparent', border: 'none',
-              color: '#6B6B72', fontSize: 12.5,
+              color: '#A4A6B2', fontSize: 12.5,
               cursor: 'pointer', fontFamily: 'inherit',
               padding: 8,
             }}

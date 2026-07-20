@@ -142,7 +142,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
           }}>
             Введіть PIN
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72' }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2' }}>
             6 цифр щоб розблокувати акаунт
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
             <div key={i} style={{
               width: 14, height: 14, borderRadius: '50%',
               background: i < pin.length ? '#F5F5F7' : 'transparent',
-              border: '1.5px solid ' + (i < pin.length ? '#F5F5F7' : '#3F3F45'),
+              border: '1.5px solid ' + (i < pin.length ? '#F5F5F7' : '#70727E'),
               transition: 'all 0.12s',
             }} />
           ))}
@@ -177,7 +177,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
         <div
           onClick={() => inputRef.current?.focus()}
           style={{
-            fontSize: 12.5, color: '#6B6B72',
+            fontSize: 12.5, color: '#A4A6B2',
             cursor: 'pointer', padding: 10,
           }}
         >
@@ -249,7 +249,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
         )}
         {wipeStep > 0 && (
           <div style={{
-            fontSize: 10.5, color: '#5A5A65',
+            fontSize: 12.5, color: '#9EA0AC',
             marginTop: 8,
             fontFamily: 'var(--mono, monospace)',
           }}>

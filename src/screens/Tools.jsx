@@ -130,7 +130,7 @@ export default function Tools({ onNavigate }) {
 
         {/* Coming soon section */}
         <div style={{
-          fontSize: 11, color: '#3F3F45',
+          fontSize: 12, color: '#8B8D99',
           textTransform: 'uppercase', letterSpacing: '0.1em',
           fontWeight: 600,
           padding: '24px 0 12px',
@@ -203,7 +203,7 @@ function ToolCard({ icon, accent, accentBg, title, description, countLabel, coun
             </div>
             {countLabel !== null && countLabel !== undefined && (
               <div style={{
-                fontSize: 10.5, color: accent,
+                fontSize: 12.5, color: accent,
                 background: accentBg,
                 padding: '2px 7px', borderRadius: 6,
                 fontFamily: 'var(--mono, monospace)',
@@ -214,7 +214,7 @@ function ToolCard({ icon, accent, accentBg, title, description, countLabel, coun
               </div>
             )}
           </div>
-          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55 }}>
+          <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55 }}>
             {description}
           </div>
         </div>
@@ -247,7 +247,7 @@ function ComingSoonCard({ icon, title, description }) {
         width: 32, height: 32, borderRadius: 8,
         background: '#13131A',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#5A5A65', flexShrink: 0,
+        color: '#9EA0AC', flexShrink: 0,
       }}>
         <div style={{ width: 16, height: 16 }}>{icon}</div>
       </div>
@@ -255,7 +255,7 @@ function ComingSoonCard({ icon, title, description }) {
         <div style={{ fontSize: 13.5, fontWeight: 600, color: '#A8A8B0' }}>
           {title}
         </div>
-        <div style={{ fontSize: 11.5, color: '#5A5A65', marginTop: 2 }}>
+        <div style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 2 }}>
           {description}
         </div>
       </div>

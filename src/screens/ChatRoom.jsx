@@ -592,7 +592,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             background: '#13131A',
             border: '1px solid #232329',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#3F3F45',
+            color: '#8B8D99',
           }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -740,7 +740,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               <div style={{ color: '#A8A8B0', fontSize: 14, fontWeight: 600 }}>
                 Поки немає повідомлень
               </div>
-              <div style={{ color: '#5A5A65', fontSize: 12.5, marginTop: 3 }}>
+              <div style={{ color: '#9EA0AC', fontSize: 12.5, marginTop: 3 }}>
                 Напишіть перше — воно зашифроване наскрізно
               </div>
             </div>
@@ -900,7 +900,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                         }}
                       >
                         <span>{emoji}</span>
-                        <span style={{ fontSize: 10.5, color: '#A8A8B0', fontFamily: 'var(--mono, monospace)' }}>{count}</span>
+                        <span style={{ fontSize: 12.5, color: '#A8A8B0', fontFamily: 'var(--mono, monospace)' }}>{count}</span>
                       </button>
                     );
                   })}
@@ -908,7 +908,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               )}
               {!sameNext && (
                 <div style={{
-                  fontSize: 10, color: '#5A5A65',
+                  fontSize: 12.5, color: '#9EA0AC',
                   fontFamily: 'var(--mono, monospace)',
                   padding: '0 6px',
                   display: 'flex', gap: 6,
@@ -971,7 +971,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             Час життя повідомлення
           </h3>
           <p style={{
-            fontSize: 12, color: '#6B6B72',
+            fontSize: 12, color: '#A4A6B2',
             margin: '0 20px 14px', lineHeight: 1.5,
           }}>
             Після цього часу повідомлення зникне у вас і в адресата.
@@ -1088,7 +1088,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             </div>
           )}
           <div style={{
-            fontSize: 12.5, color: '#8E8E99',
+            fontSize: 12.5, color: '#ABADB8',
             padding: '14px 20px 14px',
             borderBottom: '1px solid #232329',
             lineHeight: 1.5,
@@ -1197,7 +1197,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           }}>🔒</div>
           <div style={{
             flex: 1, fontSize: 12.5,
-            color: '#8E8E99', lineHeight: 1.55,
+            color: '#ABADB8', lineHeight: 1.55,
           }}>
             Це повідомлення з анонімної скриньки.
             Відправник невідомий — відповісти неможливо.
@@ -1245,7 +1245,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               {formatDuration(recordMs)}
             </div>
             <div style={{ flex: 1 }} />
-            <div style={{ fontSize: 11, color: '#5A5A65' }}>
+            <div style={{ fontSize: 12, color: '#9EA0AC' }}>
               {Math.floor((MAX_DURATION_MS - recordMs) / 1000)}с
             </div>
           </div>
@@ -1283,7 +1283,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               borderRadius: 19,
               display: 'flex', alignItems: 'center', gap: 5,
               color: '#A8A8B0', cursor: 'pointer',
-              fontSize: 11, fontFamily: 'var(--mono, monospace)',
+              fontSize: 12, fontFamily: 'var(--mono, monospace)',
               fontWeight: 600, letterSpacing: '0.02em',
               flexShrink: 0,
             }}
@@ -1525,12 +1525,12 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{title}</span>
             {isMuted && (
-              <span style={{ fontSize: 12, color: '#6B6B72', flexShrink: 0 }} title="Заглушено">🔕</span>
+              <span style={{ fontSize: 12, color: '#A4A6B2', flexShrink: 0 }} title="Заглушено">🔕</span>
             )}
           </div>
           {subtitle && (
             <div style={{
-              fontSize: 11.5, color: '#6B6B72',
+              fontSize: 12.5, color: '#A4A6B2',
               letterSpacing: '-0.005em',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
@@ -1677,7 +1677,7 @@ function VoicePlayer({ voice, isOut }) {
         </div>
         <div style={{
           fontFamily: 'var(--mono, monospace)',
-          fontSize: 10.5,
+          fontSize: 12.5,
           color: isOut ? 'rgba(255,255,255,0.85)' : '#A8A8B0',
           letterSpacing: '0.02em',
         }}>

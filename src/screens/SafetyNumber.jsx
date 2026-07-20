@@ -101,7 +101,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
       <TopBar title="Номер безпеки" onBack={() => onNavigate(`peer/${peerPubkey}`)} />
 
       <div style={{ padding: '0 18px 32px' }}>
-        <p style={{ color: '#8A8A95', fontSize: 14, lineHeight: 1.5, marginTop: 0, marginBottom: 22 }}>
+        <p style={{ color: '#A8AAB5', fontSize: 14, lineHeight: 1.5, marginTop: 0, marginBottom: 22 }}>
           Порівняйте ці числа з {peerLabel} — у дзвінку, особисто або через інший
           канал. Якщо вони однакові, ваше з'єднання захищене й ніхто не підмінив ключі.
         </p>
@@ -133,7 +133,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
               padding: 18, display: 'flex', flexDirection: 'column', alignItems: 'center',
             }}>
               <img src={qrUrl} alt="QR" style={{ width: 200, height: 200, borderRadius: 10 }} />
-              <span style={{ color: '#6B6B72', fontSize: 12, marginTop: 12 }}>
+              <span style={{ color: '#A4A6B2', fontSize: 12, marginTop: 12 }}>
                 Інша сторона зможе відсканувати для звірки
               </span>
             </div>
@@ -152,7 +152,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
               muted playsInline
               style={{ width: '100%', maxWidth: 320, borderRadius: 12, background: '#000' }}
             />
-            <span style={{ color: '#8A8A95', fontSize: 13 }}>Наведіть на QR на екрані співрозмовника</span>
+            <span style={{ color: '#A8AAB5', fontSize: 13 }}>Наведіть на QR на екрані співрозмовника</span>
             <PrimaryButton onClick={stopScan} variant="neutral">Скасувати</PrimaryButton>
           </div>
         ) : (
@@ -173,7 +173,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
             ) : (
               <div style={{
                 background: '#13131A', border: '1px solid #232329', borderRadius: 14,
-                padding: '13px 16px', color: '#6B6B72', fontSize: 13, textAlign: 'center',
+                padding: '13px 16px', color: '#A4A6B2', fontSize: 13, textAlign: 'center',
               }}>
                 Сканер недоступний у цьому браузері — звірте цифри вручну
               </div>
@@ -200,7 +200,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
               <div style={{
                 marginTop: 12, padding: '13px 16px', borderRadius: 14, textAlign: 'center',
                 background: '#13131A', border: '1px solid #232329',
-                color: '#8A8A95', fontSize: 13,
+                color: '#A8AAB5', fontSize: 13,
               }}>
                 Не вдалося відкрити камеру — перевірте дозвіл у браузері
               </div>
@@ -223,7 +223,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
           </PrimaryButton>
         </div>
 
-        <p style={{ color: '#3F3F45', fontSize: 12, lineHeight: 1.5, textAlign: 'center', marginTop: 16 }}>
+        <p style={{ color: '#8B8D99', fontSize: 12, lineHeight: 1.5, textAlign: 'center', marginTop: 16 }}>
           Позначка зберігається лише на вашому пристрої. Сервер про неї не знає.
         </p>
       </div>

@@ -74,7 +74,7 @@ export default function NewGroup({ onNavigate }) {
           }}>
             Нова група
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
             Назва зашифрована, видима тільки учасникам
           </div>
         </div>
@@ -96,7 +96,7 @@ export default function NewGroup({ onNavigate }) {
 
       <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
         }}>НАЗВА</div>
@@ -135,13 +135,13 @@ export default function NewGroup({ onNavigate }) {
 
       <div style={{
         padding: '20px 20px 10px',
-        fontSize: 11, color: '#3F3F45',
+        fontSize: 12, color: '#8B8D99',
         textTransform: 'uppercase', letterSpacing: '0.1em',
         fontWeight: 600,
         display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
       }}>
         <span>УЧАСНИКИ</span>
-        <span style={{ color: '#6B6B72', fontFamily: 'var(--mono, monospace)', letterSpacing: '0.02em' }}>
+        <span style={{ color: '#A4A6B2', fontFamily: 'var(--mono, monospace)', letterSpacing: '0.02em' }}>
           {selected.size} обрано
         </span>
       </div>
@@ -159,14 +159,14 @@ export default function NewGroup({ onNavigate }) {
               background: '#13131A',
               border: '1px solid #232329',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#3F3F45',
+              color: '#8B8D99',
             }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/>
               </svg>
             </div>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>Поки нема контактів</div>
-            <div style={{ fontSize: 12, color: '#6B6B72', maxWidth: 260, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: '#A4A6B2', maxWidth: 260, lineHeight: 1.5 }}>
               Спершу напишіть комусь — і він зʼявиться тут
             </div>
           </div>

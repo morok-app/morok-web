@@ -133,7 +133,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
             <li>Dead-man's switch (якщо налаштований)</li>
             <li>Локальна історія чатів і груп</li>
           </ul>
-          <div style={{ fontSize: 11.5, color: '#8E8E99', marginTop: 12, lineHeight: 1.55 }}>
+          <div style={{ fontSize: 12.5, color: '#ABADB8', marginTop: 12, lineHeight: 1.55 }}>
             Чати в групах залишаться — інші бачитимуть вас як "@невідомий".
             Якщо у вас є 24 слова — ви зможете зайти знову, але історія
             не повернеться.
@@ -143,7 +143,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
         {!verified && (
           <>
             <div style={{
-              fontSize: 11, color: '#5A5A65',
+              fontSize: 12, color: '#9EA0AC',
               marginBottom: 8,
               fontFamily: 'var(--mono, monospace)',
               letterSpacing: '0.05em',

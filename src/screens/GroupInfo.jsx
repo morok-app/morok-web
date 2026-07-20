@@ -193,7 +193,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
             {group.name || 'Без назви'}
           </div>
           <div style={{
-            fontSize: 12, color: '#6B6B72',
+            fontSize: 12, color: '#A4A6B2',
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
           }}>
@@ -233,8 +233,8 @@ export default function GroupInfo({ groupId, onNavigate }) {
                 marginBottom: 10,
               }}>
                 <div style={{
-                  fontSize: 11, fontFamily: 'var(--mono, monospace)',
-                  color: '#8E8E99',
+                  fontSize: 12, fontFamily: 'var(--mono, monospace)',
+                  color: '#ABADB8',
                   wordBreak: 'break-all',
                   lineHeight: 1.5, marginBottom: 10,
                 }}>
@@ -509,7 +509,7 @@ function Header({ title, onClose }) {
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: 11, color: '#3F3F45',
+      fontSize: 12, color: '#8B8D99',
       textTransform: 'uppercase', letterSpacing: '0.1em',
       fontWeight: 600,
       padding: '20px 0 10px',

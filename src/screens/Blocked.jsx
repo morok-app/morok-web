@@ -35,7 +35,7 @@ export default function Blocked({ onNavigate }) {
           }}>
             Заблоковані
           </div>
-          <div style={{ fontSize: 12.5, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
             Від них не приймати повідомлень
           </div>
         </div>
@@ -60,7 +60,7 @@ export default function Blocked({ onNavigate }) {
         {items.length === 0 && (
           <div style={{
             padding: 24, textAlign: 'center',
-            color: '#6B6B72', fontSize: 13,
+            color: '#A4A6B2', fontSize: 13,
           }}>
             Нема заблокованих
           </div>
@@ -86,7 +86,7 @@ export default function Blocked({ onNavigate }) {
                   {it.pubkey_hex.slice(0, 24)}…
                 </div>
                 <div style={{
-                  fontSize: 10.5, color: '#6B6B72', marginTop: 3,
+                  fontSize: 12.5, color: '#A4A6B2', marginTop: 3,
                   fontFamily: 'var(--mono, monospace)',
                 }}>
                   {it.added_at

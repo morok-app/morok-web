@@ -46,7 +46,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
           <div style={{ fontSize: 18, fontWeight: 700, color: '#F5F5F7', letterSpacing: '-0.02em' }}>
             Невалідний лінк
           </div>
-          <div style={{ fontSize: 13, color: '#8E8E99', maxWidth: 320, lineHeight: 1.55 }}>
+          <div style={{ fontSize: 13, color: '#ABADB8', maxWidth: 320, lineHeight: 1.55 }}>
             Лінк запрошення некоректний або вже використаний.
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
             Запрошення до групи
           </h2>
           <p style={{
-            fontSize: 13.5, color: '#8E8E99',
+            fontSize: 13.5, color: '#ABADB8',
             lineHeight: 1.55, margin: 0,
           }}>
             Хтось поділився з вами лінком на приватну групу Morok.
@@ -198,7 +198,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
               padding: '12px',
               background: 'transparent',
               border: 'none',
-              color: '#6B6B72',
+              color: '#A4A6B2',
               fontSize: 13,
               cursor: 'pointer', fontFamily: 'inherit',
             }}

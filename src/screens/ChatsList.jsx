@@ -358,7 +358,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           <div
             onClick={() => onNavigate('profile')}
             style={{
-              fontSize: 13, color: '#6B6B72',
+              fontSize: 13, color: '#A4A6B2',
               marginTop: 6,
               letterSpacing: '-0.01em',
               cursor: 'pointer',
@@ -440,7 +440,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
             <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>
               Створіть юзернейм
             </div>
-            <div style={{ fontSize: 11.5, color: '#6B6B72', marginTop: 2 }}>
+            <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 2 }}>
               Інакше акаунт видалиться через 7 днів неактивності
             </div>
           </div>
@@ -478,7 +478,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
             <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>
               Захистіть акаунт PIN-кодом
             </div>
-            <div style={{ fontSize: 11.5, color: '#6B6B72', marginTop: 2 }}>
+            <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 2 }}>
               Хто має доступ до браузера — може прочитати ваші повідомлення
             </div>
           </div>
@@ -521,7 +521,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
             background: '#16161B',
             border: '1px solid #232329',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#3F3F45',
+            color: '#8B8D99',
           }}>
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -530,7 +530,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           <div style={{ fontSize: 15, fontWeight: 600, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
             {activeTab === 'requests' ? 'Нема нових запитів' : 'Поки немає чатів'}
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72', maxWidth: 280, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2', maxWidth: 280, lineHeight: 1.5 }}>
             {activeTab === 'requests'
               ? 'Сюди потрапляють повідомлення від людей, яких немає у ваших контактах'
               : 'Натисніть кнопку нижче щоб почати новий чат або групу'}
@@ -585,11 +585,11 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>{item.title}</span>
                       {isMuted && (
-                        <span style={{ fontSize: 11, color: '#5A5A65', flexShrink: 0 }} title="Заглушено">🔕</span>
+                        <span style={{ fontSize: 12, color: '#9EA0AC', flexShrink: 0 }} title="Заглушено">🔕</span>
                       )}
                     </div>
                     <div style={{
-                      fontSize: 11, color: '#5A5A65',
+                      fontSize: 12, color: '#9EA0AC',
                       fontFamily: 'var(--mono, monospace)', flexShrink: 0,
                     }}>{formatTime(last?.ts)}</div>
                   </div>
@@ -598,7 +598,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                     alignItems: 'center', gap: 6, marginTop: 3,
                   }}>
                     <div style={{
-                      fontSize: 12.5, color: '#8E8E99',
+                      fontSize: 12.5, color: '#ABADB8',
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       flex: 1, lineHeight: 1.4,
                     }}>
@@ -612,7 +612,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                         : (last?.text || (last?.status === 'undecryptable' ? '⚠ не вдалось розшифрувати' : '...'))}
                     </div>
                     {last?.ttl && (
-                      <div style={{ fontSize: 10, color: '#5A5A65', fontFamily: 'var(--mono, monospace)' }}>
+                      <div style={{ fontSize: 12.5, color: '#9EA0AC', fontFamily: 'var(--mono, monospace)' }}>
                         ⏱ {formatTTL(last.ttl)}
                       </div>
                     )}
@@ -621,7 +621,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                         minWidth: 18, height: 18, borderRadius: 9,
                         background: isMuted ? '#3F3F45' : '#6B8AFE',
                         color: isMuted ? '#A8A8B0' : '#fff',
-                        fontSize: 10.5, fontWeight: 700,
+                        fontSize: 12.5, fontWeight: 700,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         padding: '0 5px',
                       }}>
@@ -663,7 +663,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           >
             <div style={{ width: 36, height: 4, background: '#3F3F45', borderRadius: 2, margin: '6px auto 14px' }} />
             <div style={{
-              fontSize: 13, color: '#8E8E99',
+              fontSize: 13, color: '#ABADB8',
               padding: '0 20px 14px',
               borderBottom: '1px solid #232329',
               fontWeight: 500,
@@ -850,7 +850,7 @@ function TabButton({ active, onClick, label, badge, count }) {
       <span>{label}</span>
       {count !== undefined && count !== null && (
         <span style={{
-          fontSize: 10.5,
+          fontSize: 12.5,
           color: active ? '#A8A8B0' : '#5A5A65',
           fontFamily: 'var(--mono, monospace)',
         }}>

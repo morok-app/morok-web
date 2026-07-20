@@ -95,7 +95,7 @@ export default function Profile({ onNavigate }) {
           }}>
             Профіль
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
             Як вас бачать інші
           </div>
         </div>
@@ -132,7 +132,7 @@ export default function Profile({ onNavigate }) {
           </div>
           {isAnon && (
             <div style={{
-              fontSize: 11, color: '#FFA94D',
+              fontSize: 12, color: '#FFA94D',
               background: 'rgba(255, 169, 77, 0.1)',
               border: '1px solid rgba(255, 169, 77, 0.3)',
               padding: '4px 10px',
@@ -166,7 +166,7 @@ export default function Profile({ onNavigate }) {
           )}
           <div style={{
             width: '100%',
-            fontSize: 11, color: '#8E8E99',
+            fontSize: 12, color: '#ABADB8',
             fontFamily: 'var(--mono, monospace)',
             wordBreak: 'break-all',
             textAlign: 'center', padding: '0 4px',
@@ -204,7 +204,7 @@ export default function Profile({ onNavigate }) {
             }}>
               {!showMnemonic ? (
                 <>
-                  <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55, marginBottom: 12 }}>
+                  <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55, marginBottom: 12 }}>
                     24 секретні слова. Збережіть у безпечному місці.
                     Без них відновити акаунт неможливо.
                   </div>
@@ -240,7 +240,7 @@ export default function Profile({ onNavigate }) {
                         borderRadius: 7,
                       }}>
                         <span style={{
-                          fontSize: 10, color: '#5A5A65',
+                          fontSize: 12.5, color: '#9EA0AC',
                           fontFamily: 'var(--mono, monospace)',
                           minWidth: 18,
                         }}>
@@ -324,7 +324,7 @@ export default function Profile({ onNavigate }) {
           border: '1px solid #232329',
           borderRadius: 14,
           padding: '14px 16px',
-          fontSize: 11, color: '#8E8E99',
+          fontSize: 12, color: '#ABADB8',
           fontFamily: 'var(--mono, monospace)',
           wordBreak: 'break-all',
           lineHeight: 1.6,
@@ -339,7 +339,7 @@ export default function Profile({ onNavigate }) {
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: 11, color: '#3F3F45',
+      fontSize: 12, color: '#8B8D99',
       textTransform: 'uppercase', letterSpacing: '0.1em',
       fontWeight: 600,
       padding: '20px 0 10px',

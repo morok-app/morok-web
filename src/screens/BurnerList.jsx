@@ -63,7 +63,7 @@ export default function BurnerList({ onNavigate }) {
             Анонімна скринька
           </div>
           <div style={{
-            fontSize: 13, color: '#6B6B72',
+            fontSize: 13, color: '#A4A6B2',
             marginTop: 8,
             letterSpacing: '-0.01em',
           }}>
@@ -102,7 +102,7 @@ export default function BurnerList({ onNavigate }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0, fontSize: 14,
           }}>🔥</div>
-          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55, flex: 1 }}>
+          <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55, flex: 1 }}>
             Створіть лінк — будь-хто зможе написати вам анонімне повідомлення без реєстрації.
             Зашифровано наскрізно: сервер бачить тільки шифротекст.
           </div>
@@ -146,7 +146,7 @@ export default function BurnerList({ onNavigate }) {
               fontSize: 24, opacity: 0.5,
             }}>🔥</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Поки немає лінків</div>
-            <div style={{ fontSize: 12.5, color: '#6B6B72', maxWidth: 260, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12.5, color: '#A4A6B2', maxWidth: 260, lineHeight: 1.5 }}>
               Натисніть «+» нижче щоб створити перший
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function BurnerList({ onNavigate }) {
                     {t.label || 'Без назви'}
                   </div>
                   <div style={{
-                    fontSize: 10.5, fontWeight: 600,
+                    fontSize: 12.5, fontWeight: 600,
                     color: '#FFA94D', background: 'rgba(255, 169, 77, 0.1)',
                     padding: '3px 8px', borderRadius: 6,
                     fontFamily: 'var(--mono, monospace)',
@@ -187,8 +187,8 @@ export default function BurnerList({ onNavigate }) {
                 </div>
 
                 <div style={{
-                  fontFamily: 'var(--mono, monospace)', fontSize: 11,
-                  color: '#8E8E99',
+                  fontFamily: 'var(--mono, monospace)', fontSize: 12,
+                  color: '#ABADB8',
                   background: '#0A0A0B',
                   border: '1px solid #1E1E27',
                   borderRadius: 8,
@@ -202,7 +202,7 @@ export default function BurnerList({ onNavigate }) {
 
                 <div style={{
                   display: 'flex', gap: 12, marginBottom: 12,
-                  fontSize: 11, color: '#5A5A65',
+                  fontSize: 12, color: '#9EA0AC',
                   fontFamily: 'var(--mono, monospace)',
                 }}>
                   <span>повідомлень: <span style={{ color: '#F5F5F7' }}>{t.message_count}</span></span>
@@ -329,7 +329,7 @@ function CreateBurnerModal({ onClose, onCreated }) {
         </h3>
 
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
@@ -354,7 +354,7 @@ function CreateBurnerModal({ onClose, onCreated }) {
         />
 
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
@@ -377,7 +377,7 @@ function CreateBurnerModal({ onClose, onCreated }) {
               >
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>{opt.label}</div>
-                  <div style={{ fontSize: 11, color: '#6B6B72' }}>{opt.hint}</div>
+                  <div style={{ fontSize: 12, color: '#A4A6B2' }}>{opt.hint}</div>
                 </div>
                 {active && (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B96FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

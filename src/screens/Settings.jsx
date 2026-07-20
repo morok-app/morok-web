@@ -296,7 +296,7 @@ export default function Settings({ onNavigate }) {
             Налаштування
           </div>
           <div style={{
-            fontSize: 13, color: '#6B6B72',
+            fontSize: 13, color: '#A4A6B2',
             marginTop: 8, fontWeight: 500,
           }}>
             Профіль · Захист · Сповіщення
@@ -463,7 +463,7 @@ export default function Settings({ onNavigate }) {
           padding: '32px 20px 24px',
           textAlign: 'center',
           fontSize: 12,
-          color: '#3F3F45',
+          color: '#8B8D99',
           letterSpacing: '0.04em',
           fontWeight: 500,
         }}>
@@ -545,7 +545,7 @@ function LinRow({
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: 11, color: '#3F3F45',
+      fontSize: 12, color: '#8B8D99',
       textTransform: 'uppercase', letterSpacing: '0.1em',
       fontWeight: 600,
       padding: '20px 20px 8px',

@@ -103,7 +103,7 @@ export default function RestoreByUsername({ onNavigate }) {
             Відновити з бекапу
           </div>
           <div style={{
-            fontSize: 12.5, color: '#6B6B72',
+            fontSize: 12.5, color: '#A4A6B2',
             marginTop: 6,
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.05em',
@@ -131,12 +131,12 @@ export default function RestoreByUsername({ onNavigate }) {
 
         {step === 'username' ? (
           <>
-            <div style={{ fontSize: 13, color: '#8E8E99', lineHeight: 1.55, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: '#ABADB8', lineHeight: 1.55, marginBottom: 20 }}>
               Введіть свій юзернейм. Сервер віддасть зашифрований бекап — розшифрувати його зможете тільки ви, локально.
             </div>
 
             <div style={{
-              fontSize: 11, color: '#5A5A65',
+              fontSize: 12, color: '#9EA0AC',
               marginBottom: 8,
               fontFamily: 'var(--mono, monospace)',
               letterSpacing: '0.05em',
@@ -150,7 +150,7 @@ export default function RestoreByUsername({ onNavigate }) {
               borderRadius: 12,
               paddingLeft: 14,
             }}>
-              <span style={{ color: '#5A5A65', fontSize: 14, marginRight: 4 }}>@</span>
+              <span style={{ color: '#9EA0AC', fontSize: 14, marginRight: 4 }}>@</span>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value.replace(/^@/, '').toLowerCase())}
@@ -226,12 +226,12 @@ export default function RestoreByUsername({ onNavigate }) {
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: '#8E8E99', lineHeight: 1.55, marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: '#ABADB8', lineHeight: 1.55, marginBottom: 20 }}>
               Введіть passphrase яку ви створили при налаштуванні бекапу. Розшифрування відбувається на вашому пристрої.
             </div>
 
             <div style={{
-              fontSize: 11, color: '#5A5A65',
+              fontSize: 12, color: '#9EA0AC',
               marginBottom: 8,
               fontFamily: 'var(--mono, monospace)',
               letterSpacing: '0.05em',

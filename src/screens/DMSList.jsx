@@ -46,7 +46,7 @@ export default function DMSList({ onNavigate }) {
             Цифровий заповіт
           </div>
           <div style={{
-            fontSize: 12.5, color: '#6B6B72',
+            fontSize: 12.5, color: '#A4A6B2',
             marginTop: 8, fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
           }}>
@@ -85,7 +85,7 @@ export default function DMSList({ onNavigate }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#7B96FF', flexShrink: 0, fontSize: 14,
           }}>📜</div>
-          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55, flex: 1 }}>
+          <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55, flex: 1 }}>
             Якщо ви не зайдете в Morok N днів — обране повідомлення доставиться отримувачу.
             Зашифровано наскрізно: сервер бачить тільки шифротекст.
           </div>
@@ -126,14 +126,14 @@ export default function DMSList({ onNavigate }) {
               background: '#13131A',
               border: '1px solid #232329',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#3F3F45',
+              color: '#8B8D99',
             }}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
               </svg>
             </div>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Поки немає жодного заповіту</div>
-            <div style={{ fontSize: 12.5, color: '#6B6B72', maxWidth: 260, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12.5, color: '#A4A6B2', maxWidth: 260, lineHeight: 1.5 }}>
               Натисніть «+» нижче щоб створити перший
             </div>
           </div>
@@ -173,7 +173,7 @@ export default function DMSList({ onNavigate }) {
                     {d.label || 'Без назви'}
                   </div>
                   <div style={{
-                    fontSize: 10.5, fontWeight: 600,
+                    fontSize: 12.5, fontWeight: 600,
                     color: statusColor, background: statusBg,
                     padding: '3px 8px', borderRadius: 6,
                     textTransform: 'uppercase',
@@ -185,7 +185,7 @@ export default function DMSList({ onNavigate }) {
                 </div>
 
                 <div style={{
-                  fontSize: 12.5, color: '#8E8E99',
+                  fontSize: 12.5, color: '#ABADB8',
                   marginBottom: 6,
                 }}>
                   Отримувач: <span style={{ color: '#F5F5F7', fontFamily: 'var(--mono, monospace)' }}>
@@ -194,7 +194,7 @@ export default function DMSList({ onNavigate }) {
                 </div>
 
                 <div style={{
-                  fontSize: 11.5, color: '#6B6B72',
+                  fontSize: 12.5, color: '#A4A6B2',
                   fontFamily: 'var(--mono, monospace)',
                   display: 'flex', gap: 12, flexWrap: 'wrap',
                 }}>

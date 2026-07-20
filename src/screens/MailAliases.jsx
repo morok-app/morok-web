@@ -7,7 +7,7 @@ const BG = '#0A0A0B';
 const SURFACE = '#16161B';
 const BORDER = '#232329';
 const TEXT = '#F5F5F7';
-const MUTED = '#8A8A96';
+const MUTED = '#A8AAB5';
 
 const STATUS_UI = {
   active: { label: 'активний', color: '#4ADE80', bg: 'rgba(74,222,128,0.12)' },
@@ -226,13 +226,13 @@ export default function MailAliases({ onNavigate }) {
                   </span>
                   {a.primary && (
                     <span style={{
-                      fontSize: 10.5, fontWeight: 700, color: ACCENT, letterSpacing: '0.04em',
+                      fontSize: 12.5, fontWeight: 700, color: ACCENT, letterSpacing: '0.04em',
                       border: `1px solid rgba(123,150,255,0.4)`, borderRadius: 6, padding: '2px 6px',
                     }}>ОСНОВНА</span>
                   )}
                 </button>
                 <span style={{
-                  fontSize: 11.5, fontWeight: 600, color: st.color, background: st.bg,
+                  fontSize: 12.5, fontWeight: 600, color: st.color, background: st.bg,
                   borderRadius: 8, padding: '3px 9px', flexShrink: 0,
                 }}>{st.label}</span>
               </div>

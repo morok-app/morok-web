@@ -53,7 +53,7 @@ export default function ClaimUsername({ onNavigate }) {
         }}>
           Виберіть юзернейм
         </div>
-        <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+        <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
           Щоб вас можна було знайти за іменем
         </div>
       </div>
@@ -67,14 +67,14 @@ export default function ClaimUsername({ onNavigate }) {
           borderRadius: 12,
           padding: '12px 14px',
           marginBottom: 24,
-          fontSize: 12.5, color: '#8E8E99',
+          fontSize: 12.5, color: '#ABADB8',
           lineHeight: 1.55,
         }}>
           Юзернейм опційний. Якщо пропустите — отримаєте анонімний акаунт. Він буде доступний тільки за лінком чи QR.
         </div>
 
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
@@ -89,7 +89,7 @@ export default function ClaimUsername({ onNavigate }) {
           paddingLeft: 14,
           transition: 'border-color 0.15s',
         }}>
-          <span style={{ color: '#5A5A65', fontSize: 16, marginRight: 4 }}>@</span>
+          <span style={{ color: '#9EA0AC', fontSize: 16, marginRight: 4 }}>@</span>
           <input
             value={username}
             onChange={(e) => {
@@ -114,7 +114,7 @@ export default function ClaimUsername({ onNavigate }) {
           {username && (
             <div style={{
               padding: '6px 12px',
-              fontSize: 11,
+              fontSize: 12,
               color: valid ? '#4ADE80' : '#FF6B7A',
               fontFamily: 'var(--mono, monospace)',
             }}>
@@ -123,7 +123,7 @@ export default function ClaimUsername({ onNavigate }) {
           )}
         </div>
 
-        <p style={{ fontSize: 11.5, color: '#5A5A65', marginTop: 8, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 8, lineHeight: 1.5 }}>
           3–20 символів. Тільки маленькі літери, цифри і _
         </p>
 
@@ -165,7 +165,7 @@ export default function ClaimUsername({ onNavigate }) {
             padding: '14px',
             background: 'transparent',
             border: 'none',
-            color: '#6B6B72', fontSize: 13,
+            color: '#A4A6B2', fontSize: 13,
             cursor: 'pointer', fontFamily: 'inherit',
           }}
         >

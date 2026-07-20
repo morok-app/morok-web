@@ -103,7 +103,7 @@ function IntroPanel({ onGenerate }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: '#F5F5F7', marginBottom: 6 }}>
             24 секретні слова
           </div>
-          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55 }}>
+          <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55 }}>
             Це єдиний спосіб відновити акаунт. Сервер не знає вашого паролю — тільки ви.
             Без слів — без доступу.
           </div>
@@ -132,7 +132,7 @@ function IntroPanel({ onGenerate }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: '#F5F5F7', marginBottom: 6 }}>
             Запишіть на папір
           </div>
-          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55 }}>
+          <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55 }}>
             Не фотографуйте, не зберігайте в хмарі. Папір у безпечному місці —
             найнадійніший спосіб.
           </div>
@@ -161,7 +161,7 @@ function IntroPanel({ onGenerate }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: '#F5F5F7', marginBottom: 6 }}>
             Ніхто не побачить
           </div>
-          <div style={{ fontSize: 12.5, color: '#8E8E99', lineHeight: 1.55 }}>
+          <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55 }}>
             Слова генеруються прямо у вашому браузері. Не передаються нікому — навіть нам.
           </div>
         </div>
@@ -180,7 +180,7 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue, onCopy, co
   return (
     <div>
       <div style={{
-        fontSize: 13, color: '#8E8E99',
+        fontSize: 13, color: '#ABADB8',
         lineHeight: 1.55, marginBottom: 20,
       }}>
         Запишіть ці слова у точному порядку. Без них відновити доступ неможливо.
@@ -206,7 +206,7 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue, onCopy, co
             borderRadius: 8,
           }}>
             <span style={{
-              fontSize: 10, color: '#5A5A65',
+              fontSize: 12.5, color: '#9EA0AC',
               fontFamily: 'var(--mono, monospace)',
               minWidth: 18,
             }}>
@@ -296,7 +296,7 @@ function Header({ title, subtitle, onClose }) {
         </div>
         {subtitle && (
           <div style={{
-            fontSize: 12.5, color: '#6B6B72',
+            fontSize: 12.5, color: '#A4A6B2',
             marginTop: 6,
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.05em',

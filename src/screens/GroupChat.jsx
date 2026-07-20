@@ -558,7 +558,7 @@ export default function GroupChat({ groupId, onNavigate }) {
             background: '#13131A',
             border: '1px solid #232329',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#3F3F45',
+            color: '#8B8D99',
           }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
@@ -682,11 +682,11 @@ export default function GroupChat({ groupId, onNavigate }) {
       >
         {messages.length === 0 && !noKey && (
           <div style={{
-            textAlign: 'center', color: '#5A5A65', fontSize: 12.5,
+            textAlign: 'center', color: '#9EA0AC', fontSize: 12.5,
             marginTop: 40, lineHeight: 1.6,
           }}>
             Поки немає повідомлень.<br/>
-            <span style={{ color: '#3F3F45', fontSize: 11.5 }}>
+            <span style={{ color: '#8B8D99', fontSize: 11.5 }}>
               Напишіть перше нижче.
             </span>
           </div>
@@ -765,7 +765,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               {/* Sender name — only for incoming messages, and only first in group */}
               {!isOut && !samePrev && (
                 <div style={{
-                  fontSize: 11, fontWeight: 700,
+                  fontSize: 12, fontWeight: 700,
                   color: `hsl(${senderHue}, 60%, 70%)`,
                   padding: '0 6px 2px',
                   letterSpacing: '0.01em',
@@ -862,7 +862,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                         }}
                       >
                         <span>{emoji}</span>
-                        <span style={{ fontSize: 10.5, color: '#A8A8B0', fontFamily: 'var(--mono, monospace)' }}>{count}</span>
+                        <span style={{ fontSize: 12.5, color: '#A8A8B0', fontFamily: 'var(--mono, monospace)' }}>{count}</span>
                       </button>
                     );
                   })}
@@ -871,7 +871,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
               {!sameNext && (
                 <div style={{
-                  fontSize: 10, color: '#5A5A65',
+                  fontSize: 12.5, color: '#9EA0AC',
                   fontFamily: 'var(--mono, monospace)',
                   padding: '0 6px',
                   display: 'flex', gap: 6,
@@ -936,7 +936,7 @@ export default function GroupChat({ groupId, onNavigate }) {
             Час життя повідомлення
           </h3>
           <p style={{
-            fontSize: 12, color: '#6B6B72',
+            fontSize: 12, color: '#A4A6B2',
             margin: '0 20px 14px', lineHeight: 1.5,
           }}>
             Після цього часу повідомлення зникне у всіх учасників.
@@ -1053,7 +1053,7 @@ export default function GroupChat({ groupId, onNavigate }) {
             </div>
           )}
           <div style={{
-            fontSize: 12.5, color: '#8E8E99',
+            fontSize: 12.5, color: '#ABADB8',
             padding: '14px 20px 14px',
             borderBottom: '1px solid #232329',
             lineHeight: 1.5,
@@ -1185,7 +1185,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 {formatDuration(recordMs)}
               </div>
               <div style={{ flex: 1 }} />
-              <div style={{ fontSize: 11, color: '#5A5A65' }}>
+              <div style={{ fontSize: 12, color: '#9EA0AC' }}>
                 {Math.floor((MAX_DURATION_MS - recordMs) / 1000)}с
               </div>
             </div>
@@ -1223,7 +1223,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               borderRadius: 19,
               display: 'flex', alignItems: 'center', gap: 5,
               color: '#A8A8B0', cursor: 'pointer',
-              fontSize: 11, fontFamily: 'var(--mono, monospace)',
+              fontSize: 12, fontFamily: 'var(--mono, monospace)',
               fontWeight: 600, letterSpacing: '0.02em',
               flexShrink: 0,
             }}
@@ -1452,12 +1452,12 @@ function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isM
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>{title}</span>
           {isMuted && (
-            <span style={{ fontSize: 12, color: '#6B6B72', flexShrink: 0 }} title="Заглушено">🔕</span>
+            <span style={{ fontSize: 12, color: '#A4A6B2', flexShrink: 0 }} title="Заглушено">🔕</span>
           )}
         </div>
         {subtitle && (
           <div style={{
-            fontSize: 11, color: '#6B6B72',
+            fontSize: 12, color: '#A4A6B2',
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -1603,7 +1603,7 @@ function VoicePlayer({ voice, isOut }) {
         </div>
         <div style={{
           fontFamily: 'var(--mono, monospace)',
-          fontSize: 10.5,
+          fontSize: 12.5,
           color: isOut ? 'rgba(255,255,255,0.85)' : '#A8A8B0',
           letterSpacing: '0.02em',
         }}>

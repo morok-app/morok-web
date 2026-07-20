@@ -36,7 +36,7 @@ export function TopBar({ title, subtitle, onBack, backIcon = 'arrow', right = nu
             {title}
           </div>
           {subtitle && (
-            <div style={{ fontSize: 12.5, color: '#6B6B72', marginTop: 5, fontWeight: 500 }}>
+            <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 5, fontWeight: 500 }}>
               {subtitle}
             </div>
           )}

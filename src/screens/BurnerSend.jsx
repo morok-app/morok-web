@@ -114,7 +114,7 @@ export default function BurnerSend({ routeArg }) {
             letterSpacing: '-0.02em',
           }}>Лінк недоступний</div>
           <div style={{
-            fontSize: 13, color: '#8E8E99',
+            fontSize: 13, color: '#ABADB8',
             maxWidth: 320, lineHeight: 1.55,
           }}>{error}</div>
           <a
@@ -178,7 +178,7 @@ export default function BurnerSend({ routeArg }) {
             Повідомлення надіслано
           </div>
           <div style={{
-            fontSize: 13.5, color: '#8E8E99',
+            fontSize: 13.5, color: '#ABADB8',
             maxWidth: 360, lineHeight: 1.55,
           }}>
             Воно зашифроване і доставиться адресату.
@@ -251,7 +251,7 @@ export default function BurnerSend({ routeArg }) {
             Morok · Анонімна скринька
           </div>
           <div style={{
-            fontSize: 11, color: '#6B6B72', marginTop: 2,
+            fontSize: 12, color: '#A4A6B2', marginTop: 2,
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
           }}>
@@ -272,14 +272,14 @@ export default function BurnerSend({ routeArg }) {
 
         {info.label && (
           <div style={{
-            fontSize: 13, color: '#8E8E99',
+            fontSize: 13, color: '#ABADB8',
             marginBottom: 6,
           }}>
             отримувач: <strong style={{ color: '#F5F5F7' }}>{info.label}</strong>
           </div>
         )}
         <p style={{
-          fontSize: 13, color: '#8E8E99',
+          fontSize: 13, color: '#ABADB8',
           lineHeight: 1.55, margin: '0 0 24px',
         }}>
           Цей лінк створив користувач Morok щоб приймати анонімні повідомлення.
@@ -287,7 +287,7 @@ export default function BurnerSend({ routeArg }) {
         </p>
 
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
@@ -312,14 +312,14 @@ export default function BurnerSend({ routeArg }) {
           onBlur={(e) => e.target.style.borderColor = '#232329'}
         />
         <p style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           margin: '6px 0 22px', lineHeight: 1.5,
         }}>
           Можна вказати ім'я, ник, email — що завгодно. Не перевіряється.
         </p>
 
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
@@ -346,7 +346,7 @@ export default function BurnerSend({ routeArg }) {
           onBlur={(e) => e.target.style.borderColor = '#232329'}
         />
         <p style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           margin: '6px 0 18px', lineHeight: 1.5,
           fontFamily: 'var(--mono, monospace)',
         }}>
@@ -388,7 +388,7 @@ export default function BurnerSend({ routeArg }) {
           border: '1px solid #232329',
           borderRadius: 12,
           padding: '14px 16px',
-          fontSize: 12, color: '#8E8E99',
+          fontSize: 12, color: '#ABADB8',
           lineHeight: 1.55,
         }}>
           <strong style={{ color: '#F5F5F7' }}>🔒 Як це працює:</strong> ваш браузер створює одноразовий ключ,

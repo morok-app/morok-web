@@ -75,7 +75,7 @@ export default function DMSCreate({ onNavigate }) {
           }}>
             Новий заповіт
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
             Доставиться якщо ви не зайдете
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function DMSCreate({ onNavigate }) {
               }}>
                 @{formatPeerName({ username: recipient.username, pubkey: recipient.pubkey_hex })}
               </div>
-              <div style={{ fontSize: 11, color: '#5A5A65', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#9EA0AC', marginTop: 2 }}>
                 натисніть щоб змінити
               </div>
             </div>
@@ -197,7 +197,7 @@ export default function DMSCreate({ onNavigate }) {
               >
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>{opt.label}</div>
-                  <div style={{ fontSize: 11, color: '#6B6B72' }}>{opt.hint}</div>
+                  <div style={{ fontSize: 12, color: '#A4A6B2' }}>{opt.hint}</div>
                 </div>
                 {active && (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B96FF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -220,7 +220,7 @@ export default function DMSCreate({ onNavigate }) {
           onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
           onBlur={(e) => e.target.style.borderColor = '#232329'}
         />
-        <p style={{ fontSize: 11.5, color: '#5A5A65', marginTop: 8, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 8, lineHeight: 1.5 }}>
           Шифрується на вашому пристрої. Сервер не може прочитати.
         </p>
 
@@ -280,7 +280,7 @@ export default function DMSCreate({ onNavigate }) {
               borderRadius: 2, margin: '6px auto 14px',
             }} />
             <div style={{
-              fontSize: 13, color: '#8E8E99',
+              fontSize: 13, color: '#ABADB8',
               padding: '0 20px 14px',
               borderBottom: '1px solid #232329',
               fontWeight: 500,
@@ -329,7 +329,7 @@ export default function DMSCreate({ onNavigate }) {
 function FieldLabel({ children }) {
   return (
     <div style={{
-      fontSize: 11, color: '#5A5A65',
+      fontSize: 12, color: '#9EA0AC',
       marginBottom: 8,
       fontFamily: 'var(--mono, monospace)',
       letterSpacing: '0.05em',

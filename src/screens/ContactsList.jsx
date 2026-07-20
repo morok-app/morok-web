@@ -99,7 +99,7 @@ export default function ContactsList({ onNavigate }) {
           }}>
             Контакти
           </div>
-          <div style={{ fontSize: 12.5, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
             {items.length === 0
               ? 'Поки нікого'
               : `${items.length} ${pluralize(items.length, 'контакт', 'контакти', 'контактів')}`}
@@ -156,7 +156,7 @@ export default function ContactsList({ onNavigate }) {
               Контактів ще нема
             </div>
             <div style={{
-              fontSize: 12.5, color: '#6B6B72', lineHeight: 1.6,
+              fontSize: 12.5, color: '#A4A6B2', lineHeight: 1.6,
             }}>
               Зайдіть у будь-який профіль (вгорі чату на ім'я)
               і натисніть <b>«+ Додати в контакти»</b>.
@@ -167,7 +167,7 @@ export default function ContactsList({ onNavigate }) {
         {items.length > 0 && filtered.length === 0 && (
           <div style={{
             padding: 24, textAlign: 'center',
-            color: '#6B6B72', fontSize: 13,
+            color: '#A4A6B2', fontSize: 13,
           }}>
             Нічого не знайдено
           </div>
@@ -225,7 +225,7 @@ export default function ContactsList({ onNavigate }) {
               }}
               onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); }}
             />
-            <div style={{ fontSize: 10.5, color: '#5A5A65', marginTop: 6, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 6, lineHeight: 1.5 }}>
               Видно тільки тобі. Інші бачать оригінальне ім'я.
             </div>
           </div>
@@ -285,7 +285,7 @@ function ContactRow({ contact, onClick, onPressStart, onPressEnd }) {
           {displayName}
         </div>
         <div style={{
-          fontSize: 12.5, color: '#6B6B72',
+          fontSize: 12.5, color: '#A4A6B2',
           marginTop: 2,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>

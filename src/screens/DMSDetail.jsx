@@ -137,7 +137,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
         }}>
           <div style={{
             display: 'inline-block',
-            fontSize: 10.5, fontWeight: 700,
+            fontSize: 12.5, fontWeight: 700,
             color: statusColor, background: statusBg,
             padding: '4px 10px', borderRadius: 6,
             textTransform: 'uppercase',
@@ -156,18 +156,18 @@ export default function DMSDetail({ dmsId, onNavigate }) {
               }}>
                 {dms.formatRemainingTime(info.fires_at)}
               </div>
-              <div style={{ fontSize: 12, color: '#6B6B72', marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: '#A4A6B2', marginTop: 8 }}>
                 до спрацювання
               </div>
             </>
           )}
           {info.status === 'triggered' && (
-            <div style={{ fontSize: 13, color: '#8E8E99' }}>
+            <div style={{ fontSize: 13, color: '#ABADB8' }}>
               Спрацював {formatDate(info.triggered_at)}
             </div>
           )}
           {info.status === 'cancelled' && (
-            <div style={{ fontSize: 13, color: '#8E8E99' }}>
+            <div style={{ fontSize: 13, color: '#ABADB8' }}>
               Скасований {formatDate(info.cancelled_at)}
             </div>
           )}
@@ -186,7 +186,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
                 @{formatPeerName({ username: contact?.username, pubkey: recipientPubkey })}
               </span>
               {recipient?.delivered_at && (
-                <div style={{ fontSize: 11, color: '#4ADE80', marginTop: 4 }}>
+                <div style={{ fontSize: 12, color: '#4ADE80', marginTop: 4 }}>
                   ✓ доставлено {formatDate(recipient.delivered_at)}
                 </div>
               )}
@@ -224,7 +224,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
               {busy ? '...' : 'Check-in · скинути таймер'}
             </button>
             <p style={{
-              fontSize: 11.5, color: '#5A5A65',
+              fontSize: 12.5, color: '#9EA0AC',
               marginBottom: 16, lineHeight: 1.5, textAlign: 'center',
             }}>
               Зазвичай не треба — таймер скидається автоматично при кожному заході.
@@ -291,7 +291,7 @@ function Header({ title, onClose }) {
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: 11, color: '#3F3F45',
+      fontSize: 12, color: '#8B8D99',
       textTransform: 'uppercase', letterSpacing: '0.1em',
       fontWeight: 600,
       padding: '4px 0 10px',
@@ -308,7 +308,7 @@ function Row({ label, value, last }) {
       borderBottom: last ? 'none' : '1px solid #1E1E27',
     }}>
       <div style={{
-        fontSize: 10.5, color: '#5A5A65',
+        fontSize: 12.5, color: '#9EA0AC',
         textTransform: 'uppercase', letterSpacing: '0.08em',
         marginBottom: 4,
         fontFamily: 'var(--mono, monospace)',

@@ -65,7 +65,7 @@ export default function MutedChats({ onNavigate }) {
           }}>
             Заглушені чати
           </div>
-          <div style={{ fontSize: 12.5, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
             Чати без push-сповіщень
           </div>
         </div>
@@ -88,7 +88,7 @@ export default function MutedChats({ onNavigate }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
 
         {items === null && (
-          <div style={{ color: '#5A5A65', fontSize: 13, padding: 20, textAlign: 'center' }}>
+          <div style={{ color: '#9EA0AC', fontSize: 13, padding: 20, textAlign: 'center' }}>
             Завантаження…
           </div>
         )}
@@ -96,7 +96,7 @@ export default function MutedChats({ onNavigate }) {
         {items !== null && items.length === 0 && (
           <div style={{
             padding: 24, textAlign: 'center',
-            color: '#6B6B72', fontSize: 13,
+            color: '#A4A6B2', fontSize: 13,
           }}>
             Нема заглушених чатів
           </div>
@@ -165,7 +165,7 @@ function MutedRow({ item, onUnmute }) {
           {label}
         </div>
         <div style={{
-          fontSize: 11, color: '#6B6B72',
+          fontSize: 12, color: '#A4A6B2',
           fontFamily: 'var(--mono, monospace)',
           marginTop: 2,
         }}>

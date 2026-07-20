@@ -165,7 +165,7 @@ export default function NewChat({ onNavigate, routeArg }) {
           }}>
             Новий чат
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
             Знайти юзера за іменем
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function NewChat({ onNavigate, routeArg }) {
       <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
         <div style={{
-          fontSize: 11, color: '#5A5A65',
+          fontSize: 12, color: '#9EA0AC',
           marginBottom: -4,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
@@ -220,7 +220,7 @@ export default function NewChat({ onNavigate, routeArg }) {
         />
 
         <p style={{
-          fontSize: 11.5, color: '#5A5A65',
+          fontSize: 12.5, color: '#9EA0AC',
           margin: '-4px 0 0', lineHeight: 1.5,
           fontFamily: 'var(--mono, monospace)',
         }}>
@@ -266,7 +266,7 @@ export default function NewChat({ onNavigate, routeArg }) {
           {busy ? 'Шукаємо...' : 'Знайти'}
         </button>
 
-        <p style={{ fontSize: 11.5, color: '#5A5A65', margin: '4px 0 0', lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12.5, color: '#9EA0AC', margin: '4px 0 0', lineHeight: 1.5 }}>
           Якщо у людини нема юзернейма — попросіть її QR/лінк і відкрийте його.
         </p>
       </div>
@@ -274,7 +274,7 @@ export default function NewChat({ onNavigate, routeArg }) {
       {knownContacts.length > 0 && (
         <div style={{ marginTop: 28, flex: 1, overflowY: 'auto', paddingBottom: 16 }}>
           <div style={{
-            fontSize: 11, color: '#3F3F45',
+            fontSize: 12, color: '#8B8D99',
             textTransform: 'uppercase', letterSpacing: '0.1em',
             padding: '4px 20px 10px', fontWeight: 600,
           }}>
@@ -312,7 +312,7 @@ export default function NewChat({ onNavigate, routeArg }) {
                     @{displayName}
                     {c.home_relay && c.home_relay !== me?.home_relay && (
                       <span style={{
-                        fontSize: 11, color: '#5A5A65', fontWeight: 400,
+                        fontSize: 12, color: '#9EA0AC', fontWeight: 400,
                         marginLeft: 2,
                       }}>
                         @{c.home_relay}

@@ -139,7 +139,7 @@ export default function PinSetup({
           }}>
             {step === 'enter' ? 'Створіть PIN' : 'Повторіть PIN'}
           </div>
-          <div style={{ fontSize: 13, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
             {step === 'enter'
               ? '6 цифр для захисту акаунта'
               : 'Введіть той самий PIN ще раз'}
@@ -175,7 +175,7 @@ export default function PinSetup({
             <div key={i} style={{
               width: 14, height: 14, borderRadius: '50%',
               background: i < currentValue.length ? '#F5F5F7' : 'transparent',
-              border: '1.5px solid ' + (i < currentValue.length ? '#F5F5F7' : '#3F3F45'),
+              border: '1.5px solid ' + (i < currentValue.length ? '#F5F5F7' : '#70727E'),
               transition: 'all 0.12s',
             }} />
           ))}
@@ -201,7 +201,7 @@ export default function PinSetup({
         <div
           onClick={() => inputRef.current?.focus()}
           style={{
-            fontSize: 12.5, color: '#6B6B72',
+            fontSize: 12.5, color: '#A4A6B2',
             textAlign: 'center',
             cursor: 'pointer',
             padding: 10,
@@ -233,7 +233,7 @@ export default function PinSetup({
             onClick={skipClicked}
             style={{
               background: 'transparent', border: 'none',
-              color: '#6B6B72', fontSize: 13,
+              color: '#A4A6B2', fontSize: 13,
               cursor: 'pointer', fontFamily: 'inherit',
               padding: 10,
             }}

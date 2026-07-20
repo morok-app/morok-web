@@ -56,7 +56,7 @@ export default function Welcome({ onNavigate }) {
         </div>
 
         <div style={{
-          fontSize: 13.5, color: '#6B6B72',
+          fontSize: 13.5, color: '#A4A6B2',
           fontWeight: 500,
           marginBottom: 8,
           letterSpacing: '0.01em',
@@ -75,7 +75,7 @@ export default function Welcome({ onNavigate }) {
         </div>
 
         <div style={{
-          fontSize: 14, color: '#8E8E99',
+          fontSize: 14, color: '#ABADB8',
           textAlign: 'center',
           maxWidth: 320,
           lineHeight: 1.55,
@@ -145,7 +145,7 @@ export default function Welcome({ onNavigate }) {
             padding: '10px',
             background: 'transparent',
             border: 'none',
-            color: '#6B6B72',
+            color: '#A4A6B2',
             fontSize: 12.5,
             fontWeight: 500,
             cursor: 'pointer',
@@ -158,8 +158,8 @@ export default function Welcome({ onNavigate }) {
 
         <div style={{
           marginTop: 14,
-          fontSize: 11,
-          color: '#3F3F45',
+          fontSize: 12,
+          color: '#8B8D99',
           letterSpacing: '0.02em',
           textAlign: 'center',
           fontWeight: 500,

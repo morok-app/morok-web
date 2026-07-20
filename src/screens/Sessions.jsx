@@ -70,7 +70,7 @@ export default function Sessions({ onNavigate }) {
           }}>
             Історія входів
           </div>
-          <div style={{ fontSize: 12.5, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
             Останні 30 успішних авторизацій
           </div>
         </div>
@@ -121,7 +121,7 @@ export default function Sessions({ onNavigate }) {
         )}
 
         {items === null && (
-          <div style={{ color: '#5A5A65', fontSize: 13, padding: 20, textAlign: 'center' }}>
+          <div style={{ color: '#9EA0AC', fontSize: 13, padding: 20, textAlign: 'center' }}>
             Завантаження…
           </div>
         )}
@@ -129,7 +129,7 @@ export default function Sessions({ onNavigate }) {
         {items !== null && items.length === 0 && (
           <div style={{
             padding: 24, textAlign: 'center',
-            color: '#6B6B72', fontSize: 13,
+            color: '#A4A6B2', fontSize: 13,
           }}>
             Історія порожня
           </div>
@@ -198,7 +198,7 @@ function SessionRow({ item, isFirst }) {
         </div>
         {isFirst && (
           <span style={{
-            fontSize: 10, color: '#4ADE80',
+            fontSize: 12.5, color: '#4ADE80',
             background: 'rgba(74, 222, 128, 0.1)',
             padding: '2px 6px', borderRadius: 4,
             fontFamily: 'var(--mono, monospace)',
@@ -210,13 +210,13 @@ function SessionRow({ item, isFirst }) {
       </div>
       <div style={{
         display: 'flex', gap: 12, alignItems: 'center',
-        fontSize: 11, color: '#6B6B72',
+        fontSize: 12, color: '#A4A6B2',
         fontFamily: 'var(--mono, monospace)',
       }}>
         <span title="Фінгерпринт IP (за сьогодні)">fp:{fp}</span>
       </div>
       <div style={{
-        fontSize: 11, color: '#5A5A65',
+        fontSize: 12, color: '#9EA0AC',
         marginTop: 4,
         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
       }} title={ua}>

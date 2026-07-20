@@ -57,7 +57,7 @@ export default function RecoveryKey({ onNavigate }) {
           }}>
             Ключ відновлення
           </div>
-          <div style={{ fontSize: 12.5, color: '#6B6B72', marginTop: 6 }}>
+          <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
             24 слова для відновлення акаунта
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function RecoveryKey({ onNavigate }) {
                     borderRadius: 10,
                   }}>
                     <span style={{
-                      fontSize: 11, color: '#5A5A65', minWidth: 16,
+                      fontSize: 12, color: '#9EA0AC', minWidth: 16,
                       fontVariantNumeric: 'tabular-nums',
                     }}>{i + 1}</span>
                     <span style={{ fontSize: 14, color: '#ECECF0', fontWeight: 600 }}>{w}</span>

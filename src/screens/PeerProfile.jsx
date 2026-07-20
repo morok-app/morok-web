@@ -186,7 +186,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
 
         {homeRelay && (
           <div style={{
-            fontSize: 13, color: '#8E8E99',
+            fontSize: 13, color: '#ABADB8',
             marginTop: 6,
             letterSpacing: '-0.005em',
           }}>
@@ -208,7 +208,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
             marginBottom: 10,
           }}>
             <div style={{
-              fontSize: 10.5, color: '#6B6B72',
+              fontSize: 12.5, color: '#A4A6B2',
               textTransform: 'uppercase',
               letterSpacing: '0.06em',
               fontWeight: 600,
@@ -221,7 +221,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
                 background: copied ? 'rgba(67, 209, 122, 0.12)' : '#1C1C21',
                 border: copied ? '1px solid rgba(67, 209, 122, 0.3)' : '1px solid #2A2A33',
                 color: copied ? '#43D17A' : '#A8A8B0',
-                fontSize: 11, fontWeight: 600,
+                fontSize: 12, fontWeight: 600,
                 padding: '5px 10px', borderRadius: 7,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
