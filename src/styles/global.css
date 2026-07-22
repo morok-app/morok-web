@@ -5,8 +5,8 @@
   --surface-3: #2A2A33;
   --border: #2E2E38;
   --text: #ECECF0;
-  --text-dim: #8A8A95;
-  --text-faint: #5A5A65;
+  --text-dim: #A8AAB5;
+  --text-faint: #82828E;
   --accent: #6B8AFE;
   --accent-dim: #4A5FB0;
   --danger: #FF6B7A;
@@ -650,12 +650,12 @@ img { -webkit-user-drag: none; user-select: none; }
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  color: #8A8A95;
+  color: #A8AAB5;
   font-weight: 500;
 }
 .lin-section-caption {
   font-size: 12px;
-  color: #5A5A65;
+  color: #82828E;
   padding: 0 16px;
   margin: -6px 0 16px;
   line-height: 1.5;
@@ -666,7 +666,7 @@ body.is-native .lin-section-row:active { background: #1C1C23; }
 .lin-group-label {
   font-size: 12px;
   font-weight: 600;
-  color: #5A5A65;
+  color: #82828E;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 0 16px;

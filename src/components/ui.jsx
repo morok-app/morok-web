@@ -120,7 +120,7 @@ export function Section({ label, children, caption }) {
 
 export function Row({
   label, labelColor = '#ECECF0',
-  value, valueColor = '#8A8A95',
+  value, valueColor = '#A8AAB5',
   onClick, chevron = true, disabled = false, right = null,
 }) {
   const clickable = !!onClick && !disabled;

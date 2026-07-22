@@ -516,7 +516,7 @@ export default function Settings({ onNavigate }) {
 
 function LinRow({
   label, labelColor = '#ECECF0',
-  value, valueColor = '#8A8A95',
+  value, valueColor = '#A8AAB5',
   onClick, chevron = true, disabled = false,
 }) {
   const isClickable = !!onClick && !disabled;

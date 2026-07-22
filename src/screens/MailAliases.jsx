@@ -293,7 +293,7 @@ export default function MailAliases({ onNavigate }) {
 }
 
 function MiniBtn({ children, onClick, disabled, danger, accent, title }) {
-  const color = danger ? '#FF6B6B' : accent ? '#0A0A0B' : '#8A8A96';
+  const color = danger ? '#FF6B6B' : accent ? '#0A0A0B' : '#A8AAB5';
   const bg = danger ? 'rgba(255,90,90,0.1)' : accent ? ACCENT : 'transparent';
   return (
     <button

@@ -851,7 +851,7 @@ function TabButton({ active, onClick, label, badge, count }) {
       {count !== undefined && count !== null && (
         <span style={{
           fontSize: 12.5,
-          color: active ? '#A8A8B0' : '#5A5A65',
+          color: active ? '#A8AAB5' : 'var(--text-faint)',
           fontFamily: 'var(--mono, monospace)',
         }}>
           {count}

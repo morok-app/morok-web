@@ -889,7 +889,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                       <span style={{
                         color: m.status === 'failed' ? '#FF6B7A' :
                                isRead ? '#60A5FA' :
-                               m.status === 'sent' ? '#7B96FF' : '#5A5A65',
+                               m.status === 'sent' ? '#7B96FF' : '#82828E',
                       }}>
                         · {m.status === 'sending' ? '...' :
                            m.status === 'failed' ? '✗' :
