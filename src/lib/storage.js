@@ -71,9 +71,16 @@ export function clearIdentity() { localStorage.removeItem(K_IDENTITY); }
 // ── Session ──────────────────────────────────────────────────
 
 export function loadSession() { return readJSON(K_SESSION); }
+// ПРИВАТНІСТЬ: bearer-токен сесії НЕ зберігаємо на диск. Застосунок на
+// кожному старті логіниться заново з сіда (challenge-response у
+// loginAndRoute → api.login), тож постійний токен у localStorage не
+// потрібен ЖОДНОМУ шляху коду (loadSession ніде не викликається), а
+// відкритий 7-денний токен на диску — зайвий вектор (розширення,
+// фізичний доступ). Лишаємо тільки нечутливі метадані.
+// token приймаємо в аргументах заради сумісності сигнатури, але не пишемо.
 export function saveSession({ token, pubkeyHex, expiresAt, relayUrl }) {
+  void token;
   writeJSON(K_SESSION, {
-    token,
     pubkey_hex: pubkeyHex,
     expires_at: expiresAt,
     relay_url: relayUrl,

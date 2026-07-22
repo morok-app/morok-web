@@ -10,7 +10,7 @@ const BG = '#0A0A0B';
 const SURFACE = '#16161B';
 const BORDER = '#232329';
 const TEXT = '#F5F5F7';
-const MUTED = '#8A8A96';
+const MUTED = '#A8AAB5';
 
 function fmtDate(ts) {
   const d = new Date((ts || 0) * 1000);

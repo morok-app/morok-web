@@ -11,7 +11,7 @@ const BG = '#0A0A0B';
 const SURFACE = '#16161B';
 const BORDER = '#232329';
 const TEXT = '#F5F5F7';
-const MUTED = '#8A8A96';
+const MUTED = '#A8AAB5';
 
 const MAIL_DOMAIN = 'morok.email';
 
@@ -243,7 +243,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         .mk-in:focus { border-color: #7B96FF !important; outline: none; }
         .mk-in { transition: border-color 0.15s; }
         .mk-sel { appearance: none; -webkit-appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238A8A96' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23A8AAB5' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
           background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px !important; }
       `}</style>
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 18px 32px' }}>
