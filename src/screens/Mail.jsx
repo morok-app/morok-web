@@ -10,7 +10,7 @@ const BG = '#0A0A0B';
 const SURFACE = '#16161B';
 const BORDER = '#232329';
 const TEXT = '#F5F5F7';
-const MUTED = '#A8AAB5';
+const MUTED = '#8A8A96';
 
 function fmtDate(ts) {
   const d = new Date((ts || 0) * 1000);
@@ -271,7 +271,7 @@ export default function Mail({ onNavigate }) {
               Імпорт
               <input type="file" accept=".morokmail,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
             </label>
-            <span style={{ fontSize: 12.5, color: MUTED, flex: 1, minWidth: 140 }}>
+            <span style={{ fontSize: 11.5, color: MUTED, flex: 1, minWidth: 140 }}>
               {backupMsg || 'Пошта лише на цьому пристрої — робіть бекап.'}
             </span>
           </div>
@@ -323,6 +323,8 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
     openDraft({
       to: replyAddr,
       fromAlias: replyFromAlias,
+      inReplyTo: e.message_id || null,
+      references: e.references || null,
       subject: `Re: ${subj}`,
       text: `\n\n----- ${out ? 'Ваш лист' : 'Оригінал'} -----\n${(e.text || '').split('\n').map(l => '> ' + l).join('\n')}`,
     });
@@ -372,7 +374,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
               fontSize: 16, fontWeight: 700,
             }}>{initial(who.name)}</div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 12.5, color: MUTED, marginBottom: 1 }}>{who.label}</div>
+              <div style={{ fontSize: 11.5, color: MUTED, marginBottom: 1 }}>{who.label}</div>
               <div style={{ fontSize: 15, fontWeight: 700, color: TEXT, overflow: 'hidden', textOverflow: 'ellipsis' }}>{who.name}</div>
               {who.addr && <div style={{ fontSize: 12.5, color: MUTED, wordBreak: 'break-all' }}>{who.addr}</div>}
             </div>

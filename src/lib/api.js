@@ -124,11 +124,12 @@ export async function mailResolve(alias) {
   return http('GET', `/api/v1/mail/resolve/${encodeURIComponent(alias)}`, { auth: true });
 }
 
-export async function mailSendExternal({ toAddr, fromAlias, subject, text, attachments }) {
+export async function mailSendExternal({ toAddr, fromAlias, subject, text, attachments, inReplyTo, references }) {
   return http('POST', '/api/v1/mail/send', {
     auth: true,
     body: { to_alias: toAddr, from_alias: fromAlias, subject, text,
-            attachments: attachments || [] },
+            attachments: attachments || [],
+            in_reply_to: inReplyTo || null, references: references || null },
   });
 }
 

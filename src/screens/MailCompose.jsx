@@ -11,7 +11,7 @@ const BG = '#0A0A0B';
 const SURFACE = '#16161B';
 const BORDER = '#232329';
 const TEXT = '#F5F5F7';
-const MUTED = '#A8AAB5';
+const MUTED = '#8A8A96';
 
 const MAIL_DOMAIN = 'morok.email';
 
@@ -72,10 +72,45 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           content_type: c.mime || 'image/jpeg',
           b64: c.data_b64,
           size: Math.round(c.data_b64.length * 0.75),
+          isImage: true,
         }]);
       }
     } catch (e) {
       setStatus({ type: 'err', msg: e?.message || 'Не вдалося додати зображення' });
+    } finally { setAttBusy(false); }
+  }
+
+  async function addFiles(ev) {
+    const files = Array.from(ev.target.files || []);
+    ev.target.value = '';
+    if (!files.length) return;
+    if (atts.length + files.length > 5) {
+      setStatus({ type: 'err', msg: 'Максимум 5 вкладень' });
+      return;
+    }
+    setAttBusy(true);
+    try {
+      for (const f of files) {
+        if (f.size > 10 * 1024 * 1024) {
+          setStatus({ type: 'err', msg: `${f.name}: файл >10MB` });
+          continue;
+        }
+        const b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(String(r.result).split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(f);
+        });
+        setAtts((prev) => [...prev, {
+          filename: f.name || 'file',
+          content_type: f.type || 'application/octet-stream',
+          b64,
+          size: f.size,
+          isImage: (f.type || '').startsWith('image/'),
+        }]);
+      }
+    } catch (e) {
+      setStatus({ type: 'err', msg: 'Не вдалося додати файл' });
     } finally { setAttBusy(false); }
   }
 
@@ -109,6 +144,8 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           toAddr: parsed.addr, fromAlias,
           subject: subject.trim(), text,
           attachments: atts.map(({ filename, content_type, b64 }) => ({ filename, content_type, b64 })),
+          inReplyTo: _draft?.inReplyTo || null,
+          references: _draft?.references || null,
         });
         if (r?.status === 'queued') {
           const now = Math.floor(Date.now() / 1000);
@@ -279,8 +316,18 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
               borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', opacity: attBusy ? 0.6 : 1,
             }}>
-              📎 {attBusy ? 'Стискаю…' : 'Додати фото'}
+              🖼 {attBusy ? 'Обробка…' : 'Фото'}
               <input type="file" accept="image/*" multiple onChange={addImages}
+                     disabled={attBusy} style={{ display: 'none' }} />
+            </label>
+            <label style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: SURFACE, color: TEXT, border: `1px solid ${BORDER}`,
+              borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', opacity: attBusy ? 0.6 : 1,
+            }}>
+              📎 Файл
+              <input type="file" multiple onChange={addFiles}
                      disabled={attBusy} style={{ display: 'none' }} />
             </label>
             {atts.length > 0 && (
@@ -293,21 +340,30 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {atts.map((a, i) => (
                 <div key={i} style={{ position: 'relative' }}>
-                  <img
-                    src={`data:${a.content_type};base64,${a.b64}`}
-                    alt={a.filename}
-                    style={{
-                      width: 72, height: 72, objectFit: 'cover',
-                      borderRadius: 10, border: `1px solid ${BORDER}`, display: 'block',
-                    }}
-                  />
+                  {a.isImage ? (
+                    <img
+                      src={`data:${a.content_type};base64,${a.b64}`}
+                      alt={a.filename}
+                      style={{ width: 72, height: 72, objectFit: 'cover',
+                        borderRadius: 10, border: `1px solid ${BORDER}`, display: 'block' }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 72, height: 72, borderRadius: 10, border: `1px solid ${BORDER}`,
+                      background: BG, display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center', padding: 6, gap: 4,
+                    }}>
+                      <span style={{ fontSize: 22 }}>📄</span>
+                      <span style={{ fontSize: 9, color: MUTED, textAlign: 'center',
+                        overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%',
+                        whiteSpace: 'nowrap' }}>{a.filename.split('.').pop().toUpperCase()}</span>
+                    </div>
+                  )}
                   <button
                     onClick={() => removeAtt(i)}
-                    style={{
-                      position: 'absolute', top: -6, right: -6, width: 20, height: 20,
+                    style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20,
                       borderRadius: '50%', background: '#FF6B6B', color: '#fff',
-                      border: 'none', fontSize: 12, lineHeight: 1, cursor: 'pointer',
-                    }}
+                      border: 'none', fontSize: 12, lineHeight: 1, cursor: 'pointer' }}
                   >✕</button>
                 </div>
               ))}
