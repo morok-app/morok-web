@@ -15,6 +15,16 @@ const MUTED = '#A8AAB5';
 
 const MAIL_DOMAIN = 'morok.email';
 
+// Серверний ліміт вкладень для ЗОВНІШНІХ листів: сумарно 6MB у base64
+// (~4.5MB сирих) — див. _queue_external у api/mail.py. Перевіряємо ТЕ САМЕ
+// правило тут, щоб юзер дізнавався одразу, а не 413-кою після очікування.
+// Внутрішні (E2EE) листи мають більший ліміт — їх НЕ обмежуємо.
+const EXT_ATT_B64_LIMIT = 6 * 1024 * 1024;
+
+function attsB64Total(atts) {
+  return atts.reduce((s, a) => s + (a.b64 ? a.b64.length : 0), 0);
+}
+
 // «нік», «нік@morok.email» → внутрішній; «хтось@gmail.com» → зовнішній
 function parseRecipient(input) {
   const v = (input || '').trim().toLowerCase();
@@ -101,13 +111,23 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           r.onerror = rej;
           r.readAsDataURL(f);
         });
-        setAtts((prev) => [...prev, {
-          filename: f.name || 'file',
-          content_type: f.type || 'application/octet-stream',
-          b64,
-          size: f.size,
-          isImage: (f.type || '').startsWith('image/'),
-        }]);
+        setAtts((prev) => {
+          const next = [...prev, {
+            filename: f.name || 'file',
+            content_type: f.type || 'application/octet-stream',
+            b64,
+            size: f.size,
+            isImage: (f.type || '').startsWith('image/'),
+          }];
+          // М'яке попередження ОДРАЗУ, якщо адресат уже зовнішній і сумарний
+          // розмір перевищив ліміт зовнішньої пошти (для внутрішніх — ок).
+          if (parseRecipient(to)?.kind === 'external'
+              && attsB64Total(next) > EXT_ATT_B64_LIMIT) {
+            setStatus({ type: 'err',
+              msg: 'Для зовнішніх адрес вкладення сумарно до ~4.5MB — заберіть зайве' });
+          }
+          return next;
+        });
       }
     } catch (e) {
       setStatus({ type: 'err', msg: 'Не вдалося додати файл' });
@@ -138,6 +158,15 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
       if (parsed.kind === 'external') {
         if (!fromAlias) {
           setStatus({ type: 'err', msg: 'Для зовнішніх листів оберіть адресу «Від» (анонімно не можна)' });
+          setBusy(false); return;
+        }
+        // Той самий ліміт, що на сервері (6MB base64) — щоб не ловити 413
+        // ПІСЛЯ завантаження, а сказати одразу і з цифрами.
+        const b64Total = attsB64Total(atts);
+        if (b64Total > EXT_ATT_B64_LIMIT) {
+          const mb = (b64Total * 0.75 / (1024 * 1024)).toFixed(1);
+          setStatus({ type: 'err',
+            msg: `Вкладення ~${mb}MB — для зовнішніх адрес ліміт ~4.5MB. Заберіть частину файлів.` });
           setBusy(false); return;
         }
         const r = await api.mailSendExternal({
