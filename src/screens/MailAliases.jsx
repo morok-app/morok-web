@@ -21,6 +21,7 @@ export default function MailAliases({ onNavigate }) {
   const [busy, setBusy] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [customName, setCustomName] = useState('');
+  const [customLabel, setCustomLabel] = useState('');
   const [copied, setCopied] = useState(null);  // address щойно скопійована
 
   const reload = useCallback(async () => {
@@ -39,11 +40,27 @@ export default function MailAliases({ onNavigate }) {
   async function createAlias(alias, primary = false) {
     setBusy(true); setErr(null);
     try {
-      await api.mailCreateAlias({ alias, primary });
-      setShowCreate(false); setCustomName('');
+      await api.mailCreateAlias({ alias, primary, label: customLabel.trim() || null });
+      setShowCreate(false); setCustomName(''); setCustomLabel('');
       await reload();
     } catch (e) {
       setErr(e.message || 'Не вдалося створити адресу');
+    } finally { setBusy(false); }
+  }
+
+  async function editLabel(a) {
+    const cur = a.label || '';
+    const next = window.prompt(
+      'Підпис: для чого ця адреса? (олх, netflix, розсилки…)\nПорожньо — прибрати підпис.',
+      cur,
+    );
+    if (next === null || next.trim() === cur) return;
+    setBusy(true); setErr(null);
+    try {
+      await api.mailSetAliasLabel(a.alias, next.trim());
+      await reload();
+    } catch (e) {
+      setErr(e.message || 'Не вдалося зберегти підпис');
     } finally { setBusy(false); }
   }
 
@@ -161,6 +178,18 @@ export default function MailAliases({ onNavigate }) {
               />
               <span style={{ color: MUTED, fontSize: 14, flexShrink: 0 }}>@morok.email</span>
             </div>
+            <input
+              className="mk-in"
+              value={customLabel}
+              onChange={(e) => setCustomLabel(e.target.value)}
+              placeholder="для чого? (олх, netflix…) — необов'язково"
+              maxLength={64}
+              style={{
+                width: '100%', boxSizing: 'border-box', background: BG, color: TEXT,
+                border: `1px solid ${BORDER}`, borderRadius: 10,
+                padding: '10px 12px', fontSize: 14, outline: 'none', marginBottom: 12,
+              }}
+            />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={() => createAlias(customName.trim() || null)}
@@ -231,6 +260,21 @@ export default function MailAliases({ onNavigate }) {
                     }}>ОСНОВНА</span>
                   )}
                 </button>
+                {!a.primary && (
+                  <button
+                    onClick={() => editLabel(a)}
+                    disabled={busy}
+                    title="Підпис: для чого ця адреса (клік — змінити)"
+                    style={{
+                      background: a.label ? 'rgba(160,123,255,0.12)' : 'transparent',
+                      color: a.label ? '#A07BFF' : MUTED,
+                      border: `1px dashed ${a.label ? 'rgba(160,123,255,0.4)' : BORDER}`,
+                      borderRadius: 6, padding: '2px 8px', fontSize: 12.5, fontWeight: 600,
+                      cursor: 'pointer', maxWidth: 160, overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                  >{a.label || '+ підпис'}</button>
+                )}
                 <span style={{
                   fontSize: 12.5, fontWeight: 600, color: st.color, background: st.bg,
                   borderRadius: 8, padding: '3px 9px', flexShrink: 0,

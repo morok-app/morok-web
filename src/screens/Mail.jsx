@@ -56,6 +56,22 @@ export default function Mail({ onNavigate }) {
   const [tab, setTab] = useState('in');       // 'in' | 'out'
   const [openId, setOpenId] = useState(null);
   const [backupMsg, setBackupMsg] = useState(null);
+  // alias → {label, primary, status}: підписи «для чого» і статуси для
+  // бейджів у списку та kill-кнопки в рідері. Порожня карта = все працює як досі.
+  const [aliasMap, setAliasMap] = useState({});
+
+  const reloadAliases = useCallback(async () => {
+    try {
+      const d = await api.mailListAliases();
+      const map = {};
+      for (const a of d?.aliases || []) {
+        map[a.alias] = { label: a.label || null, primary: !!a.primary, status: a.status };
+      }
+      setAliasMap(map);
+    } catch { /* без мережі — просто без бейджів */ }
+  }, []);
+
+  useEffect(() => { reloadAliases(); }, [reloadAliases]);
 
   const reload = useCallback(async () => {
     try {
@@ -138,6 +154,8 @@ export default function Mail({ onNavigate }) {
 
   if (open) {
     return <MailReader
+      aliasMap={aliasMap}
+      onAliasPaused={reloadAliases}
       msg={open}
       onBack={() => setOpenId(null)}
       onDelete={() => handleDelete(open.envelope_id)}
@@ -237,6 +255,17 @@ export default function Mail({ onNavigate }) {
                     {tab === 'out' && <span style={{ color: MUTED, fontWeight: 500 }}>Кому: </span>}
                     {cp.title}
                   </span>
+                  {tab === 'in' && m.email?.to_alias && aliasMap[m.email.to_alias]
+                    && !aliasMap[m.email.to_alias].primary && (
+                    <span style={{
+                      fontSize: 11.5, fontWeight: 600, color: '#A07BFF',
+                      background: 'rgba(160,123,255,0.12)', borderRadius: 6,
+                      padding: '2px 7px', flexShrink: 1, maxWidth: 110,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {aliasMap[m.email.to_alias].label || m.email.to_alias}
+                    </span>
+                  )}
                   <span style={{ fontSize: 12, color: unreadRow ? ACCENT : MUTED, flexShrink: 0 }}>{fmtDate(m.ts)}</span>
                 </div>
                 <div style={{
@@ -298,7 +327,7 @@ const footBtn = {
 };
 
 // ─────────────────────────────────────────── читання
-function MailReader({ msg, onBack, onDelete, onNavigate }) {
+function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasPaused }) {
   const e = msg.email || {};
   const out = !!e.out;
   const { name, addr } = parseFrom(e.from);
@@ -362,6 +391,44 @@ function MailReader({ msg, onBack, onDelete, onNavigate }) {
       />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 18px 40px' }}>
+        {!out && e.to_alias && aliasMap[e.to_alias]
+          && !aliasMap[e.to_alias].primary
+          && aliasMap[e.to_alias].status === 'active' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 10, background: 'rgba(160,123,255,0.07)',
+            border: '1px solid rgba(160,123,255,0.25)', borderRadius: 12,
+            padding: '9px 12px', marginBottom: 12,
+          }}>
+            <span style={{ fontSize: 12.5, color: MUTED, minWidth: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              на <b style={{ color: '#A07BFF' }}>{e.to_alias}</b>
+              {aliasMap[e.to_alias].label ? ` · ${aliasMap[e.to_alias].label}` : ''}
+            </span>
+            <button
+              onClick={async () => {
+                const lbl = aliasMap[e.to_alias].label
+                  ? ` («${aliasMap[e.to_alias].label}»)` : '';
+                if (!window.confirm(
+                  `Призупинити адресу ${e.to_alias}@morok.email${lbl}?\n\n` +
+                  'Нові листи на неї тихо зникатимуть — відправник не дізнається. ' +
+                  'Увімкнути назад можна будь-коли в «Адресах».')) return;
+                try {
+                  await api.mailPauseAlias(e.to_alias);
+                  onAliasPaused && onAliasPaused();
+                } catch (err) {
+                  window.alert(err?.message || 'Не вдалося призупинити');
+                }
+              }}
+              style={{
+                background: 'transparent', color: '#FF6B6B',
+                border: '1px solid rgba(255,107,107,0.35)', borderRadius: 8,
+                padding: '5px 10px', fontSize: 12.5, fontWeight: 700,
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >Спам? Пауза</button>
+          </div>
+        )}
         <div style={{
           background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 14,
           padding: '12px 14px', marginBottom: 14,

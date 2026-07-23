@@ -104,11 +104,19 @@ export async function mailListAliases() {
   return http('GET', '/api/v1/mail/aliases', { auth: true });
 }
 
-/** alias: бажаний local-part або null (згенерувати). primary: bool */
-export async function mailCreateAlias({ alias = null, primary = false } = {}) {
+/** alias: бажаний local-part або null (згенерувати). primary: bool.
+ * label: підпис «для чого» (олх, netflix...) — серце фічі «хто злив адресу». */
+export async function mailCreateAlias({ alias = null, primary = false, label = null } = {}) {
   return http('POST', '/api/v1/mail/aliases', {
     auth: true,
-    body: { alias, primary },
+    body: { alias, primary, label },
+  });
+}
+
+export async function mailSetAliasLabel(alias, label) {
+  return http('POST', `/api/v1/mail/aliases/${encodeURIComponent(alias)}/label`, {
+    auth: true,
+    body: { label: label || null },
   });
 }
 
