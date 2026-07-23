@@ -361,7 +361,15 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
             </label>
             {atts.length > 0 && (
               <span style={{ fontSize: 12, color: MUTED }}>
-                {atts.length} фото · ~{Math.round(atts.reduce((s, a) => s + a.size, 0) / 1024)}KB
+                {(() => {
+                  const nImg = atts.filter((a) => a.isImage).length;
+                  const nFile = atts.length - nImg;
+                  const parts = [];
+                  if (nImg) parts.push(`${nImg} фото`);
+                  if (nFile) parts.push(`${nFile} файл${nFile > 1 ? 'и' : ''}`);
+                  const kb = Math.round(atts.reduce((s, a) => s + a.size, 0) / 1024);
+                  return `${parts.join(' + ')} · ~${kb}KB`;
+                })()}
               </span>
             )}
           </div>
