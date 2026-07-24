@@ -4,6 +4,7 @@ import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
 import * as vault from '../lib/vault.js';
 import * as notif from '../lib/notifications.js';
+import * as devBackup from '../lib/backup.js';
 import * as push from '../lib/push.js';
 import { encryptWithSecret, decryptWithSecret } from '../lib/vault.js';
 import { utf8, utf8Decode, bytesToBase64, base64ToBytes } from '../lib/crypto.js';
@@ -327,6 +328,53 @@ export default function Settings({ onNavigate }) {
       }}>
 
         {/* Group 1: Security */}
+        <div className="lin-group-label">Бекап пристрою</div>
+        <div className="lin-section">
+          <LinRow
+            label="Зберегти все у файл (.morok)"
+            value="чати · пошта · контакти"
+            onClick={async () => {
+              const seed = vault.getUnlockedSeed();
+              if (!seed) { showToast('Спершу розблокуйте PIN.', 'warn'); return; }
+              try {
+                const b = await devBackup.exportToFile(seed);
+                showToast(`Бекап збережено: ${b.chats} чатів, ${b.mails} листів.`, 'ok');
+              } catch (e) {
+                showToast(e?.message || 'Не вдалося створити бекап', 'warn');
+              }
+            }}
+            chevron
+          />
+          <LinRow
+            label="Відновити з файлу"
+            value="злиття, нічого не стирає"
+            onClick={() => document.getElementById('morok-dev-backup-file')?.click()}
+            chevron
+          />
+          <input
+            id="morok-dev-backup-file"
+            type="file"
+            accept=".morok,application/octet-stream,application/json"
+            style={{ display: 'none' }}
+            onChange={async (ev) => {
+              const file = ev.target.files?.[0];
+              ev.target.value = '';
+              if (!file) return;
+              const seed = vault.getUnlockedSeed();
+              if (!seed) { showToast('Спершу розблокуйте PIN.', 'warn'); return; }
+              try {
+                const obj = await devBackup.readBackupFile(file);
+                const r = await devBackup.importBackup(seed, obj);
+                showToast(
+                  `Відновлено: +${r.msgsAdded} повідомлень, +${r.mailsAdded} листів.`, 'ok');
+                setTimeout(() => window.location.reload(), 900);
+              } catch (e) {
+                showToast(e?.message || 'Не вдалося відновити', 'warn');
+              }
+            }}
+          />
+        </div>
+
         <div className="lin-group-label">Захист</div>
         <div className="lin-section">
           <LinRow

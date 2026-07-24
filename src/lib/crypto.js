@@ -370,8 +370,15 @@ export function generateSymmetricKey() {
 // Доменно відокремлений (info="morok-mail-backup-v1") — це НЕ той ключ,
 // що DM/mail/sealed. Формат зафіксовано назавжди.
 const MAIL_BACKUP_INFO = utf8('morok-mail-backup-v1');
+// Універсальний бекап пристрою (.morok): чати+групи+контакти+пошта+налаштування.
+// ОКРЕМИЙ info-домен — файли пошти (.morokmail) і повні (.morok) несумісні навмисно.
+const DEVICE_BACKUP_INFO = utf8('morok-backup-v1');
 export function mailBackupKey(seed) {
   return hkdf(sha256, seed, new Uint8Array(0), MAIL_BACKUP_INFO, 32);
+}
+
+export function deviceBackupKey(seed) {
+  return hkdf(sha256, seed, new Uint8Array(0), DEVICE_BACKUP_INFO, 32);
 }
 
 export function encryptWithKey(keyBytes, plaintextBytes) {

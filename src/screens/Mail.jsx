@@ -474,6 +474,23 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
           {canReply && (
             <button onClick={handleReply} style={actBtn(true)}>↩ Відповісти</button>
           )}
+          {!out && e.internal && (e.from || '').endsWith('@morok.email') && (
+            <button
+              onClick={async () => {
+                // внутрішній лист: mail_from перевірений сервером → resolve → чат.
+                // «Один ключ — уся екосистема»: з листа в E2EE-розмову одним тапом.
+                const alias = String(e.from).split('@')[0];
+                try {
+                  const r = await api.mailResolve(alias);
+                  if (r?.pubkey_hex) onNavigate('newchat', `u=${r.pubkey_hex}`);
+                  else window.alert('Адресу не знайдено');
+                } catch (err) {
+                  window.alert(err?.message || 'Не вдалося відкрити чат');
+                }
+              }}
+              style={actBtn(false)}
+            >💬 У чат</button>
+          )}
           <button onClick={handleForward} style={actBtn(false)}>↪ Переслати</button>
         </div>
 
