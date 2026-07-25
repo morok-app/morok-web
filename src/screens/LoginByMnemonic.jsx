@@ -161,7 +161,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
               padding: 8,
             }}
           >
-            Немає 24 слів — є преміум-бекап
+            Немає 24 слів — відновити бекапом із сервера
           </button>
         </div>
       </div>

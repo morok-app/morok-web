@@ -234,7 +234,7 @@ export default function Settings({ onNavigate }) {
 
   async function createServerBackupClicked() {
     if (profile?.tier === 'free') {
-      showToast('Бекап доступний у преміумі.', 'warn');
+      showToast('Серверний бекап буде доступний пізніше. А поки — «Бекап пристрою» нижче: файл .morok зберігає все.', 'warn');
       return;
     }
     const passphrase = prompt(
@@ -443,7 +443,7 @@ export default function Settings({ onNavigate }) {
             value={
               serverBackup === null ? 'перевіряємо…' :
               serverBackup.exists ? 'Активний' :
-              profile?.tier === 'free' ? 'Преміум' : 'Не створено'
+              profile?.tier === 'free' ? 'Скоро' : 'Не створено'
             }
             valueColor={
               serverBackup === null ? '#6B6B72' :

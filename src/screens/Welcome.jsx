@@ -153,7 +153,7 @@ export default function Welcome({ onNavigate }) {
             marginTop: 4,
           }}
         >
-          Відновити з преміум-бекапу
+          Відновити бекапом із сервера
         </button>
 
         <div style={{

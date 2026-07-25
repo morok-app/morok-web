@@ -51,7 +51,7 @@ export default function DMSCreate({ onNavigate }) {
     } catch (e) {
       console.error(e);
       const friendly = {
-        'too_many_recipients_for_tier_max_5': 'У free-акаунті ліміт 5 активних заповітів',
+        'too_many_recipients_for_tier_max_5': 'Ліміт — 5 активних заповітів',
       }[e.message] || (e.message || 'Помилка');
       setError(friendly);
       setBusy(false);
