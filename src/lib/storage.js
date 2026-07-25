@@ -127,19 +127,21 @@ export function clearPreferences() { localStorage.removeItem(K_PREFS); }
 // ── Wipe ─────────────────────────────────────────────────────
 
 export function wipeAll() {
-  clearIdentity();
-  clearSession();
-  clearProfile();
-  clearBackupHas();
-  clearPreferences();
-  localStorage.removeItem('morok.conv.v1');
-  localStorage.removeItem('morok.contacts.v1');
-  localStorage.removeItem('morok.blocked.v1');
-  localStorage.removeItem('morok.pin_lockout.v1');
-  localStorage.removeItem('morok.pin_session.v1');
-  // muted chats live in IndexedDB (so the SW can read them) — best-effort drop.
+  // ПОВНИЙ слід-нуль: зносимо ВСІ ключі morok.* динамічно, а не перелічені
+  // руками — щоб кожен майбутній ключ не ставав забутим слідом. Критично для
+  // duress-PIN: після вайпу застосунок має виглядати свіжовстановленим.
   try {
-    if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('morok_muted');
-  if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('morok_mail');
+    const doomed = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('morok.')) doomed.push(k);
+    }
+    for (const k of doomed) localStorage.removeItem(k);
+  } catch { /* ignore */ }
+  try {
+    if (typeof indexedDB !== 'undefined') {
+      indexedDB.deleteDatabase('morok_muted');
+      indexedDB.deleteDatabase('morok_mail');
+    }
   } catch { /* ignore */ }
 }

@@ -47,6 +47,14 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
         vault.clearLockout();
         onUnlocked?.(seedBytes);
       } catch (e) {
+        // Duress: другий PIN → повний тихий вайп → вигляд свіжого застосунку.
+        // Перевіряємо ДО лічильника невдалих спроб: duress — не «помилка».
+        if (vault.checkDuressPin(digits)) {
+          try { store.wipeAll(); } catch { /* wipe понад усе */ }
+          try { vault.lockNow(); } catch { /* ignore */ }
+          window.location.replace(window.location.pathname);
+          return;
+        }
         const status = vault.recordWrongPin();
         if (status.locked) {
           setLockoutSeconds(status.remaining_s);

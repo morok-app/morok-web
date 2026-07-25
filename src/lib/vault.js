@@ -280,6 +280,42 @@ export function lockNow() {
   try { localStorage.removeItem(PIN_SESSION_KEY); } catch {}
 }
 
+// ── Duress-PIN ───────────────────────────────────────────────
+// Другий PIN: його введення на екрані розблокування = МИТТЄВЕ тихе
+// стирання всього локального (storage.wipeAll) і вигляд свіжої інсталяції.
+// Верифікатор — той самий Argon2id-блоб (encryptWithSecret над фіксованим
+// маркером), тобто перебір duress-PIN коштує стільки ж, скільки основного.
+// ЧЕСНО ПРО МЕЖІ: ключ названо нейтрально (pin_meta), але криміналіст із
+// доступом до localStorage все одно ПОБАЧИТЬ другий блоб. Duress захищає
+// від примусу «розблокуй при мені», не від глибокої форензики.
+const K_DURESS = 'morok.pin_meta.v1';
+const DURESS_MAGIC = 'MOROK-DURESS-v1';
+
+export function hasDuressPin() {
+  try { return !!localStorage.getItem(K_DURESS); } catch { return false; }
+}
+
+export function setDuressPin(pin) {
+  const blob = encryptWithSecret(utf8(DURESS_MAGIC), pin);
+  localStorage.setItem(K_DURESS, blob);
+}
+
+export function clearDuressPin() {
+  try { localStorage.removeItem(K_DURESS); } catch { /* ignore */ }
+}
+
+export function checkDuressPin(pin) {
+  try {
+    const blob = localStorage.getItem(K_DURESS);
+    if (!blob) return false;
+    const out = decryptWithSecret(blob, pin);
+    const want = utf8(DURESS_MAGIC);
+    if (out.length !== want.length) return false;
+    for (let i = 0; i < want.length; i++) if (out[i] !== want[i]) return false;
+    return true;
+  } catch { return false; }
+}
+
 export function refreshSession() {
   if (!_unlockedSeed) return;
   const until = Math.floor(Date.now() / 1000) + PIN_SESSION_DURATION_SECONDS;

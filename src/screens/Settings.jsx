@@ -173,6 +173,28 @@ export default function Settings({ onNavigate }) {
     }
   }
 
+  const [duressOn, setDuressOn] = useState(vault.hasDuressPin());
+
+  function trySetDuress(pin) {
+    // duress НЕ МОЖЕ збігатися з основним PIN
+    try {
+      const id = store.loadIdentity();
+      if (id?.blob_b64) {
+        try {
+          decryptWithSecret(id.blob_b64, pin);
+          showToast('Цей код збігається з основним PIN — оберіть інший.', 'warn');
+          return;
+        } catch { /* не розшифрувався = не основний = добре */ }
+      }
+    } catch { /* ignore */ }
+    const p2 = window.prompt('Повторіть duress-PIN:');
+    if (p2 === null) return;
+    if (p2.trim() !== pin) { showToast('Коди не збігаються.', 'warn'); return; }
+    vault.setDuressPin(pin);
+    setDuressOn(true);
+    showToast('Duress-PIN увімкнено. Перевірте його ДО реальної потреби.', 'ok');
+  }
+
   function setupPinClicked() { onNavigate('pin-setup-existing'); }
 
   async function removePinClicked() {
@@ -382,6 +404,39 @@ export default function Settings({ onNavigate }) {
             value={hasPin ? 'Встановлено' : 'Не встановлено'}
             valueColor={hasPin ? '#4ADE80' : '#FF6B7A'}
             onClick={hasPin ? removePinClicked : setupPinClicked}
+          />
+          <LinRow
+            label="Duress-PIN"
+            value={duressOn ? 'Увімкнено' : 'Вимкнено'}
+            valueColor={duressOn ? '#4ADE80' : '#A8A8B0'}
+            onClick={() => {
+              if (!hasPin) {
+                showToast('Спершу встановіть основний PIN.', 'warn');
+                return;
+              }
+              if (duressOn) {
+                const a = window.prompt(
+                  'Duress-PIN увімкнено.\n\nВведіть НОВИЙ 6-значний PIN, щоб змінити,\nабо слово OFF — щоб вимкнути.');
+                if (a === null) return;
+                if (a.trim().toUpperCase() === 'OFF') {
+                  vault.clearDuressPin(); setDuressOn(false);
+                  showToast('Duress-PIN вимкнено.', 'ok'); return;
+                }
+                if (!/^\d{6}$/.test(a.trim())) {
+                  showToast('PIN — рівно 6 цифр.', 'warn'); return;
+                }
+                trySetDuress(a.trim());
+                return;
+              }
+              const p1 = window.prompt(
+                'Duress-PIN: другий код на екрані входу.\nЙого введення МИТТЄВО і НЕПОМІТНО стирає все з цього пристрою (акаунт відновлюється 24 словами, історія — з бекапу .morok).\n\nВведіть 6 цифр:');
+              if (p1 === null) return;
+              if (!/^\d{6}$/.test(p1.trim())) {
+                showToast('PIN — рівно 6 цифр.', 'warn'); return;
+              }
+              trySetDuress(p1.trim());
+            }}
+            chevron
           />
           <LinRow
             label="Бекап на сервері"
