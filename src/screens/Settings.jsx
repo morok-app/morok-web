@@ -174,6 +174,51 @@ export default function Settings({ onNavigate }) {
   }
 
   const [duressOn, setDuressOn] = useState(vault.hasDuressPin());
+  const [relayUrl, setRelayUrlState] = useState(() => api.getRelayUrl());
+  const isDefaultRelay = relayUrl === api.getDefaultRelayUrl();
+  const relayShort = isDefaultRelay
+    ? 'Стандартний'
+    : relayUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+
+  async function switchRelayClicked() {
+    if (!isDefaultRelay) {
+      const back = window.confirm(
+        `Зараз використовується ваш релей:\n${relayUrl}\n\n` +
+        'Повернутися на стандартний relay1.morok.app?\n' +
+        '(ваші 24 слова працюють на будь-якому релеї)');
+      if (!back) return;
+      api.setRelayUrl(api.getDefaultRelayUrl());
+      setRelayUrlState(api.getDefaultRelayUrl());
+      showToast('Повертаємось на стандартний релей…', 'ok');
+      setTimeout(() => window.location.reload(), 800);
+      return;
+    }
+    const url = window.prompt(
+      'Адреса вашого релея (див. morok.app/selfhost):\n\n' +
+      'Напр. https://relay.mydomain.com', 'https://');
+    if (!url) return;
+    showToast('Перевіряю релей…', 'ok');
+    let info;
+    try {
+      info = await api.checkRelayHealth(url);
+    } catch (e) {
+      showToast(e?.message || 'Релей недоступний', 'warn');
+      return;
+    }
+    const okGo = window.confirm(
+      `Знайдено релей:\n${info.name}\nверсія ${info.version}` +
+      (info.onion ? '\nTor: підтримується' : '') +
+      '\n\nПереключитись на нього?\n\n' +
+      'Що зміниться: застосунок працюватиме через ваш сервер. ' +
+      'Ваш ключ (24 слова) той самий, але нікнейм резервується окремо на ' +
+      'кожному релеї, а старі повідомлення лишаються на попередньому. ' +
+      'Повернутись назад можна будь-коли тут же.');
+    if (!okGo) return;
+    api.setRelayUrl(info.url);
+    setRelayUrlState(info.url);
+    showToast('Переключаємось на ваш релей…', 'ok');
+    setTimeout(() => window.location.reload(), 800);
+  }
 
   function trySetDuress(pin) {
     // duress НЕ МОЖЕ збігатися з основним PIN
@@ -473,6 +518,28 @@ export default function Settings({ onNavigate }) {
         </div>
 
         {/* Group 2: App */}
+        {api.canSwitchRelay() && (
+          <>
+            <div className="lin-group-label">Мережа</div>
+            <div className="lin-section">
+              <LinRow
+                label="Свій релей"
+                value={relayShort}
+                valueColor={isDefaultRelay ? '#A8A8B0' : '#4ADE80'}
+                onClick={switchRelayClicked}
+                chevron
+              />
+            </div>
+            <div style={{
+              color: '#A8AAB5', fontSize: 12.5, lineHeight: 1.5,
+              padding: '8px 16px 4px',
+            }}>
+              Свій сервер = ваші повідомлення проходять лише через нього.
+              Інструкція: <span style={{ color: '#7B96FF' }}>morok.app/selfhost</span>
+            </div>
+          </>
+        )}
+
         <div className="lin-group-label">Додаток</div>
         <div className="lin-section">
           {!isNativeApp && <LinRow
