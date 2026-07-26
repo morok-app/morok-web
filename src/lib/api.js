@@ -62,13 +62,64 @@ export function getRelayUrl() { return _relayUrl; }
 export function setRelayUrl(url) {
   const clean = url.replace(/\/+$/, '');
   _relayUrl = clean;
+  // БУВ БАГ: перевірявся лише Capacitor, тому у Tauri (Windows) вибір
+  // релея читався на старті, але НЕ зберігався — після перезапуску
+  // застосунок відкочувався на relay1. Тепер умова дзеркалить
+  // detectDefaultRelay(): зберігаємо на будь-якому нативному рантаймі.
   const isNative = !!(
     window?.Capacitor?.isNativePlatform?.() ||
-    window?.Capacitor?.isNative
+    window?.Capacitor?.isNative ||
+    window?.__TAURI__ ||
+    window?.__TAURI_INTERNALS__ ||
+    /^tauri:/.test(window?.location?.protocol || '') ||
+    (window?.location?.protocol === 'http:' &&
+     window?.location?.hostname === 'tauri.localhost')
   );
   if (isNative) {
     try { localStorage.setItem(STORAGE_KEY_RELAY, clean); } catch {}
   }
+}
+
+/** Чи можна на цьому рантаймі перемикати релей (нативні збірки). */
+export function canSwitchRelay() {
+  return !!(
+    window?.Capacitor?.isNativePlatform?.() ||
+    window?.Capacitor?.isNative ||
+    window?.__TAURI__ ||
+    window?.__TAURI_INTERNALS__ ||
+    /^tauri:/.test(window?.location?.protocol || '') ||
+    (window?.location?.protocol === 'http:' &&
+     window?.location?.hostname === 'tauri.localhost')
+  );
+}
+
+export function getDefaultRelayUrl() { return 'https://relay1.morok.app'; }
+
+/**
+ * Перевірити релей ПЕРЕД перемиканням: чи живий, чи це справді Morok.
+ * Повертає {ok, name, version, onion} або кидає зрозумілу помилку.
+ * Свій таймаут — щоб не висіти на мертвому хості.
+ */
+export async function checkRelayHealth(url) {
+  const clean = String(url || '').trim().replace(/\/+$/, '');
+  if (!/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/i.test(clean)) {
+    throw new Error('Адреса має вигляд https://relay.вашдомен.com');
+  }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  let r;
+  try {
+    r = await fetch(`${clean}/health`, { signal: ctrl.signal });
+  } catch {
+    throw new Error('Релей не відповідає — перевірте адресу і що сервер запущено');
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!r.ok) throw new Error(`Релей відповів помилкою ${r.status}`);
+  let d;
+  try { d = await r.json(); } catch { throw new Error('Це не схоже на Morok-релей'); }
+  if (d?.status !== 'ok' || !d?.version) throw new Error('Це не схоже на Morok-релей');
+  return { ok: true, url: clean, name: d.relay_name || clean, version: d.version, onion: d.onion || null };
 }
 
 export function setSessionToken(token) { _sessionToken = token; }
