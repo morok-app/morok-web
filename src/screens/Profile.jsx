@@ -30,11 +30,24 @@ export default function Profile({ onNavigate }) {
   const handle = username ? `@${username}` : `@anon_${pubkeyHex?.slice(0, 8) || '?'}`;
 
   const shareUrl = (() => {
-    const origin = shareOrigin();
-    if (username) {
-      return `${origin}/web/#newchat?u=${encodeURIComponent(username)}`;
+    // 1) Стандартний релей + є нікнейм → коротке брендоване посилання
+    //    morok.app/@nick. Людина БЕЗ Morok побачить сторінку «що це таке»
+    //    і кнопку встановлення, а не голу адресу релея.
+    // 2) Свій релей → нік зареєстровано ТАМ, тому лінк має вести на нього.
+    // 3) Без ніка (анонім) → посилання за публічним ключем.
+    //
+    // ВАЖЛИВО: беремо адресу релея з api, а НЕ з window.location.origin.
+    // У Tauri origin — це `http://tauri.localhost`, тож старий код видавав
+    // у Windows-застосунку непрацююче посилання на localhost.
+    const relay = (api.getRelayUrl?.() || shareOrigin()).replace(/\/+$/, '');
+    const isDefaultRelay = relay === 'https://relay1.morok.app';
+    if (username && isDefaultRelay) {
+      return `https://morok.app/@${encodeURIComponent(username)}`;
     }
-    return `${origin}/web/#newchat?p=${pubkeyHex}`;
+    if (username) {
+      return `${relay}/web/#newchat?u=${encodeURIComponent(username)}`;
+    }
+    return `${relay}/web/#newchat?p=${pubkeyHex}`;
   })();
 
   useEffect(() => {
