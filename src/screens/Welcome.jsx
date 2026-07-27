@@ -138,23 +138,10 @@ export default function Welcome({ onNavigate }) {
           У мене вже є акаунт
         </button>
 
-        <button
-          onClick={() => onNavigate('restore')}
-          style={{
-            width: '100%',
-            padding: '10px',
-            background: 'transparent',
-            border: 'none',
-            color: '#A4A6B2',
-            fontSize: 12.5,
-            fontWeight: 500,
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            marginTop: 4,
-          }}
-        >
-          Відновити бекапом із сервера
-        </button>
+        {/* Кнопку «Відновити бекапом із сервера» прибрано — серверних
+            бекапів не існує (403 для всіх), тож вона вела в глухий кут
+            на ПЕРШОМУ ж екрані. Відновлення акаунта — 24 слова;
+            відновлення історії — файл .morok у Налаштуваннях. */}
 
         <div style={{
           marginTop: 14,

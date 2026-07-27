@@ -129,9 +129,13 @@ export default function Settings({ onNavigate }) {
     }
   }
 
+  // Опитування серверного бекапу вимкнено разом із самою фічею: рядка в UI
+  // більше нема, а запит на кожне відкриття Налаштувань був марним
+  // (сервер однаково відповідає 403/404 усім). Лишаємо блок закоментованим,
+  // щоб фічу можна було повернути одним рухом, якщо колись зʼявиться.
   useEffect(() => {
     (async () => {
-      try {
+      /* try {
         const info = await api.getMyBackup();
         setServerBackup({ exists: true, info });
         store.saveBackupHas({ has: true, updatedAt: info.updated_at });
@@ -142,7 +146,7 @@ export default function Settings({ onNavigate }) {
         } else {
           setServerBackup({ exists: false, error: e.message });
         }
-      }
+      } */
     })();
   }, []);
 
@@ -483,26 +487,11 @@ export default function Settings({ onNavigate }) {
             }}
             chevron
           />
-          <LinRow
-            label="Бекап на сервері"
-            value={
-              serverBackup === null ? 'перевіряємо…' :
-              serverBackup.exists ? 'Активний' :
-              profile?.tier === 'free' ? 'Скоро' : 'Не створено'
-            }
-            valueColor={
-              serverBackup === null ? '#6B6B72' :
-              serverBackup?.exists ? '#4ADE80' :
-              profile?.tier === 'free' ? '#F59E0B' : '#A8A8B0'
-            }
-            onClick={
-              !serverBackup ? null :
-              serverBackup.exists ? deleteServerBackupClicked :
-              createServerBackupClicked
-            }
-            chevron={!!serverBackup}
-            disabled={busy}
-          />
+          {/* «Бекап на сервері» прибрано: сервер віддає 403 усім
+              free-акаунтам, тобто створити його не міг НІХТО — рядок був
+              глухим кутом. Робочий шлях — «Бекап пристрою» (файл .morok)
+              у секції вище. Хендлери лишені в коді: якщо фіча колись
+              зʼявиться, достатньо повернути цей блок. */}
           <LinRow
             label="Тільки контакти можуть писати"
             value={contactsOnly ? 'Увімкнено' : 'Вимкнено'}

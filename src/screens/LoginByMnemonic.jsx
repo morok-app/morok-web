@@ -151,19 +151,8 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
           </button>
         </div>
 
-        <div style={{ marginTop: 20, textAlign: 'center' }}>
-          <button
-            onClick={() => onNavigate('restore')}
-            style={{
-              background: 'transparent', border: 'none',
-              color: '#A4A6B2', fontSize: 12.5,
-              cursor: 'pointer', fontFamily: 'inherit',
-              padding: 8,
-            }}
-          >
-            Немає 24 слів — відновити бекапом із сервера
-          </button>
-        </div>
+        {/* Посилання на серверний бекап прибрано — його не існує.
+            Без 24 слів акаунт відновити неможливо, і це чесна відповідь. */}
       </div>
     </div>
   );
