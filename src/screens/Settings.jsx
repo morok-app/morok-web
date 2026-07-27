@@ -498,9 +498,9 @@ export default function Settings({ onNavigate }) {
             onClick={
               !serverBackup ? null :
               serverBackup.exists ? deleteServerBackupClicked :
-              profile?.tier === 'free' ? null : createServerBackupClicked
+              createServerBackupClicked
             }
-            chevron={!!serverBackup && profile?.tier !== 'free'}
+            chevron={!!serverBackup}
             disabled={busy}
           />
           <LinRow
