@@ -194,7 +194,7 @@ export default function Settings({ onNavigate }) {
       return;
     }
     const url = window.prompt(
-      'Адреса вашого релея (див. morok.app/selfhost):\n\n' +
+      'Адреса вашого релея (див. morok.app/selfhost.html):\n\n' +
       'Напр. https://relay.mydomain.com', 'https://');
     if (!url) return;
     showToast('Перевіряю релей…', 'ok');
@@ -535,7 +535,7 @@ export default function Settings({ onNavigate }) {
               padding: '8px 16px 4px',
             }}>
               Свій сервер = ваші повідомлення проходять лише через нього.
-              Інструкція: <span style={{ color: '#7B96FF' }}>morok.app/selfhost</span>
+              Інструкція: <span style={{ color: '#7B96FF' }}>morok.app/selfhost.html</span>
             </div>
           </>
         )}
