@@ -32,9 +32,14 @@
     <meta name="twitter:description" content="Месенджер який нічого про вас не зберігає. Без телефону, без email, без імені." />
     <meta name="twitter:image" content="https://morok.app/og.png" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- ПРИВАТНІСТЬ: жодних зовнішніх запитів.
+         Раніше тут вантажились Google Fonts — тобто застосунок на КОЖНОМУ
+         запуску повідомляв Google IP і User-Agent користувача. Для
+         privacy-месенджера це неприйнятно, а в Windows/Android-збірках ще й
+         означало «дзвінок додому» та зламані шрифти без інтернету.
+         Тепер використовуються системні шрифти (fallback уже прописаний
+         у global.css). Якщо схочете повернути Manrope — покладіть .woff2
+         локально і підключіть @font-face, БЕЗ звернень до Google. -->
   </head>
   <body>
     <div id="root"></div>
