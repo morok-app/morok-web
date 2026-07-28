@@ -15,11 +15,14 @@ const MUTED = '#A8AAB5';
 
 const MAIL_DOMAIN = 'morok.email';
 
-// Серверний ліміт вкладень для ЗОВНІШНІХ листів: сумарно 6MB у base64
-// (~4.5MB сирих) — див. _queue_external у api/mail.py. Перевіряємо ТЕ САМЕ
-// правило тут, щоб юзер дізнавався одразу, а не 413-кою після очікування.
-// Внутрішні (E2EE) листи мають більший ліміт — їх НЕ обмежуємо.
-const EXT_ATT_B64_LIMIT = 6 * 1024 * 1024;
+// Ліміт вкладень — ОДИН для обох гілок, і ось чому.
+// Вузьке місце не в застосунку, а в nginx: client_max_body_size 8M на
+// релеї. Сервер для внутрішньої пошти дозволяє 25MB, але такий лист
+// однаково не долетить — nginx відріже його 413-кою ДО FastAPI, і юзер
+// побачить незрозумілу помилку після довгого очікування.
+// 6MB base64 (~4.5MB сирих файлів) + JSON-обгортка комфортно влазять у 8M.
+// Якщо колись піднімемо nginx — піднімемо і цю константу разом із ним.
+const ATT_B64_LIMIT = 6 * 1024 * 1024;
 
 function attsB64Total(atts) {
   return atts.reduce((s, a) => s + (a.b64 ? a.b64.length : 0), 0);
@@ -121,10 +124,9 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           }];
           // М'яке попередження ОДРАЗУ, якщо адресат уже зовнішній і сумарний
           // розмір перевищив ліміт зовнішньої пошти (для внутрішніх — ок).
-          if (parseRecipient(to)?.kind === 'external'
-              && attsB64Total(next) > EXT_ATT_B64_LIMIT) {
+          if (attsB64Total(next) > ATT_B64_LIMIT) {
             setStatus({ type: 'err',
-              msg: 'Для зовнішніх адрес вкладення сумарно до ~4.5MB — заберіть зайве' });
+              msg: 'Вкладення сумарно до ~4.5MB — заберіть зайве' });
           }
           return next;
         });
@@ -155,18 +157,23 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
       if (!seed) { setStatus({ type: 'err', msg: 'Розблокуйте акаунт' }); setBusy(false); return; }
 
       // ── ЗОВНІШНІЙ лист: у чергу відправки (не E2E) ──
+      // Ліміт вкладень перевіряємо ДО розгалуження: обмеження створює nginx
+      // (client_max_body_size), а він однаковий для внутрішніх і зовнішніх.
+      // Раніше перевірка стояла лише в зовнішній гілці, тож великий файл
+      // «своєму» проходив клієнта і ловив незрозумілу 413 від nginx.
+      {
+        const b64Total = attsB64Total(atts);
+        if (b64Total > ATT_B64_LIMIT) {
+          const mb = (b64Total * 0.75 / (1024 * 1024)).toFixed(1);
+          setStatus({ type: 'err',
+            msg: `Вкладення ~${mb}MB — ліміт ~4.5MB. Заберіть частину файлів.` });
+          setBusy(false); return;
+        }
+      }
+
       if (parsed.kind === 'external') {
         if (!fromAlias) {
           setStatus({ type: 'err', msg: 'Для зовнішніх листів оберіть адресу «Від» (анонімно не можна)' });
-          setBusy(false); return;
-        }
-        // Той самий ліміт, що на сервері (6MB base64) — щоб не ловити 413
-        // ПІСЛЯ завантаження, а сказати одразу і з цифрами.
-        const b64Total = attsB64Total(atts);
-        if (b64Total > EXT_ATT_B64_LIMIT) {
-          const mb = (b64Total * 0.75 / (1024 * 1024)).toFixed(1);
-          setStatus({ type: 'err',
-            msg: `Вкладення ~${mb}MB — для зовнішніх адрес ліміт ~4.5MB. Заберіть частину файлів.` });
           setBusy(false); return;
         }
         const r = await api.mailSendExternal({
