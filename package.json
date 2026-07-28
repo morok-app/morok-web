@@ -1,6 +1,6 @@
 {
   "name": "morok-web",
-  "version": "0.4.1",
+  "version": "0.9.1",
   "private": true,
   "type": "module",
   "scripts": {
