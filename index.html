@@ -10,6 +10,12 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icon-192.png" />
 
+    <!-- noindex: це РОБОЧИЙ ІНТЕРФЕЙС застосунку, а не сторінка для пошуку.
+         Без цього Google індексує /web і показує в результатах застарілий,
+         часто зламаний опис (стара версія, тексти яких уже нема), тягнучи
+         вниз враження від справжнього лендинга на morok.app.
+         Лендинг (окремий сайт) індексується нормально — там noindex немає. -->
+    <meta name="robots" content="noindex, nofollow">
     <title>Morok — приватний месенджер без телефону</title>
     <meta name="description" content="Месенджер який нічого про вас не зберігає. Без телефону, без email, без імені." />
 
