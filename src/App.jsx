@@ -84,6 +84,9 @@ export default function App() {
   const [connState, setConnState] = useState('open');
   const [bootError, setBootError] = useState(null);
   const inboxRef = useRef(null);
+  // Для кого саме працює поточний inbox-клієнт. Потрібно, щоб не
+  // перезапускати вже живе зʼєднання (див. коментар у startInbox).
+  const inboxOwnerRef = useRef(null);
   const [pendingSeed, setPendingSeed] = useState(null);
 
   useEffect(() => {
@@ -144,7 +147,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => () => inboxRef.current?.stop(), []);
+  useEffect(() => () => {
+    inboxRef.current?.stop();
+    inboxOwnerRef.current = null;
+  }, []);
 
   // Глобальний тактильний відгук на тапи (no-op у вебі).
   useEffect(() => { installTapHaptics(); }, []);
@@ -232,7 +238,16 @@ export default function App() {
   }
 
   function startInbox(seed, myPubkeyHex) {
+    // ГОНКА ПОДВІЙНОГО СТАРТУ. Після введення PIN inbox намагаються
+    // підняти ДВА шляхи: loginAndRoute() (після await login/getMe) і
+    // перевірка під час рендеру route === 'chats'. Другий встигав
+    // першим, а loginAndRoute потім робив stop() ще не встановленому
+    // WebSocket — звідси "WebSocket is closed before the connection is
+    // established" у консолі й зайвий цикл connecting→closed→connecting.
+    // Якщо клієнт уже працює для ЦЬОГО ж ключа — нічого не робимо.
+    if (inboxRef.current && inboxOwnerRef.current === myPubkeyHex) return;
     if (inboxRef.current) inboxRef.current.stop();
+    inboxOwnerRef.current = myPubkeyHex;
     const client = new InboxClient({
       onCatchup: async (envelopes) => {
         const touchedPeers = new Set();
@@ -447,6 +462,12 @@ export default function App() {
 
   function onForgotPin() {
     if (!confirm('Видалити цей акаунт з браузера? Потрібні будуть 24 слова для входу.')) return;
+    // Спершу гасимо inbox: акаунт зникає, тримати його сокет нема сенсу,
+    // а власника скидаємо, щоб наступний вхід (іншим сідом) підняв
+    // зʼєднання заново, а не вважав старе живим.
+    inboxRef.current?.stop();
+    inboxRef.current = null;
+    inboxOwnerRef.current = null;
     store.wipeAll();
     vault.lockNow();
     navigate('welcome');
