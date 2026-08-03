@@ -82,8 +82,13 @@ export async function sendAnonymousMessage({
     throw new Error('Некоректний адресат');
   }
 
-  // 1. Generate ephemeral Ed25519 keypair
-  const { secretKey, publicKey } = ed25519.keygen();
+  // 1. Generate ephemeral Ed25519 keypair.
+  //    @noble/curves v1 має НЕ `ed25519.keygen()` (це API v2), а
+  //    utils.randomPrivateKey() + getPublicKey(). Виклик keygen() тут
+  //    падав із "keygen is not a function", тобто анонімна відправка
+  //    через бернер не працювала взагалі. RN-версія вже виправлена так само.
+  const secretKey = ed25519.utils.randomPrivateKey();
+  const publicKey = ed25519.getPublicKey(secretKey);
   const ephemeralPubkeyHex = bytesToHex(publicKey);
 
   // 2/3. Encrypt with the SAME DM scheme — the recipient client will

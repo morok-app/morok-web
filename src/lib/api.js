@@ -125,16 +125,38 @@ export async function checkRelayHealth(url) {
 export function setSessionToken(token) { _sessionToken = token; }
 export function getSessionToken() { return _sessionToken; }
 
-async function http(method, path, { body, auth } = {}) {
+// Таймаут на HTTP-запити. Без нього при недоступному relay fetch висить
+// до таймауту браузера (десятки секунд) — застосунок «думає». 8с достатньо
+// для REST. Порт із RN-версії, де це вже було.
+const REQUEST_TIMEOUT_MS = 8000;
+
+async function http(method, path, { body, auth, timeoutMs } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (auth && _sessionToken) {
     headers['Authorization'] = `Bearer ${_sessionToken}`;
   }
-  const resp = await fetch(`${_relayUrl}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || REQUEST_TIMEOUT_MS);
+  let resp;
+  try {
+    resp = await fetch(`${_relayUrl}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    // Таймаут (abort) і мережеві помилки приводимо до однакового вигляду,
+    // щоб виклики могли по err.code === 'network' відрізнити «relay недоступний».
+    const err = new Error(e?.name === 'AbortError' ? 'Перевищено час очікування' : 'Немає з’єднання з сервером');
+    err.code = 'network';
+    err.cause = e;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+
   let payload = null;
   try { payload = await resp.json(); } catch { /* tolerate empty */ }
 
@@ -488,6 +510,22 @@ export async function deleteGroupMessage(groupId, envelopeId, seed) {
 // ────────────────────────────────────────────────────────────
 
 export function openInboxSocket(onMessage, onOpen, onClose, onError) {
+  // Без валідного токена не відкриваємо сокет: інакше URL стає
+  // "?token=null", relay миттєво його відкидає, і InboxClient впадає
+  // у вічний цикл reconnect на максимальній швидкості (саме це плодило
+  // ghost-слоти в Redis). Краще одразу повідомити про "close", щоб
+  // спрацював backoff і перелогін.
+  if (!_sessionToken) {
+    const err = new Error('no_session_token');
+    err.code = 'no_session';
+    // асинхронно, щоб InboxClient уже мав посилання на ws перед колбеком
+    setTimeout(() => {
+      try { onError?.(err); } catch { /* ignore */ }
+      try { onClose?.({ code: 4001, reason: 'no_session_token' }); } catch { /* ignore */ }
+    }, 0);
+    return { readyState: 3, close() {}, send() {} }; // фейковий "closed" сокет
+  }
+
   const wsUrl = _relayUrl.replace(/^http/, 'ws') + `/ws/v1/inbox?token=${encodeURIComponent(_sessionToken)}`;
   const ws = new WebSocket(wsUrl);
   ws.onopen = () => onOpen?.(ws);

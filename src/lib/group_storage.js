@@ -30,14 +30,6 @@ import { getReadBurnSeconds } from './conversations.js';
 const K = 'morok.groups.v1';
 const HARD_CEILING_SECONDS = 30 * 86400;
 
-/** Найраніший дедлайн зникнення (надсилання vs прочитання). */
-function effectiveExpiry(m) {
-  const a = m.expires_at || Infinity;
-  const b = m.read_burn_at || Infinity;
-  const e = Math.min(a, b);
-  return e === Infinity ? null : e;
-}
-
 function load() {
   try {
     const raw = localStorage.getItem(K);
@@ -48,6 +40,14 @@ function load() {
 function save(state) {
   try { localStorage.setItem(K, JSON.stringify(state)); }
   catch (e) { console.warn('groups save failed', e); }
+}
+
+/** Найраніший дедлайн зникнення (надсилання vs прочитання). */
+function effectiveExpiry(m) {
+  const a = m.expires_at || Infinity;
+  const b = m.read_burn_at || Infinity;
+  const e = Math.min(a, b);
+  return e === Infinity ? null : e;
 }
 
 function reap(state) {
@@ -162,6 +162,19 @@ export function appendMessage(groupId, message) {
     const ceiling = message.ts + Math.min(message.ttl, HARD_CEILING_SECONDS);
     message.expires_at = Math.min(message.expires_at || ceiling, ceiling);
   }
+  // Дедуп — та сама причина, що й у conversations.appendMessage:
+  // повторний catchup після обриву WS до ack давав копію в групі.
+  const mid = message?.id || message?.envelope_id;
+  if (mid) {
+    const list = state[groupId].messages;
+    const at = list.findIndex((m) => (m?.id || m?.envelope_id) === mid);
+    if (at >= 0) {
+      list[at] = { ...list[at], ...message };
+      state[groupId].updated_at = Math.floor(Date.now() / 1000);
+      save(state);
+      return;
+    }
+  }
   state[groupId].messages.push(message);
   state[groupId].updated_at = Math.floor(Date.now() / 1000);
   save(state);
@@ -232,7 +245,7 @@ export function markGroupRead(groupId) {
   const g = state[groupId];
   if (!g) return;
   const now = Math.floor(Date.now() / 1000);
-  const burn = getReadBurnSeconds();
+  const burn = getReadBurnSeconds();      // 0 = вимкнено
   let changed = false;
   for (const m of g.messages || []) {
     if (m.direction === 'in' && !m.read_at) {
@@ -267,6 +280,7 @@ export function markOutgoingReadByMember(groupId, envelopeId, readerPubkey) {
   m.read_by.push(readerPubkey);
   if (!m.read_at) {
     m.read_at = Math.floor(Date.now() / 1000);
+    // Симетрія: коли перший учасник прочитав — моя копія згоряє (no trace).
     const burn = getReadBurnSeconds();
     if (burn > 0 && !m.read_burn_at) m.read_burn_at = m.read_at + burn;
   }

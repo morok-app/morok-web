@@ -151,6 +151,22 @@ export function appendMessage(peerPubkey, message) {
     const ceiling = message.ts + Math.min(message.ttl, HARD_CEILING_SECONDS);
     message.expires_at = Math.min(message.expires_at || ceiling, ceiling);
   }
+  // Дедуп: id вхідних детермінований (`recv-<envelope_id>`), тож якщо WS
+  // обірвався між отриманням і ack, catchup віддасть той самий конверт
+  // ще раз — без цієї перевірки в чаті з'являлась копія повідомлення.
+  // Оновлюємо наявний запис замість вставки: свіжі метадані (expires_at,
+  // read_at) можуть бути кориснішими за старі.
+  const mid = message?.id || message?.envelope_id;
+  if (mid) {
+    const list = state[peerPubkey].messages;
+    const at = list.findIndex((m) => (m?.id || m?.envelope_id) === mid);
+    if (at >= 0) {
+      list[at] = { ...list[at], ...message };
+      state[peerPubkey].updated_at = Math.floor(Date.now() / 1000);
+      save(state);
+      return;
+    }
+  }
   state[peerPubkey].messages.push(message);
   state[peerPubkey].updated_at = Math.floor(Date.now() / 1000);
   save(state);
@@ -229,6 +245,7 @@ export function markConversationRead(peerPubkey) {
   for (const m of conv.messages) {
     if (m.direction === 'in' && !m.read_at) {
       m.read_at = now;
+      // Запускаємо таймер зникнення від прочитання (лише вхідні, лише якщо увімкнено).
       if (burn > 0 && !m.read_burn_at) m.read_burn_at = now + burn;
       changed = true;
     }
