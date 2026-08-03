@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
-
-const PATTERN = /^[a-z0-9_]{3,20}$/;
+import { validateUsername, minLengthForTier } from '../lib/username.js';
 
 /**
  * ClaimUsername — Linear-style, optional step.
@@ -15,14 +14,21 @@ export default function ClaimUsername({ onNavigate }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const valid = PATTERN.test(username);
+  // Правила беремо з спільного модуля — дзеркала серверних. Раніше тут
+  // стояв /^[a-z0-9_]{3,20}$/, який пропускав імена, що сервер відхиляє
+  // (free-tier потребує 5+ символів і початку з літери), тож людина
+  // бачила «підходить» і одразу ловила 400.
+  const tier = store.loadProfile()?.tier || 'free';
+  const check = validateUsername(username, tier);
+  const valid = check.ok;
+  const hint = username.trim() && !valid ? check.error : null;
 
   async function claimClicked() {
     if (!valid) return;
     setError(null);
     setBusy(true);
     try {
-      const result = await api.claimUsername(username);
+      const result = await api.claimUsername(check.normalized);
       const profile = store.loadProfile() || {};
       store.saveProfile({ ...profile, username: result.username });
       onNavigate('chats');
@@ -124,8 +130,15 @@ export default function ClaimUsername({ onNavigate }) {
         </div>
 
         <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 8, lineHeight: 1.5 }}>
-          3–20 символів. Тільки маленькі літери, цифри і _
+          {minLengthForTier(tier)}–20 символів, починається з літери.
+          Тільки маленькі латинські літери, цифри і _
         </p>
+
+        {hint && (
+          <div style={{ color: '#8A8A94', fontSize: 12.5, marginTop: 10, lineHeight: 1.45 }}>
+            {hint}
+          </div>
+        )}
 
         {error && (
           <div style={{
