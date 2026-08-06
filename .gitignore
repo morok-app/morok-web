@@ -1,6 +1,43 @@
+# Залежності
 node_modules/
+
+# Збірка (deploy: npm run build → scp dist/* на relay1 і relay2)
 dist/
-.DS_Store
+dist-ssr/
+build/
+
+# Vite / кеш
+.vite/
+*.local
+
+# Capacitor / Tauri
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+android/app/google-services.json
+src-tauri/target/
+src-tauri/gen/
+
+# Секрети
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.keystore
+google-services.json
+
+# Логи
+npm-debug.*
+yarn-debug.*
+yarn-error.*
 *.log
-.vscode/
+
+# ОС / редактори
+.DS_Store
+Thumbs.db
 .idea/
+.vscode/
+*.swp
+*~
