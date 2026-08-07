@@ -32,6 +32,10 @@ export class InboxClient {
     this.reconnectTimer = null;
     this.state = 'closed';
     this.authFailed = false;          // прапорець: останній close був через авторизацію
+    // Чи вдавалось хоч раз відкрити сокет після останнього успіху.
+    // Потрібно, щоб відрізнити «сервер нас не пускає» від «мережа мигнула»:
+    // у першому випадку сокет не відкривається ЖОДНОГО разу.
+    this.everOpened = false;
   }
 
   start() {
@@ -90,6 +94,7 @@ export class InboxClient {
 
   _onOpen() {
     this.attempts = 0;
+    this.everOpened = true;   // сервер нас пускає — страховка нижче не потрібна
     this._setState('open');
   }
 
@@ -148,20 +153,41 @@ export class InboxClient {
     if (!this.shouldRun) return;
     this._setState('closed');
 
-    // Якщо close через відсутність/протухлість токена — даємо realtime шанс
-    // перелогінитись (оновити токен), і НЕ молотимо: мінімальна пауза 2с.
-    const wasAuth = this.authFailed || ev?.code === 4001;
+    const code = ev?.code;
+
+    // 4002 — вичерпано ліміт паралельних з'єднань на акаунт (інші вкладки
+    // чи пристрої). Перелогін тут НЕ допоможе: токен справний, зайняті
+    // слоти. Чекаємо довше й пробуємо знову, коли якесь звільниться.
+    const tooMany = code === 4002;
+
+    // 4001 — токен недійсний/протух → треба оновити сесію.
+    // `authFailed` виставляється, коли ми самі не дали відкрити сокет
+    // без токена (див. api.openInboxSocket).
+    let wasAuth = this.authFailed || code === 4001;
     this.authFailed = false;
 
+    // СТРАХОВКА. Старіші релеї закривали з'єднання ДО accept(), і клієнт
+    // бачив 1006 замість 4001 — тобто протухла сесія була невідрізненна
+    // від обриву мережі, і onAuthFail не спрацьовував ніколи. Тому: якщо
+    // кілька спроб поспіль обриваються без жодного успішного відкриття,
+    // все одно пробуємо оновити сесію — гірше не буде, а зависання
+    // «мовчки не приходять повідомлення» лікує.
+    if (!wasAuth && !tooMany && this.attempts >= 2 && !this.everOpened) {
+      wasAuth = true;
+    }
+
     if (wasAuth && this.onAuthFail) {
-      // одноразова спроба оновити сесію перед наступним конектом
       try { this.onAuthFail(); } catch {}
     }
 
     const base = BACKOFF_SECONDS[Math.min(this.attempts, BACKOFF_SECONDS.length - 1)];
-    const delay = wasAuth ? Math.max(base, 2) : base;   // авторизаційний — не швидше 2с
+    let delay = base;
+    if (wasAuth) delay = Math.max(base, 2);     // не молотимо після перелогіну
+    if (tooMany) delay = Math.max(base, 15);    // слот звільниться не миттєво
     this.attempts++;
-    console.info(`inbox WS reconnect in ${delay}s (attempt ${this.attempts})`);
+    console.info(
+      `inbox WS reconnect in ${delay}s (attempt ${this.attempts}, code ${code ?? 'n/a'})`,
+    );
     this.reconnectTimer = setTimeout(() => this._connect(), delay * 1000);
   }
 }
