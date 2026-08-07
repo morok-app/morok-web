@@ -528,6 +528,7 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       mailBlob = await api.fetchBlob(envelopeId);
     } catch (e) {
       console.warn('fetchBlob (mail) failed:', e);
+      if (e?.code === 'network') return { __retry: true, envelope_id: envelopeId };
       return null;
     }
     let email;
@@ -579,6 +580,7 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       sealedBlobBytes = await api.fetchBlob(envelopeId);
     } catch (e) {
       console.warn('fetchBlob (sealed) failed:', e);
+      if (e?.code === 'network') return { __retry: true, envelope_id: envelopeId };
       return null;
     }
     let opened;
@@ -676,6 +678,9 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     blobBytes = await api.fetchBlob(envelopeId);
   } catch (e) {
     console.warn('fetchBlob failed for', envelopeId, e);
+    // Мережевий збій ≠ «оброблено». Маркер каже App.jsx НЕ ack-ати конверт:
+    // інакше повідомлення зникає назавжди при одній осічці зв'язку.
+    if (e?.code === 'network') return { __retry: true, envelope_id: envelopeId };
     return null;
   }
   const blobB64 = crypto.bytesToBase64(blobBytes);

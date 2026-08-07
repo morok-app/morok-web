@@ -565,6 +565,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     blobBytes = await api.fetchBlob(envelopeId);
   } catch (e) {
     console.warn('fetchBlob failed for group envelope', envelopeId, e);
+    // Той самий контракт, що й у messages.processIncoming.
+    if (e?.code === 'network') return { __retry: true, envelope_id: envelopeId };
     return null;
   }
   const blobB64 = crypto.bytesToBase64(blobBytes);

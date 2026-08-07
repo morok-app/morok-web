@@ -336,13 +336,42 @@ export async function listInbox(limit = 50) {
   return http('GET', `/api/v1/messages?limit=${limit}`, { auth: true });
 }
 
+/**
+ * Завантажити тіло конверта.
+ *
+ * Помилки РОЗРІЗНЯЮТЬСЯ, бо від цього залежить, чи можна ack-ати конверт:
+ *   err.code === 'network' → зв'язку немає / таймаут / 5xx → конверт треба
+ *      лишити в черзі й спробувати пізніше;
+ *   err.status 404/410     → блоба вже немає на сервері → повторювати
+ *      безглуздо, конверт можна прибирати.
+ * Раніше обидва випадки виглядали однаково, і будь-яка мережева осічка
+ * призводила до втрати повідомлення (ack при збої).
+ *
+ * Таймаут окремий і довший за REST: блоб буває кількамегабайтним.
+ */
 export async function fetchBlob(envelopeId) {
-  const resp = await fetch(`${_relayUrl}/api/v1/messages/${envelopeId}`, {
-    headers: { 'Authorization': `Bearer ${_sessionToken}` },
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);
+  let resp;
+  try {
+    resp = await fetch(`${_relayUrl}/api/v1/messages/${envelopeId}`, {
+      headers: { 'Authorization': `Bearer ${_sessionToken}` },
+      signal: ctrl.signal,
+    });
+  } catch (e) {
+    const err = new Error(
+      e?.name === 'AbortError' ? 'Перевищено час очікування' : 'Немає з’єднання з сервером',
+    );
+    err.code = 'network';
+    err.cause = e;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!resp.ok) {
     const err = new Error(`HTTP ${resp.status}`);
     err.status = resp.status;
+    if (resp.status >= 500) err.code = 'network';
     throw err;
   }
   const buf = await resp.arrayBuffer();

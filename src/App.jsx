@@ -255,6 +255,14 @@ export default function App() {
         for (const env of envelopes) {
           try {
             const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
+            // Збій завантаження (мережа/таймаут/5xx) — нічого не записано,
+            // тож ack-ати НЕ МОЖНА: конверт має лишитись у черзі й приїхати
+            // наступним catchup. Раніше ack ішов беззастережно, і одна
+            // осічка зв'язку означала втрату повідомлення назавжди.
+            if (newMsg?.__retry) {
+              console.warn('envelope deferred (network):', env.envelope_id);
+              continue;
+            }
             if (newMsg?.__mail) {
               // Синхрон між пристроями: пошту НЕ ack-аємо — конверт лишається
               // в черзі, щоб його підхопили й інші пристрої акаунта. Дублі
@@ -284,6 +292,11 @@ export default function App() {
       onNew: async (env) => {
         try {
           const newMsg = await msgs.processIncoming({ envMeta: env, seed, myPubkeyHex });
+
+          if (newMsg?.__retry) {
+            console.warn('envelope deferred (network):', env.envelope_id);
+            return;
+          }
 
           if (newMsg?.__mail) {
             // Синхрон: пошту не ack-аємо (див. catchup). Звук — лише на справді нові.
