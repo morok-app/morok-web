@@ -431,6 +431,25 @@ export default function App() {
         broadcastInboxState(s);
         setConnState(s);
       },
+      onAuthFail: () => {
+        // Токен мертвий/протух (код 4001 або евристика «дві спроби без
+        // жодного відкриття» в inbox.js) — оновлюємо сесію перед наступним
+        // реконектом. Без цього обробника протухла сесія давала вічний
+        // реконект із мертвим токеном до перезавантаження вкладки.
+        // InboxClient після auth-фейлу чекає ≥2с, тож логін встигає.
+        // Дзеркало rn realtime.js onAuthFail.
+        api.setSessionToken(null);
+        api.login({ seed, pubkeyHex: myPubkeyHex })
+          .then((session) => {
+            store.saveSession({
+              token: session.session_token,
+              pubkeyHex: session.pubkey_hex || myPubkeyHex,
+              expiresAt: session.expires_at,
+              relayUrl: api.getRelayUrl(),
+            });
+          })
+          .catch((e) => console.warn('session refresh after auth fail failed:', e?.message || e));
+      },
     });
     client.start();
     inboxRef.current = client;

@@ -539,7 +539,12 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       });
     } catch (e) {
       console.warn('mail decrypt failed:', e?.message || e);
-      return null;
+      // НЕ null: null → ack, а пошта не ack-ається навіть при успіху
+      // (мультидевайс). Ack тут стер би лист із черги і для інших
+      // пристроїв, де він, можливо, розшифрувався б. __retry лишає
+      // конверт у черзі до TTL (7 діб): транзієнтний збій вилікується
+      // наступним catchup'ом, стійкий — помре природно за TTL.
+      return { __retry: true, envelope_id: envelopeId };
     }
     // ── ДОВІРА ДО ВІДПРАВНИКА ──
     // Внутрішній лист: блоб будував клієнт-відправник, тож полю from/spf у
@@ -591,9 +596,14 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
         to: myPubkeyHex,
       });
     } catch (e) {
-      // Підроблений підпис / чужий конверт / биті байти — тихо кидаємо.
       console.warn('sealed decrypt/verify failed:', e?.message || e);
-      return null;
+      // Stub неможливий: відправник стає відомий лише ПІСЛЯ розшифровки.
+      // Але й null → ack губить повідомлення назавжди при першому ж збої.
+      // __retry: конверт лишається в черзі до TTL (≤ доби) і повторюється
+      // наступним catchup'ом. Отруйні конверти обмежені протоколом — без
+      // мого delivery-токена sealed у чергу не потрапляє, тож сміття може
+      // слати лише той, кому я сам видав токен, і воно згорає за добу.
+      return { __retry: true, envelope_id: envelopeId };
     }
     const sealedPeer = opened.senderPubkeyHex;
 
