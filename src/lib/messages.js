@@ -496,6 +496,47 @@ export async function sendDMReaction({
  *
  * Returns the message object stored (or null).
  */
+/**
+ * Кого вважати співрозмовником для вхідного конверта.
+ *
+ * ЧОМУ ЦЕ ОКРЕМА ФУНКЦІЯ. Для 99% конвертів відповідь тривіальна —
+ * `from` з метаданих. Але для спрацьованого цифрового заповіту вона
+ * НЕПРАВИЛЬНА, і саме через це заповіт ніколи не працював.
+ *
+ * ЩО БУЛО ЗЛАМАНО. Заповіт шифрується статичним ECDH між АВТОРОМ і
+ * одержувачем (dms.js → encryptForPeer). Коли релей його доставляє,
+ * він ставить `from = pubkey РЕЛЕЮ` — інакше не може, ключа автора в
+ * нього немає (і не має бути). Клієнт брав `peer = envMeta.from` і
+ * рахував ECDH(мій_приват, релей_pub) — не той ключ, розшифровка
+ * падала, людина бачила «⚠ Не вдалось розшифрувати» в розмові з
+ * невідомим ключем. Замість останніх слів — сміття.
+ *
+ * Доведено на цій же крипті: той самий blob розшифровується ключем
+ * автора і кидає `invalid tag` ключем релею.
+ *
+ * ЧОМУ ДОВІРЯТИ `dms_creator_pubkey` З МЕТАДАНИХ БЕЗПЕЧНО. Це
+ * НЕпідписане поле від релею, тобто підказка, а не доказ. Але воно
+ * самоперевірне: якщо релей збреше про автора, ECDH дасть інший
+ * спільний ключ і AEAD впаде на автентифікації. Тобто підробити
+ * ЗМІСТ заповіту релей не може — лише не доставити його. Успішна
+ * розшифровка і є підтвердженням авторства.
+ *
+ * Повертає { peer, isDmsTrigger }.
+ */
+export function resolveIncomingPeer(envMeta) {
+  const creator = envMeta?.dms_creator_pubkey;
+  const isDmsTrigger = envMeta?.kind === 'dms_trigger'
+    && typeof creator === 'string'
+    && /^[0-9a-f]{64}$/i.test(creator);
+
+  const peer = isDmsTrigger
+    ? creator.toLowerCase()
+    : (envMeta?.sender_pubkey_hex || envMeta?.from_pubkey || envMeta?.from || null);
+
+  return { peer, isDmsTrigger };
+}
+
+
 export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   const envelopeId = envMeta.envelope_id;
 
@@ -663,8 +704,10 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   }
 
   // ── DM envelope ─────────────────────────────────────────
-  const peer = envMeta.sender_pubkey_hex || envMeta.from_pubkey || envMeta.from;
-  const senderUsername = envMeta.from_username || null;
+  const { peer, isDmsTrigger } = resolveIncomingPeer(envMeta);
+  // Для заповіту `from_username` — це нік РЕЛЕЮ (а точніше його немає),
+  // а не автора. Беремо null, щоб нижче не чіпати збережений нік автора.
+  const senderUsername = isDmsTrigger ? null : (envMeta.from_username || null);
   if (!peer) {
     console.warn('Envelope without sender field:', envMeta);
     return null;
@@ -732,12 +775,19 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   // Sealed/anon конверти сюди не доходять. Гілку "decrypt failed" не чіпаємо.
   if (senderUsername) {
     convs.ensureConversation({ peerPubkey: peer, peerUsername: senderUsername });
-  } else {
+  } else if (!isDmsTrigger) {
     convs.ensureConversation({ peerPubkey: peer, peerUsername: null, explicitNull: true });
   }
+  // isDmsTrigger → НЕ чіпаємо нік узагалі. Конверт приходить від релею,
+  // тож `from_username` порожній завжди; explicitNull тут стер би
+  // збережений нік автора в наявній розмові — тобто заповіт мовчки
+  // перейменував би контакт на голий pubkey.
 
   // Control message?
-  const control = tryParseControl(plaintext);
+  // Заповіт НІКОЛИ не інтерпретуємо як службовий кадр. Текст пише
+  // людина; якщо вона напише щось схоже на JSON з полем kind, воно не
+  // має виконуватись як group_key чи sealed_token.
+  const control = isDmsTrigger ? null : tryParseControl(plaintext);
   if (control) {
     if (control.kind === 'group_key') {
       try {
@@ -839,6 +889,14 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     expires_at: envMeta.expires_at,
     status: 'received',
   };
+  if (isDmsTrigger) {
+    // Мітка для UI. Без неї людина побачила б звичайне повідомлення
+    // «щойно від друга» — а насправді автор написав його заздалегідь і
+    // мовчить від самого `ts`. Видавати заздалегідь залишені останні
+    // слова за свіже повідомлення — оманливо.
+    msg.dms_trigger = true;
+    msg.dms_id = typeof envMeta.dms_id === 'string' ? envMeta.dms_id : null;
+  }
   convs.appendMessage(peer, msg);
   return msg;
 }

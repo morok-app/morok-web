@@ -813,6 +813,22 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                   title="Дії"
                 >⋯</button>
               )}
+              {m.dms_trigger && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    lineHeight: 1.35,
+                    color: '#C8A24A',
+                    background: 'rgba(200, 162, 74, 0.10)',
+                    border: '1px solid rgba(200, 162, 74, 0.30)',
+                    borderRadius: 8,
+                    padding: '5px 9px',
+                    letterSpacing: '-0.005em',
+                  }}
+                >
+                  🕯 Спрацював цифровий заповіт — автор залишив це заздалегідь
+                </div>
+              )}
               <div
                 style={{
                   padding: m.image ? 4 : (m.voice ? '6px 8px' : '10px 14px'),
