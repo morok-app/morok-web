@@ -156,38 +156,50 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
           </div>
         </div>
 
-        {/* Dots */}
-        <div style={{ display: 'flex', gap: 14 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} style={{
-              width: 14, height: 14, borderRadius: '50%',
-              background: i < pin.length ? '#F5F5F7' : 'transparent',
-              border: '1.5px solid ' + (i < pin.length ? '#F5F5F7' : '#70727E'),
-              transition: 'all 0.12s',
-            }} />
-          ))}
+        {/* Крапки = тап-зона; прозорий інпут поверх (див. комент у PinSetup) */}
+        <div
+          onClick={() => inputRef.current?.focus()}
+          style={{ position: 'relative', padding: '14px 18px', cursor: 'pointer' }}
+        >
+          <div style={{ display: 'flex', gap: 14 }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} style={{
+                width: 14, height: 14, borderRadius: '50%',
+                background: i < pin.length ? '#F5F5F7' : 'transparent',
+                border: '1.5px solid ' + (i < pin.length ? '#F5F5F7' : '#70727E'),
+                transition: 'all 0.12s',
+              }} />
+            ))}
+          </div>
+          <input
+            ref={inputRef}
+            type="tel"
+            inputMode="numeric"
+            autoFocus
+            value={pin}
+            disabled={locked}
+            onBlur={() => setTimeout(() => inputRef.current?.focus(), 50)}
+            onChange={(e) => tryUnlock(e.target.value)}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              opacity: 0.01,
+              fontSize: 16,
+              background: 'transparent', color: 'transparent',
+              caretColor: 'transparent', border: 'none', outline: 'none',
+            }}
+          />
         </div>
-
-        <input
-          ref={inputRef}
-          type="tel"
-          inputMode="numeric"
-          autoFocus
-          value={pin}
-          disabled={locked}
-          onBlur={() => setTimeout(() => inputRef.current?.focus(), 50)}
-          onChange={(e) => tryUnlock(e.target.value)}
-          style={{
-            position: 'absolute', opacity: 0, pointerEvents: 'none',
-            width: 1, height: 1,
-          }}
-        />
 
         <div
           onClick={() => inputRef.current?.focus()}
-          style={{
-            fontSize: 12.5, color: '#A4A6B2',
-            cursor: 'pointer', padding: 10,
+          style={isDesktop ? {
+            fontSize: 12.5, color: '#A4A6B2', cursor: 'pointer', padding: 10,
+          } : {
+            fontSize: 15.5, fontWeight: 700, color: '#F5F5F7',
+            textAlign: 'center', cursor: 'pointer',
+            padding: '14px 22px', borderRadius: 12,
+            background: '#16161B', border: '1px solid #34343E',
           }}
         >
           {isDesktop

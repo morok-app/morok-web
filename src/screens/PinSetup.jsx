@@ -170,42 +170,53 @@ export default function PinSetup({
         padding: '40px 20px',
         gap: 32,
       }}>
-        {/* 6 dot indicators */}
-        <div style={{ display: 'flex', gap: 14, justifyContent: 'center' }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} style={{
-              width: 14, height: 14, borderRadius: '50%',
-              background: i < currentValue.length ? '#F5F5F7' : 'transparent',
-              border: '1.5px solid ' + (i < currentValue.length ? '#F5F5F7' : '#70727E'),
-              transition: 'all 0.12s',
-            }} />
-          ))}
+        {/* Крапки = велика тап-зона. Прозорий інпут лежить ПОВЕРХ них,
+            тож тап по крапках — це нативний тап по інпуту: мобільний
+            браузер гарантовано відкриває клавіатуру (програмний focus()
+            після переходу екранів він часто ігнорує). */}
+        <div
+          onClick={() => inputRef.current?.focus()}
+          style={{ position: 'relative', padding: '14px 18px', cursor: 'pointer' }}
+        >
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center' }}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} style={{
+                width: 14, height: 14, borderRadius: '50%',
+                background: i < currentValue.length ? '#F5F5F7' : 'transparent',
+                border: '1.5px solid ' + (i < currentValue.length ? '#F5F5F7' : '#70727E'),
+                transition: 'all 0.12s',
+              }} />
+            ))}
+          </div>
+          <input
+            ref={inputRef}
+            type="tel"
+            inputMode="numeric"
+            autoFocus
+            value={currentValue}
+            onBlur={() => setTimeout(() => inputRef.current?.focus(), 50)}
+            onChange={(e) => handleInput(e.target.value, step === 'enter' ? 'pin' : 'confirm')}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              opacity: 0.01,
+              fontSize: 16,               /* iOS: <16px = зум сторінки при фокусі */
+              background: 'transparent', color: 'transparent',
+              caretColor: 'transparent', border: 'none', outline: 'none',
+            }}
+          />
         </div>
-
-        {/* Hidden input that captures digits */}
-        <input
-          ref={inputRef}
-          type="tel"
-          inputMode="numeric"
-          autoFocus
-          value={currentValue}
-          onBlur={() => setTimeout(() => inputRef.current?.focus(), 50)}
-          onChange={(e) => handleInput(e.target.value, step === 'enter' ? 'pin' : 'confirm')}
-          style={{
-            position: 'absolute',
-            opacity: 0,
-            pointerEvents: 'none',
-            width: 1, height: 1,
-          }}
-        />
 
         <div
           onClick={() => inputRef.current?.focus()}
-          style={{
-            fontSize: 12.5, color: '#A4A6B2',
-            textAlign: 'center',
-            cursor: 'pointer',
-            padding: 10,
+          style={isDesktop ? {
+            fontSize: 12.5, color: '#A4A6B2', textAlign: 'center',
+            cursor: 'pointer', padding: 10,
+          } : {
+            fontSize: 15.5, fontWeight: 700, color: '#F5F5F7',
+            textAlign: 'center', cursor: 'pointer',
+            padding: '14px 22px', borderRadius: 12,
+            background: '#16161B', border: '1px solid #34343E',
           }}
         >
           {isDesktop
