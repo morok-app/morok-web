@@ -19,7 +19,10 @@ export function getLang() {
     if (saved === 'uk' || saved === 'en') return saved;
   } catch {}
   try {
-    if ((navigator.language || '').toLowerCase().startsWith('uk')) return 'uk';
+    // укр за замовчуванням для uk/ru/be-локалей (українці часто сидять
+    // на ru-системах); для решти світу — англійська
+    const nav = (navigator.language || '').toLowerCase();
+    if (/^(uk|ru|be)/.test(nav)) return 'uk';
   } catch {}
   return 'en';
 }

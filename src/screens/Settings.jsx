@@ -8,7 +8,7 @@ import * as devBackup from '../lib/backup.js';
 import * as push from '../lib/push.js';
 import { encryptWithSecret, decryptWithSecret } from '../lib/vault.js';
 import { utf8, utf8Decode, bytesToBase64, base64ToBytes } from '../lib/crypto.js';
-import { t, tp } from '../lib/i18n.js';
+import { t, tp, getLang, setLang } from '../lib/i18n.js';
 
 /**
  * Settings — Linear-style redesign.
