@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as api from '../lib/api.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * Sessions — login audit log screen.
@@ -25,7 +26,7 @@ export default function Sessions({ onNavigate }) {
       const resp = await api.getLoginHistory();
       setItems(resp?.sessions || []);
     } catch (e) {
-      setError(e.message || 'Не вдалось отримати історію');
+      setError(e.message || 'Couldn\'t fetch history');
       setItems([]);
     }
   }
@@ -50,7 +51,7 @@ export default function Sessions({ onNavigate }) {
       setItems([]);
       setConfirmClear(false);
     } catch (e) {
-      setError(e.message || 'Не вдалось стерти');
+      setError(e.message || 'Couldn\'t erase');
     } finally {
       setBusy(false);
     }
@@ -68,10 +69,10 @@ export default function Sessions({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Історія входів
+            {t('Login history')}
           </div>
           <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
-            Останні 30 успішних авторизацій
+            {t('Last 30 successful sign-ins')}
           </div>
         </div>
         <button
@@ -101,10 +102,7 @@ export default function Sessions({ onNavigate }) {
           lineHeight: 1.55,
           marginBottom: 20,
         }}>
-          IP-адресу ми не зберігаємо. Замість неї рядок-фінгерпринт, який
-          змінюється щодоби, тож пов'язати з конкретною адресою через
-          день неможливо. Якщо помітили незнайомий запис — змініть PIN
-          або повністю видаліть акаунт.
+          {t('We don\'t store your IP address. Instead there\'s a fingerprint string that changes daily, so it can\'t be linked to a specific address a day later. If you spot an unfamiliar entry — change your PIN or delete the account entirely.')}
         </div>
 
         {error && (
@@ -122,7 +120,7 @@ export default function Sessions({ onNavigate }) {
 
         {items === null && (
           <div style={{ color: '#9EA0AC', fontSize: 13, padding: 20, textAlign: 'center' }}>
-            Завантаження…
+            {t('Loading…')}
           </div>
         )}
 
@@ -131,7 +129,7 @@ export default function Sessions({ onNavigate }) {
             padding: 24, textAlign: 'center',
             color: '#A4A6B2', fontSize: 13,
           }}>
-            Історія порожня
+            {t('History is empty')}
           </div>
         )}
 
@@ -161,9 +159,9 @@ export default function Sessions({ onNavigate }) {
               transition: 'background 0.15s',
             }}
           >
-            {busy ? 'Стираю…'
-              : confirmClear ? '🔥 Натисніть ще раз — стерти'
-              : 'Стерти всю історію'}
+            {busy ? t('Erasing…')
+              : confirmClear ? t('🔥 Tap again to erase')
+              : t('Erase all history')}
           </button>
         )}
       </div>
@@ -204,7 +202,7 @@ function SessionRow({ item, isFirst }) {
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.05em',
           }}>
-            ОСТАННІЙ
+            {t('LATEST')}
           </span>
         )}
       </div>
@@ -213,7 +211,7 @@ function SessionRow({ item, isFirst }) {
         fontSize: 12, color: '#A4A6B2',
         fontFamily: 'var(--mono, monospace)',
       }}>
-        <span title="Фінгерпринт IP (за сьогодні)">fp:{fp}</span>
+        <span title={t("IP fingerprint (today)")}>fp:{fp}</span>
       </div>
       <div style={{
         fontSize: 12, color: '#9EA0AC',

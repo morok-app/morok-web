@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import { decryptWithSecret } from '../lib/vault.js';
+import { t, tp } from '../lib/i18n.js';
 
 /**
  * PinUnlock — Linear-style unlock screen.
@@ -58,9 +59,9 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
         const status = vault.recordWrongPin();
         if (status.locked) {
           setLockoutSeconds(status.remaining_s);
-          setError(`Забагато спроб. Зачекайте ${status.remaining_s}с.`);
+          setError(tp("Too many attempts. Wait {0}s.", [status.remaining_s]));
         } else {
-          setError('Неправильний PIN');
+          setError(t('Wrong PIN'));
         }
         setPin('');
       }
@@ -148,10 +149,10 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
             fontSize: 22, fontWeight: 700, color: '#F5F5F7',
             letterSpacing: '-0.02em', marginBottom: 8,
           }}>
-            Введіть PIN
+            {t('Enter PIN')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2' }}>
-            6 цифр щоб розблокувати акаунт
+            {t('6 digits to unlock your account')}
           </div>
         </div>
 
@@ -190,8 +191,8 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
           }}
         >
           {isDesktop
-            ? '⌨ Введіть 6 цифр із клавіатури'
-            : "Натисніть тут якщо клавіатура не з'явилась"}
+            ? t('⌨ Type 6 digits on the keyboard')
+            : t("Tap here if the keyboard didn't appear")}
         </div>
 
         {error && (
@@ -219,7 +220,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
               padding: 10,
             }}
           >
-            🆘 Аварійний вихід (стерти все)
+            {t('🆘 Emergency exit (erase everything)')}
           </button>
         )}
         {wipeStep === 1 && (
@@ -235,7 +236,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
               fontWeight: 600,
             }}
           >
-            ⚠ Підтвердження 1/3 — натисніть ще двічі
+            {t('⚠ Confirmation 1/3 — tap twice more')}
           </button>
         )}
         {wipeStep === 2 && (
@@ -252,7 +253,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
               animation: 'morokWipePulse 0.8s ease-in-out infinite',
             }}
           >
-            🔥 ОСТАННЄ ПОПЕРЕДЖЕННЯ — клік сотре ВСЕ
+            {t('🔥 FINAL WARNING — one click erases EVERYTHING')}
           </button>
         )}
         {wipeStep > 0 && (
@@ -261,7 +262,7 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
             marginTop: 8,
             fontFamily: 'var(--mono, monospace)',
           }}>
-            відміна через 5с бездіяльності
+            {t('cancels after 5s of inactivity')}
           </div>
         )}
       </div>

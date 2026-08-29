@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 /**
  * Morok client crypto.
  *
@@ -98,7 +99,7 @@ export function mnemonicFromSeed(seed) {
 export function identityFromMnemonic(mnemonic) {
   const cleaned = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
   if (!validateMnemonic(cleaned, wordlist)) {
-    throw new Error('Невалідна 24-словна фраза');
+    throw new Error(t('Invalid 24-word phrase'));
   }
   const seed = mnemonicToEntropy(cleaned, wordlist);
   const pubkey = ed25519.getPublicKey(seed);

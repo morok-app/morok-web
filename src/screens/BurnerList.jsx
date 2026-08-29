@@ -1,6 +1,7 @@
 import { shareOrigin } from '../lib/share_origin.js';
 import { useEffect, useState } from 'react';
 import * as burner from '../lib/burner.js';
+import { t, tp } from '../lib/i18n.js';
 
 function buildShareUrl(token) {
   return `${shareOrigin()}/web/#burner-send?t=${encodeURIComponent(token)}`;
@@ -19,7 +20,7 @@ export default function BurnerList({ onNavigate }) {
       setError(null);
     } catch (e) {
       console.error(e);
-      setError(e.message || 'Помилка завантаження');
+      setError(e.message || t('Loading failed'));
       setItems([]);
     }
   }
@@ -36,7 +37,7 @@ export default function BurnerList({ onNavigate }) {
   }
 
   async function revoke(token) {
-    if (!confirm('Анулювати цей лінк? Він перестане працювати негайно.')) return;
+    if (!confirm(t('Revoke this link? It will stop working immediately.'))) return;
     try {
       await burner.revokeToken(token);
       await refresh();
@@ -60,14 +61,14 @@ export default function BurnerList({ onNavigate }) {
             fontSize: 27, fontWeight: 800, letterSpacing: '-0.03em',
             color: '#F5F5F7', lineHeight: 1,
           }}>
-            Анонімна скринька
+            {t('Anonymous inbox')}
           </div>
           <div style={{
             fontSize: 13, color: '#A4A6B2',
             marginTop: 8,
             letterSpacing: '-0.01em',
           }}>
-            {items === null ? '…' : `активних: ${activeCount}`}
+            {items === null ? '…' : tp("active: {0}", [activeCount])}
           </div>
         </div>
         <button
@@ -103,10 +104,7 @@ export default function BurnerList({ onNavigate }) {
             flexShrink: 0, fontSize: 14,
           }}>🔥</div>
           <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55, flex: 1 }}>
-            Створіть лінк — будь-хто зможе написати вам анонімне повідомлення без реєстрації.
-            Повідомлення шифрується на пристрої відправника, сервер бачить лише
-            шифротекст. Але звірити ключі, як у звичайному чаті, тут неможливо —
-            відправник не має способу перевірити, що ключ справді ваш.
+            {t('Create a link — anyone can send you an anonymous message without signing up. The message is encrypted on the sender\'s device; the server sees only ciphertext. But keys can\'t be verified here the way they are in a regular chat — the sender has no way to check the key is really yours.')}
           </div>
         </div>
 
@@ -147,9 +145,9 @@ export default function BurnerList({ onNavigate }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 24, opacity: 0.5,
             }}>🔥</div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Поки немає лінків</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>{t('No links yet')}</div>
             <div style={{ fontSize: 12.5, color: '#A4A6B2', maxWidth: 260, lineHeight: 1.5 }}>
-              Натисніть «+» нижче щоб створити перший
+              {t('Tap “+” below to create your first one')}
             </div>
           </div>
         ) : (
@@ -173,7 +171,7 @@ export default function BurnerList({ onNavigate }) {
                     color: '#F5F5F7',
                     letterSpacing: '-0.01em', flex: 1,
                   }}>
-                    {t.label || 'Без назви'}
+                    {t.label || t('Untitled')}
                   </div>
                   <div style={{
                     fontSize: 12.5, fontWeight: 600,
@@ -207,7 +205,7 @@ export default function BurnerList({ onNavigate }) {
                   fontSize: 12, color: '#9EA0AC',
                   fontFamily: 'var(--mono, monospace)',
                 }}>
-                  <span>повідомлень: <span style={{ color: '#F5F5F7' }}>{t.message_count}</span></span>
+                  <span>{t('messages:')} <span style={{ color: '#F5F5F7' }}>{t.message_count}</span></span>
                 </div>
 
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -224,7 +222,7 @@ export default function BurnerList({ onNavigate }) {
                       transition: 'all 0.15s',
                     }}
                   >
-                    {copiedToken === t.token ? '✓ Скопійовано' : 'Копіювати лінк'}
+                    {copiedToken === t.token ? t('✓ Copied') : t('Copy link')}
                   </button>
                   <button
                     onClick={() => revoke(t.token)}
@@ -238,7 +236,7 @@ export default function BurnerList({ onNavigate }) {
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    Анулювати
+                    {t('Revoke')}
                   </button>
                 </div>
               </div>
@@ -290,8 +288,8 @@ function CreateBurnerModal({ onClose, onCreated }) {
     } catch (e) {
       console.error(e);
       const friendly = (e.message || '').includes('too_many_active_burner_links')
-        ? 'Досягнуто ліміту 10 активних лінків. Видаліть якийсь старий.'
-        : (e.message || 'Помилка');
+        ? t('Limit of 10 active links reached. Delete an old one.')
+        : (e.message || t('Error'));
       setError(friendly);
       setBusy(false);
     }
@@ -327,7 +325,7 @@ function CreateBurnerModal({ onClose, onCreated }) {
           fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em',
           color: '#F5F5F7', margin: '0 0 18px',
         }}>
-          Створити лінк
+          {t('Create link')}
         </h3>
 
         <div style={{
@@ -335,10 +333,10 @@ function CreateBurnerModal({ onClose, onCreated }) {
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
-        }}>НАЗВА (ОПЦІЙНО)</div>
+        }}>{t('NAME (OPTIONAL)')}</div>
         <input
           type="text"
-          placeholder="Наприклад: «Donate-page» або «Whisper»"
+          placeholder={t("For example: \\u201cDonate-page\\u201d or \\u201cWhisper\\u201d")}
           value={label}
           onChange={(e) => setLabel(e.target.value.slice(0, 64))}
           style={{
@@ -360,7 +358,7 @@ function CreateBurnerModal({ onClose, onCreated }) {
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
-        }}>СКІЛЬКИ ПРАЦЮЄ</div>
+        }}>{t('HOW LONG IT WORKS')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 18 }}>
           {burner.TTL_OPTIONS.map((opt) => {
             const active = ttl === opt.seconds;
@@ -417,7 +415,7 @@ function CreateBurnerModal({ onClose, onCreated }) {
             fontFamily: 'inherit',
           }}
         >
-          {busy ? 'Створюємо...' : 'Створити лінк'}
+          {busy ? t('Creating...') : t('Create link')}
         </button>
       </div>
     </div>

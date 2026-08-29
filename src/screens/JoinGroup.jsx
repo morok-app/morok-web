@@ -3,6 +3,7 @@ import * as groups from '../lib/groups.js';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import { hexToBytes } from '../lib/crypto.js';
+import { t } from '../lib/i18n.js';
 
 function getSeedBytes() {
   const v = vault.getUnlockedSeed();
@@ -26,7 +27,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
   if (!token) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
-        <Header onClose={() => onNavigate('chats')} title="Запрошення" />
+        <Header onClose={() => onNavigate('chats')} title={t("Invite")} />
         <div style={{
           flex: 1, display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'center',
@@ -44,10 +45,10 @@ export default function JoinGroup({ routeArg, onNavigate }) {
             </svg>
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#F5F5F7', letterSpacing: '-0.02em' }}>
-            Невалідний лінк
+            {t('Invalid link')}
           </div>
           <div style={{ fontSize: 13, color: '#ABADB8', maxWidth: 320, lineHeight: 1.55 }}>
-            Лінк запрошення некоректний або вже використаний.
+            {t('The invite link is invalid or already used.')}
           </div>
         </div>
       </div>
@@ -63,7 +64,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
         || store.loadIdentity()?.pubkey_hex;
 
       if (!seed || !myPubkeyHex) {
-        setError('Сеанс закінчився. Перезавантажте сторінку.');
+        setError(t('Session expired. Reload the page.'));
         setBusy(false);
         return;
       }
@@ -77,11 +78,11 @@ export default function JoinGroup({ routeArg, onNavigate }) {
       setTimeout(() => onNavigate(`group/${result.group_id}`), 800);
     } catch (e) {
       if (e.status === 404) {
-        setError('Лінк недійсний або вже використаний.');
+        setError(t('The link is invalid or already used.'));
       } else if (e.status === 429) {
-        setError('Забагато спроб. Спробуйте за хвилину.');
+        setError(t('Too many attempts. Try again in a minute.'));
       } else {
-        setError(e.message || 'Помилка');
+        setError(e.message || t('Error'));
       }
       setBusy(false);
     }
@@ -100,7 +101,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
         pointerEvents: 'none',
       }} />
 
-      <Header onClose={() => onNavigate('chats')} title="Запрошення" />
+      <Header onClose={() => onNavigate('chats')} title={t("Invite")} />
 
       <div style={{
         flex: 1, display: 'flex', flexDirection: 'column',
@@ -128,14 +129,13 @@ export default function JoinGroup({ routeArg, onNavigate }) {
             letterSpacing: '-0.025em',
             margin: '0 0 12px',
           }}>
-            Запрошення до групи
+            {t('Group invite')}
           </h2>
           <p style={{
             fontSize: 13.5, color: '#ABADB8',
             lineHeight: 1.55, margin: 0,
           }}>
-            Хтось поділився з вами лінком на приватну групу Morok.
-            Назва і повідомлення завантажаться автоматично за пару секунд.
+            {t('Someone shared a link to a private Morok group with you. The name and messages will load automatically in a couple of seconds.')}
           </p>
         </div>
 
@@ -162,7 +162,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
-            Ви в групі. Переходимо...
+            {t('You\'re in the group. Redirecting...')}
           </div>
         )}
       </div>
@@ -188,7 +188,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
             marginBottom: 8,
           }}
         >
-          {busy ? 'Приєднуємось...' : 'Приєднатися'}
+          {busy ? t('Joining...') : t('Join')}
         </button>
         {!joined && (
           <button
@@ -203,7 +203,7 @@ export default function JoinGroup({ routeArg, onNavigate }) {
               cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
-            Скасувати
+            {t('Cancel')}
           </button>
         )}
       </div>

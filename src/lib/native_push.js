@@ -6,11 +6,12 @@
  * з web push підписками (platform='fcm') і шле через Firebase HTTP v1.
  *
  * ПРИВАТНІСТЬ: FCM-payload читається Google, тому релей кладе туди
- * ТІЛЬКИ generic "Нове повідомлення" — без відправника, без group_id,
+ * ТІЛЬКИ generic "New message" — без відправника, без group_id,
  * без жодних метаданих. (Web push інакший: там payload шифрується
  * end-to-end до браузера, RFC 8291.)
  */
 import * as api from './api.js';
+import { t } from './i18n.js';
 
 const TOKEN_KEY = 'morok.push.fcm_token.v1';
 
@@ -41,8 +42,8 @@ async function ensureChannel(P) {
     // врятувати його не можна — тільки новий id.
     await P.createChannel({
       id: 'messages_v2',
-      name: 'Повідомлення',
-      description: 'Нові повідомлення Morok',
+      name: t('Message'),
+      description: t('New Morok messages'),
       importance: 4,          // HIGH: звук + heads-up банер
       visibility: 0,          // PRIVATE: без тексту на лок-скріні
       vibration: true,

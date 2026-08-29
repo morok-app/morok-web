@@ -3,6 +3,7 @@ import { identityFromMnemonic } from '../lib/crypto.js';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
+import { t, tp } from '../lib/i18n.js';
 
 /**
  * DeleteAccount — permanent account removal screen.
@@ -35,19 +36,19 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
 
   function verifyClicked() {
     if (wordCount !== 24) {
-      setError(`Потрібно рівно 24 слова, зараз ${wordCount}`);
+      setError(tp("Exactly 24 words required, currently {0}", [wordCount]));
       return;
     }
     setError(null);
     try {
       const id = identityFromMnemonic(text);
       if (id.pubkeyHex !== currentPubkeyHex) {
-        setError('Ці 24 слова не належать вашому акаунту');
+        setError('These 24 words don\'t belong to your account');
         return;
       }
       setVerified(true);
     } catch (e) {
-      setError(e.message || 'Не вдалось розпізнати фразу');
+      setError(e.message || 'Couldn\'t recognize the phrase');
     }
   }
 
@@ -59,7 +60,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
       await api.deleteAccount();
     } catch (e) {
       setBusy(false);
-      setError(`Сервер: ${e.message || 'не вдалось видалити'}`);
+      setError(tp("Server: {0}", [e.message || t('deletion failed')]));
       return;
     }
     // Wipe ALL local state regardless of where we go next.
@@ -83,13 +84,13 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Видалити акаунт
+            {t('Delete account')}
           </div>
           <div style={{
             fontSize: 12.5, color: '#FF6B7A', marginTop: 6,
             fontWeight: 600,
           }}>
-            Дія НЕЗВОРОТНА
+            {t('This action is IRREVERSIBLE')}
           </div>
         </div>
         <button
@@ -121,22 +122,20 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
           marginBottom: 24,
         }}>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: '#FF6B7A', marginBottom: 10 }}>
-            ⚠ Що буде видалено
+            {t('⚠ What will be deleted')}
           </div>
           <ul style={{
             fontSize: 12.5, color: '#C5C5CC', lineHeight: 1.7,
             paddingLeft: 18, margin: 0,
           }}>
-            <li>Ваш username (звільниться через 30 днів)</li>
-            <li>Push підписки на всіх пристроях</li>
-            <li>Зашифровані бекапи на сервері</li>
-            <li>Dead-man's switch (якщо налаштований)</li>
-            <li>Локальна історія чатів і груп</li>
+            <li>{t('Your username (released after 30 days)')}</li>
+            <li>{t('Push subscriptions on all devices')}</li>
+            <li>{t('Encrypted backups on the server')}</li>
+            <li>{t('Dead man\'s switch (if configured)')}</li>
+            <li>{t('Local chat and group history')}</li>
           </ul>
           <div style={{ fontSize: 12.5, color: '#ABADB8', marginTop: 12, lineHeight: 1.55 }}>
-            Чати в групах залишаться — інші бачитимуть вас як "@невідомий".
-            Якщо у вас є 24 слова — ви зможете зайти знову, але історія
-            не повернеться.
+            {t('Group chats will remain — others will see you as t("@unknown"). If you have the 24 words you can sign in again, but the history won\'t come back.')}
           </div>
         </div>
 
@@ -149,7 +148,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
               letterSpacing: '0.05em',
               display: 'flex', justifyContent: 'space-between',
             }}>
-              <span>ПІДТВЕРДЖЕННЯ — ВВЕДІТЬ 24 СЛОВА</span>
+              <span>{t('CONFIRMATION — ENTER THE 24 WORDS')}</span>
               <span style={{
                 color: wordCount === 24 ? '#4ADE80' : (wordCount > 24 ? '#FF6B7A' : '#5A5A65'),
               }}>
@@ -211,7 +210,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
                 fontFamily: 'inherit',
               }}
             >
-              Перевірити фразу
+              {t('Verify the phrase')}
             </button>
           </>
         )}
@@ -230,7 +229,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              Фраза підтверджена. Це ваш акаунт.
+              {t('Phrase confirmed. This is your account.')}
             </div>
 
             <div
@@ -260,7 +259,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
                 )}
               </div>
               <div style={{ flex: 1, fontSize: 13, color: '#F5F5F7' }}>
-                Я розумію, що ця дія незворотна
+                {t('I understand this action is irreversible')}
               </div>
             </div>
 
@@ -293,7 +292,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
                 transition: 'background 0.12s',
               }}
             >
-              {busy ? 'Видаляю...' : '🔥 Видалити акаунт назавжди'}
+              {busy ? t('Deleting...') : t('🔥 Delete account forever')}
             </button>
           </>
         )}

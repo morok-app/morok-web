@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as muted from '../lib/muted.js';
+import { t, tp } from '../lib/i18n.js';
 
 /**
  * MutedChats — list of currently muted DMs and groups.
@@ -63,10 +64,10 @@ export default function MutedChats({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Заглушені чати
+            {t('Muted chats')}
           </div>
           <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
-            Чати без push-сповіщень
+            {t('Chats without push notifications')}
           </div>
         </div>
         <button
@@ -89,7 +90,7 @@ export default function MutedChats({ onNavigate }) {
 
         {items === null && (
           <div style={{ color: '#9EA0AC', fontSize: 13, padding: 20, textAlign: 'center' }}>
-            Завантаження…
+            {t('Loading…')}
           </div>
         )}
 
@@ -98,7 +99,7 @@ export default function MutedChats({ onNavigate }) {
             padding: 24, textAlign: 'center',
             color: '#A4A6B2', fontSize: 13,
           }}>
-            Нема заглушених чатів
+            {t('No muted chats')}
           </div>
         )}
 
@@ -127,8 +128,8 @@ export default function MutedChats({ onNavigate }) {
             }}
           >
             {confirmClearAll
-              ? '🔔 Натисніть ще раз — розгасити все'
-              : 'Розгасити всі'}
+              ? t('🔔 Tap again to unmute all')
+              : t('Unmute all')}
           </button>
         )}
       </div>
@@ -143,7 +144,7 @@ function MutedRow({ item, onUnmute }) {
     label = `@${item.key.slice(3)}`;
   } else if (item.key.startsWith('group:')) {
     const id = item.key.slice(6);
-    label = `Група · ${id.slice(0, 8)}…`;
+    label = tp("Group · {0}…", [id.slice(0, 8)]);
   } else {
     label = item.key;
   }
@@ -184,7 +185,7 @@ function MutedRow({ item, onUnmute }) {
           flexShrink: 0,
         }}
       >
-        Розгасити
+        {t('Unmute')}
       </button>
     </div>
   );

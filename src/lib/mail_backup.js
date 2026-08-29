@@ -14,6 +14,7 @@
  */
 import * as crypto from './crypto.js';
 import * as mailStore from './mail_store.js';
+import { t } from './i18n.js';
 
 const MAGIC = 'morok-mail-backup';
 const VERSION = 1;
@@ -56,7 +57,7 @@ export async function exportToFile(seed) {
  */
 export async function importBackup(seed, backupObj) {
   if (!backupObj || backupObj.magic !== MAGIC) {
-    throw new Error('Це не файл бекапу Morok Пошти');
+    throw new Error('This isn\'t a Morok Mail backup file');
   }
   const key = crypto.mailBackupKey(seed);
   let messages;
@@ -64,9 +65,9 @@ export async function importBackup(seed, backupObj) {
     const json = crypto.decryptStringWithKey(key, backupObj.blob);
     messages = JSON.parse(json);
   } catch {
-    throw new Error('Не вдалося розшифрувати — бекап належить іншому акаунту');
+    throw new Error('Couldn\'t decrypt — this backup belongs to another account');
   }
-  if (!Array.isArray(messages)) throw new Error('Пошкоджений бекап');
+  if (!Array.isArray(messages)) throw new Error(t('Corrupted backup'));
 
   let imported = 0, skipped = 0;
   for (const m of messages) {
@@ -87,9 +88,9 @@ export function readBackupFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
       try { resolve(JSON.parse(reader.result)); }
-      catch { reject(new Error('Файл пошкоджено або це не бекап')); }
+      catch { reject(new Error('The file is corrupted or isn\'t a backup')); }
     };
-    reader.onerror = () => reject(new Error('Не вдалося прочитати файл'));
+    reader.onerror = () => reject(new Error('Couldn\'t read the file'));
     reader.readAsText(file);
   });
 }

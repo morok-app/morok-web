@@ -1,3 +1,4 @@
+import { t, tp } from './i18n.js';
 /**
  * Per-chat mute state.
  *
@@ -63,7 +64,8 @@ export async function getMute(chatKey) {
     req.onsuccess = () => {
       const e = req.result;
       if (!e) { resolve(null); return; }
-      if (e.until === 'forever') { resolve(e); return; }
+      // міграція: старі записи зберігали українське 'назавжди'
+      if (e.until === 'forever' || e.until === 'назавжди') { resolve(e); return; }
       if (typeof e.until === 'number' && e.until > Date.now()) {
         resolve(e);
       } else {
@@ -132,7 +134,7 @@ export async function listMuted() {
       const valid = [];
       const expired = [];
       for (const e of all) {
-        if (e.until === 'forever' || (typeof e.until === 'number' && e.until > now)) {
+        if (e.until === 'forever' || e.until === 'назавжди' || (typeof e.until === 'number' && e.until > now)) {
           valid.push(e);
         } else {
           expired.push(e.key);
@@ -159,24 +161,24 @@ export async function clearAllMuted() {
 
 // Common preset durations for UI dropdowns
 export const MUTE_DURATIONS = [
-  { label: '1 година',   ms: 60 * 60 * 1000 },
-  { label: '8 годин',    ms: 8 * 60 * 60 * 1000 },
-  { label: '1 день',     ms: 24 * 60 * 60 * 1000 },
-  { label: '1 тиждень',  ms: 7 * 24 * 60 * 60 * 1000 },
-  { label: 'Назавжди',   ms: 'forever' },
+  { label: t('1 hour'),   ms: 60 * 60 * 1000 },
+  { label: t('8 hours'),    ms: 8 * 60 * 60 * 1000 },
+  { label: t('1 day'),     ms: 24 * 60 * 60 * 1000 },
+  { label: t('1 week'),  ms: 7 * 24 * 60 * 60 * 1000 },
+  { label: t('Forever'),   ms: 'forever' },
 ];
 
 /**
  * Human-readable time-left string.
  */
 export function formatMuteUntil(until) {
-  if (until === 'forever') return 'назавжди';
+  if (until === 'forever') return t('forever');
   const ms = until - Date.now();
-  if (ms <= 0) return 'минув';
+  if (ms <= 0) return t('elapsed');
   const mins = Math.round(ms / 60000);
-  if (mins < 60) return `${mins} хв`;
+  if (mins < 60) return tp("{0} min", [mins]);
   const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours} год`;
+  if (hours < 48) return tp("{0} h", [hours]);
   const days = Math.round(hours / 24);
-  return `${days} дн`;
+  return tp("{0} d", [days]);
 }

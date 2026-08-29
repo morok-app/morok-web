@@ -23,6 +23,7 @@ import * as crypto from './crypto.js';
 import * as convs from './conversations.js';
 import { compressImage } from './images.js';
 import { blobToBase64 } from './voice.js';
+import { t, tp } from './i18n.js';
 
 // Kinds that are purely protocol signalling — never shown to the user
 // and never stored in conversation history. Everything else (raw text,
@@ -318,8 +319,8 @@ export async function sendDMVoice({
   const rawSize = Math.floor(data_b64.length * 0.75);
   if (rawSize > 140 * 1024) {
     throw new Error(
-      `Голосове завелике (${Math.round(rawSize / 1024)}KB). ` +
-      'Запишіть коротше.',
+      tp("Voice message too large ({0}KB). ", [Math.round(rawSize / 1024)]) +
+      t('Record a shorter one.'),
     );
   }
 
@@ -599,7 +600,7 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
         email.from = `${envMeta.mail_from}@morok.email`;
         email.from_verified = true;
       } else {
-        email.from = 'Анонімний відправник';
+        email.from = t('Anonymous sender');
         email.from_verified = false;
       }
     }
@@ -760,7 +761,7 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       ttl: envMeta.ttl_seconds || envMeta.ttl,
       expires_at: envMeta.expires_at,
       status: 'undecryptable',
-      error: 'Не вдалось розшифрувати',
+      error: 'Couldn\'t decrypt',
     };
     convs.appendMessage(peer, stub);
     return stub;

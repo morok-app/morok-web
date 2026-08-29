@@ -15,6 +15,7 @@ import ScreenTransition from './components/ScreenTransition.jsx';
 import Avatar from './components/Avatar.jsx';
 import { resolveDirection } from './lib/nav_direction.js';
 import { installTapHaptics } from './lib/tap_haptics.js';
+import { t, tp } from './lib/i18n.js';
 
 import Splash from './screens/Splash.jsx';
 import Welcome from './screens/Welcome.jsx';
@@ -350,7 +351,7 @@ export default function App() {
                 pubkey: newMsg.sender_pubkey,
               });
               notif.notify({
-                title: `${g?.name || 'Група'} · ${senderHandle}`,
+                title: tp("{0} · {1}", [g?.name || t('Group'), senderHandle]),
                 body: newMsg.text.length > 100 ? newMsg.text.slice(0, 100) + '…' : newMsg.text,
                 peerPubkey: env.group_id,
                 onClick: () => { window.location.hash = `#group/${env.group_id}`; },
@@ -493,7 +494,7 @@ export default function App() {
   }
 
   function onForgotPin() {
-    if (!confirm('Видалити цей акаунт з браузера? Потрібні будуть 24 слова для входу.')) return;
+    if (!confirm('Remove this account from the browser? You\'ll need the 24 words to sign in again.')) return;
     // Спершу гасимо inbox: акаунт зникає, тримати його сокет нема сенсу,
     // а власника скидаємо, щоб наступний вхід (іншим сідом) підняв
     // зʼєднання заново, а не вважав старе живим.
@@ -518,7 +519,7 @@ export default function App() {
           style={{ maxWidth: 240, marginTop: 8 }}
           onClick={() => { setBootError(null); window.location.reload(); }}
         >
-          Спробувати ще
+          {t('Try again')}
         </button>
       </div>
     );
@@ -787,8 +788,8 @@ function DesktopPlaceholder() {
   return (
     <div className="dt-placeholder">
       <div className="dt-placeholder-tile">M</div>
-      <div className="dt-placeholder-title">Оберіть чат</div>
-      <div className="dt-placeholder-sub">або створіть новий, щоб почати розмову</div>
+      <div className="dt-placeholder-title">{t('Pick a chat')}</div>
+      <div className="dt-placeholder-sub">{t('or create a new one to start a conversation')}</div>
     </div>
   );
 }
@@ -836,7 +837,7 @@ function QuickSwitcher({ navigate }) {
       pubkey: c.peer_pubkey,
     }));
   const grps = gstore.listGroups().map((g) => ({
-    kind: 'group', id: g.group_id, label: g.name || 'Група',
+    kind: 'group', id: g.group_id, label: g.name || t('Group'),
     username: g.name || null,
     pubkey: g.group_id,
   }));
@@ -879,7 +880,7 @@ function QuickSwitcher({ navigate }) {
             else if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
             else if (e.key === 'Enter' && hits[sel]) { e.preventDefault(); go(hits[sel]); }
           }}
-          placeholder="Куди перейти?  (↑↓ + Enter)"
+          placeholder="Jump to…  (↑↓ + Enter)"
           style={{
             width: '100%', padding: '15px 18px', boxSizing: 'border-box',
             background: 'transparent', border: 'none', outline: 'none',
@@ -914,10 +915,10 @@ function QuickSwitcher({ navigate }) {
 function ConnBanner({ state }) {
   if (state === 'open') return null;
   const cfg = {
-    connecting: { text: 'З\u2019єднання…', bg: '#1E1E27', color: '#8E8E99', pulse: true },
-    closed: { text: 'З\u2019єднання втрачено, відновлюємо…', bg: '#2A1F1A', color: '#FFA94D', pulse: true },
-    error: { text: 'Немає з\u2019єднання, повторюємо…', bg: '#2A1A1E', color: '#FF6B7A', pulse: true },
-  }[state] || { text: 'З\u2019єднання…', bg: '#1E1E27', color: '#8E8E99', pulse: true };
+    connecting: { text: t('Connecting…'), bg: '#1E1E27', color: '#8E8E99', pulse: true },
+    closed: { text: t('Connection lost, reconnecting…'), bg: '#2A1F1A', color: '#FFA94D', pulse: true },
+    error: { text: t('No connection, retrying…'), bg: '#2A1A1E', color: '#FF6B7A', pulse: true },
+  }[state] || { text: t('Connecting…'), bg: '#1E1E27', color: '#8E8E99', pulse: true };
   return (
     <div style={{
       position: 'fixed',

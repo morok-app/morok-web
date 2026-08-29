@@ -6,6 +6,7 @@ import * as vault from '../lib/vault.js';
 import QRCode from 'qrcode';
 import Avatar from '../components/Avatar.jsx';
 import { mnemonicFromSeed } from '../lib/crypto.js';
+import { t, tp } from '../lib/i18n.js';
 
 /**
  * Profile — Linear-style.
@@ -69,7 +70,7 @@ export default function Profile({ onNavigate }) {
   }
 
   async function releaseUsernameClicked() {
-    if (!confirm(`Звільнити @${username}? Інші зможуть його зайняти.`)) return;
+    if (!confirm(tp("Release @{0}? Others will be able to claim it.", [username]))) return;
     setBusy(true);
     try {
       await api.releaseUsername();
@@ -77,7 +78,7 @@ export default function Profile({ onNavigate }) {
       store.saveProfile({ ...p, username: null });
       setTimeout(() => window.location.reload(), 200);
     } catch (e) {
-      alert(e.message || 'Помилка');
+      alert(e.message || t('Error'));
       setBusy(false);
     }
   }
@@ -106,10 +107,10 @@ export default function Profile({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Профіль
+            {t('Profile')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
-            Як вас бачать інші
+            {t('How others see you')}
           </div>
         </div>
         <button
@@ -154,13 +155,13 @@ export default function Profile({ onNavigate }) {
               letterSpacing: '0.05em',
               fontWeight: 600,
             }}>
-              Анонімний акаунт
+              {t('Anonymous account')}
             </div>
           )}
         </div>
 
         {/* QR + Share */}
-        <SectionLabel>Поділитись</SectionLabel>
+        <SectionLabel>{t('Share')}</SectionLabel>
         <div style={{
           background: '#13131A',
           border: '1px solid #232329',
@@ -200,14 +201,14 @@ export default function Profile({ onNavigate }) {
               transition: 'all 0.15s',
             }}
           >
-            {copied ? '✓ Скопійовано' : 'Копіювати лінк'}
+            {copied ? t('✓ Copied') : t('Copy link')}
           </button>
         </div>
 
         {/* Mnemonic */}
         {mnemonic && (
           <>
-            <SectionLabel>Ключ відновлення</SectionLabel>
+            <SectionLabel>{t('Recovery key')}</SectionLabel>
             <div style={{
               background: '#13131A',
               border: '1px solid #232329',
@@ -218,8 +219,7 @@ export default function Profile({ onNavigate }) {
               {!showMnemonic ? (
                 <>
                   <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55, marginBottom: 12 }}>
-                    24 секретні слова. Збережіть у безпечному місці.
-                    Без них відновити акаунт неможливо.
+                    {t('24 secret words. Keep them somewhere safe. Without them the account can\'t be recovered.')}
                   </div>
                   <button
                     onClick={() => setShowMnemonic(true)}
@@ -233,7 +233,7 @@ export default function Profile({ onNavigate }) {
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    Показати 24 слова
+                    {t('Show the 24 words')}
                   </button>
                 </>
               ) : (
@@ -280,7 +280,7 @@ export default function Profile({ onNavigate }) {
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    Сховати
+                    {t('Hide')}
                   </button>
                 </>
               )}
@@ -289,7 +289,7 @@ export default function Profile({ onNavigate }) {
         )}
 
         {/* Username actions */}
-        <SectionLabel>Юзернейм</SectionLabel>
+        <SectionLabel>{t('Username')}</SectionLabel>
         <div style={{
           background: '#13131A',
           border: '1px solid #232329',
@@ -309,7 +309,7 @@ export default function Profile({ onNavigate }) {
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              Зайняти юзернейм
+              {t('Claim a username')}
             </button>
           ) : (
             <button
@@ -325,13 +325,13 @@ export default function Profile({ onNavigate }) {
                 cursor: busy ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
               }}
             >
-              {busy ? 'Звільняємо...' : `Звільнити @${username}`}
+              {busy ? t('Releasing...') : tp("Release @{0}", [username])}
             </button>
           )}
         </div>
 
         {/* Pubkey */}
-        <SectionLabel>Публічний ключ</SectionLabel>
+        <SectionLabel>{t('Public key')}</SectionLabel>
         <div style={{
           background: '#13131A',
           border: '1px solid #232329',

@@ -48,6 +48,7 @@ import * as gstore from './group_storage.js';
 import * as msgs from './messages.js';
 import { compressImage } from './images.js';
 import { blobToBase64 } from './voice.js';
+import { t, tp } from './i18n.js';
 
 // ────────────────────────────────────────────────────────────
 // Helpers
@@ -263,7 +264,7 @@ export async function sendGroupMessage({
 }) {
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
-    throw new Error('Немає ключа групи');
+    throw new Error(t('No group key'));
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
@@ -327,7 +328,7 @@ export async function sendGroupImage({
 }) {
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
-    throw new Error('Немає ключа групи');
+    throw new Error(t('No group key'));
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
@@ -404,7 +405,7 @@ export async function sendGroupVoice({
 }) {
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
-    throw new Error('Немає ключа групи');
+    throw new Error(t('No group key'));
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
@@ -412,7 +413,7 @@ export async function sendGroupVoice({
   const rawSize = Math.floor(data_b64.length * 0.75);
   if (rawSize > 140 * 1024) {
     throw new Error(
-      `Голосове завелике (${Math.round(rawSize / 1024)}KB). Запишіть коротше.`,
+      tp("Voice message too large ({0}KB). Record a shorter one.", [Math.round(rawSize / 1024)]),
     );
   }
 
@@ -494,7 +495,7 @@ export async function sendGroupReaction({
 
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
-    throw new Error('Немає ключа групи');
+    throw new Error(t('No group key'));
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
@@ -588,7 +589,7 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
       ttl: envMeta.ttl,
       expires_at: envMeta.expires_at,
       status: 'undecryptable',
-      error: 'Не вдалось розшифрувати',
+      error: 'Couldn\'t decrypt',
     };
     gstore.appendMessage(groupId, stub);
     return stub;
@@ -771,7 +772,7 @@ export async function addMemberAndSendKey({
 }) {
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
-    throw new Error('Немає ключа групи');
+    throw new Error(t('No group key'));
   }
   await api.addGroupMember(groupId, newPubkeyHex);
   await sendGroupKeyDM({

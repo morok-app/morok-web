@@ -81,9 +81,9 @@ export function readBackupFile(file) {
     const r = new FileReader();
     r.onload = () => {
       try { resolve(JSON.parse(r.result)); }
-      catch { reject(new Error('Файл пошкоджено або це не бекап')); }
+      catch { reject(new Error('The file is corrupted or isn\'t a backup')); }
     };
-    r.onerror = () => reject(new Error('Не вдалося прочитати файл'));
+    r.onerror = () => reject(new Error('Couldn\'t read the file'));
     r.readAsText(file);
   });
 }
@@ -142,13 +142,13 @@ function mergeMap(curRaw, bakRaw) {
 }
 
 export async function importBackup(seed, obj) {
-  if (!obj || obj.magic !== MAGIC) throw new Error('Це не файл бекапу Morok (.morok)');
+  if (!obj || obj.magic !== MAGIC) throw new Error('This isn\'t a Morok backup file (.morok)');
   const key = crypto.deviceBackupKey(seed);
   let data;
   try {
     data = JSON.parse(crypto.decryptStringWithKey(key, obj.blob));
   } catch {
-    throw new Error('Не вдалося розшифрувати — бекап належить іншому акаунту');
+    throw new Error('Couldn\'t decrypt — this backup belongs to another account');
   }
   const ls = data?.ls || {};
   let msgsAdded = 0, mapsAdded = 0, mailsAdded = 0;

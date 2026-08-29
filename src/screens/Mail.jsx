@@ -4,6 +4,7 @@ import * as backup from '../lib/mail_backup.js';
 import * as vault from '../lib/vault.js';
 import * as api from '../lib/api.js';
 import { TopBar } from '../components/ui.jsx';
+import { t, tp } from '../lib/i18n.js';
 
 const ACCENT = '#7B96FF';
 const BG = '#0A0A0B';
@@ -34,11 +35,11 @@ function parseFrom(from) {
 function counterpart(msg) {
   const e = msg.email || {};
   if (e.out) {
-    const to = e.to_addr || (e.to_alias ? `${e.to_alias}@morok.email` : 'отримувач');
+    const to = e.to_addr || (e.to_alias ? `${e.to_alias}@morok.email` : t('recipient'));
     return { title: to, initialSrc: to };
   }
   const { name, addr } = parseFrom(e.from);
-  return { title: name || addr || 'Невідомий', initialSrc: name || addr };
+  return { title: name || addr || t('Unknown'), initialSrc: name || addr };
 }
 
 function avatarColor(s) {
@@ -131,10 +132,10 @@ export default function Mail({ onNavigate }) {
   async function handleExport() {
     try {
       const seed = vault.getUnlockedSeed();
-      if (!seed) { setBackupMsg('Розблокуйте акаунт'); return; }
+      if (!seed) { setBackupMsg(t('Unlock your account')); return; }
       const n = await backup.exportToFile(seed);
-      setBackupMsg(`Експортовано: ${n}`);
-    } catch (e) { setBackupMsg('Помилка експорту'); }
+      setBackupMsg(tp("Exported: {0}", [n]));
+    } catch (e) { setBackupMsg(t('Export failed')); }
     setTimeout(() => setBackupMsg(null), 2500);
   }
   async function handleImportFile(ev) {
@@ -143,12 +144,12 @@ export default function Mail({ onNavigate }) {
     if (!file) return;
     try {
       const seed = vault.getUnlockedSeed();
-      if (!seed) { setBackupMsg('Розблокуйте акаунт'); return; }
+      if (!seed) { setBackupMsg(t('Unlock your account')); return; }
       const obj = await backup.readBackupFile(file);
       const r = await backup.importBackup(seed, obj);
-      setBackupMsg(`Імпортовано: ${r.imported}`);
+      setBackupMsg(tp("Imported: {0}", [r.imported]));
       reload();
-    } catch (e) { setBackupMsg('Помилка імпорту'); }
+    } catch (e) { setBackupMsg(t('Import failed')); }
     setTimeout(() => setBackupMsg(null), 3000);
   }
 
@@ -166,14 +167,14 @@ export default function Mail({ onNavigate }) {
   return (
     <div className="screen" style={{ background: BG, minHeight: '100%', position: 'relative' }}>
       <TopBar
-        title="Пошта"
-        subtitle={unread ? `${unread} нових` : null}
+        title={t("Mail")}
+        subtitle={unread ? tp("{0} new", [unread]) : null}
         onBack={() => onNavigate('tools')}
         backIcon="arrow"
         right={
           <button
             onClick={() => onNavigate('mail-aliases')}
-            aria-label="Адреси"
+            aria-label={t("Addresses")}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               background: 'rgba(123,150,255,0.12)', color: ACCENT,
@@ -184,14 +185,14 @@ export default function Mail({ onNavigate }) {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 7 10 6 10-6" />
             </svg>
-            Адреси
+            {t('Addresses')}
           </button>
         }
       />
 
       {/* вкладки */}
       <div style={{ display: 'flex', gap: 4, padding: '0 14px', marginBottom: 6 }}>
-        {[['in', 'Вхідні', inbox.length], ['out', 'Відправлені', sent.length]].map(([k, label, n]) => {
+        {[['in', t('Inbox'), inbox.length], ['out', t('Sent'), sent.length]].map(([k, label, n]) => {
           const active = tab === k;
           return (
             <button
@@ -211,17 +212,17 @@ export default function Mail({ onNavigate }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 14px 32px' }}>
-        {all === null && <div style={{ color: MUTED, textAlign: 'center', padding: 40 }}>Завантаження…</div>}
+        {all === null && <div style={{ color: MUTED, textAlign: 'center', padding: 40 }}>{t('Loading…')}</div>}
 
         {all !== null && list.length === 0 && (
           <div style={{ textAlign: 'center', padding: '64px 24px', color: MUTED }}>
             <div style={{ fontSize: 15, color: TEXT, marginBottom: 6 }}>
-              {tab === 'in' ? 'Вхідних листів немає' : 'Ви ще нічого не надсилали'}
+              {tab === 'in' ? t('No incoming mail') : 'You haven\'t sent anything yet'}
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.5 }}>
               {tab === 'in'
-                ? 'Створіть адресу в «Адреси» й дайте її комусь.'
-                : 'Натисніть ✎, щоб написати листа.'}
+                ? t('Create an address in \u201cAddresses\u201d and give it to someone.')
+                : t('Tap ✎ to write an email.')}
             </div>
           </div>
         )}
@@ -252,7 +253,7 @@ export default function Mail({ onNavigate }) {
                     fontSize: 14.5, fontWeight: unreadRow ? 700 : 600, color: TEXT,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
-                    {tab === 'out' && <span style={{ color: MUTED, fontWeight: 500 }}>Кому: </span>}
+                    {tab === 'out' && <span style={{ color: MUTED, fontWeight: 500 }}>{t('To:')} </span>}
                     {cp.title}
                   </span>
                   {tab === 'in' && m.email?.to_alias && aliasMap[m.email.to_alias]
@@ -279,7 +280,7 @@ export default function Mail({ onNavigate }) {
                         : '⏳'}
                     </span>
                   )}
-                  {m.email?.subject || '(без теми)'}
+                  {m.email?.subject || t('(no subject)')}
                 </div>
                 <div style={{
                   fontSize: 12.5, color: MUTED,
@@ -295,13 +296,13 @@ export default function Mail({ onNavigate }) {
         {/* бекап — тихий футер */}
         {all !== null && (
           <div style={{ marginTop: 20, paddingTop: 12, borderTop: `1px solid ${BORDER}`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={handleExport} style={footBtn}>Експорт</button>
+            <button onClick={handleExport} style={footBtn}>{t('Export')}</button>
             <label style={footBtn}>
-              Імпорт
+              {t('Import')}
               <input type="file" accept=".morokmail,application/json" onChange={handleImportFile} style={{ display: 'none' }} />
             </label>
             <span style={{ fontSize: 11.5, color: MUTED, flex: 1, minWidth: 140 }}>
-              {backupMsg || 'Пошта лише на цьому пристрої — робіть бекап.'}
+              {backupMsg || t('Mail lives only on this device — make backups.')}
             </span>
           </div>
         )}
@@ -309,7 +310,7 @@ export default function Mail({ onNavigate }) {
 
       <button
         onClick={() => onNavigate('mail-compose')}
-        aria-label="Написати лист"
+        aria-label={t("Write an email")}
         style={{
           position: 'absolute', right: 20, bottom: 20, width: 56, height: 56,
           borderRadius: 28, background: ACCENT, color: '#0A0A0B', border: 'none',
@@ -355,7 +356,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
       inReplyTo: e.message_id || null,
       references: e.references || null,
       subject: `Re: ${subj}`,
-      text: `\n\n----- ${out ? 'Ваш лист' : 'Оригінал'} -----\n${(e.text || '').split('\n').map(l => '> ' + l).join('\n')}`,
+      text: `\n\n----- ${out ? t('Your email') : t('Original')} -----\n${(e.text || '').split('\n').map(l => '> ' + l).join('\n')}`,
     });
   }
   function handleForward() {
@@ -363,19 +364,19 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
     openDraft({
       to: '',
       subject: `Fwd: ${subj}`,
-      text: `\n\n----- Переслано -----\nВід: ${out ? 'ви' : (parseFrom(e.from).name || parseFrom(e.from).addr)}\nТема: ${e.subject || '(без теми)'}\n\n${e.text || ''}`,
+      text: `\n\n----- Forwarded -----\nFrom: ${out ? t('you') : (parseFrom(e.from).name || parseFrom(e.from).addr)}\nSubject: ${e.subject || t('(no subject)')}\n\n${e.text || ''}`,
     });
   }
 
   const who = out
-    ? { label: 'Кому', name: e.to_addr || (e.to_alias ? `${e.to_alias}@morok.email` : '—'), addr: '' }
-    : { label: 'Від', name: name || addr || 'Невідомий', addr: name && addr && name !== addr ? addr : '' };
+    ? { label: t('To'), name: e.to_addr || (e.to_alias ? `${e.to_alias}@morok.email` : '—'), addr: '' }
+    : { label: t('From'), name: name || addr || t('Unknown'), addr: name && addr && name !== addr ? addr : '' };
 
   return (
     <div className="screen" style={{ background: BG, minHeight: '100%' }}>
       <TopBar
-        title={e.subject || '(без теми)'}
-        subtitle={out ? 'надіслано вами' : `на ${e.to_alias || '—'}@morok.email`}
+        title={e.subject || t('(no subject)')}
+        subtitle={out ? t('sent by you') : tp("to {0}@morok.email", [e.to_alias || '—'])}
         onBack={onBack}
         backIcon="arrow"
         right={
@@ -386,7 +387,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
               border: `1px solid ${BORDER}`, borderRadius: 10,
               padding: '8px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
-          >Видалити</button>
+          >{t('Delete')}</button>
         }
       />
 
@@ -402,7 +403,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
           }}>
             <span style={{ fontSize: 12.5, color: MUTED, minWidth: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              на <b style={{ color: '#A07BFF' }}>{e.to_alias}</b>
+              {t('to')} <b style={{ color: '#A07BFF' }}>{e.to_alias}</b>
               {aliasMap[e.to_alias].label ? ` · ${aliasMap[e.to_alias].label}` : ''}
             </span>
             <button
@@ -410,14 +411,14 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
                 const lbl = aliasMap[e.to_alias].label
                   ? ` («${aliasMap[e.to_alias].label}»)` : '';
                 if (!window.confirm(
-                  `Призупинити адресу ${e.to_alias}@morok.email${lbl}?\n\n` +
-                  'Нові листи на неї тихо зникатимуть — відправник не дізнається. ' +
-                  'Увімкнути назад можна будь-коли в «Адресах».')) return;
+                  tp("Pause address {0}@morok.email{1}?\\n\\n", [e.to_alias, lbl]) +
+                  'New mail to it will silently vanish — the sender won\'t know. ' +
+                  t('You can re-enable it any time in \u201cAddresses\u201d.'))) return;
                 try {
                   await api.mailPauseAlias(e.to_alias);
                   onAliasPaused && onAliasPaused();
                 } catch (err) {
-                  window.alert(err?.message || 'Не вдалося призупинити');
+                  window.alert(err?.message || 'Couldn\'t pause it');
                 }
               }}
               style={{
@@ -426,7 +427,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
                 padding: '5px 10px', fontSize: 12.5, fontWeight: 700,
                 cursor: 'pointer', flexShrink: 0,
               }}
-            >Спам? Пауза</button>
+            >{t('Spam? Pause it')}</button>
           </div>
         )}
         <div style={{
@@ -458,7 +459,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
                   fontSize: 12, color: ACCENT, background: 'transparent',
                   border: `1px solid ${BORDER}`, borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
                 }}
-              >{showHtml ? 'Текст' : 'HTML'}</button>
+              >{showHtml ? t('Text') : 'HTML'}</button>
             )}
           </div>
         </div>
@@ -472,7 +473,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
         {/* дії */}
         <div style={{ display: 'flex', gap: 8, marginTop: 20, flexWrap: 'wrap' }}>
           {canReply && (
-            <button onClick={handleReply} style={actBtn(true)}>↩ Відповісти</button>
+            <button onClick={handleReply} style={actBtn(true)}>{t('↩ Reply')}</button>
           )}
           {!out && e.internal && (e.from || '').endsWith('@morok.email') && (
             <button
@@ -483,21 +484,21 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
                 try {
                   const r = await api.mailResolve(alias);
                   if (r?.pubkey_hex) onNavigate('newchat', `u=${r.pubkey_hex}`);
-                  else window.alert('Адресу не знайдено');
+                  else window.alert('Address not found');
                 } catch (err) {
-                  window.alert(err?.message || 'Не вдалося відкрити чат');
+                  window.alert(err?.message || 'Couldn\'t open the chat');
                 }
               }}
               style={actBtn(false)}
-            >💬 У чат</button>
+            >{t('💬 To chat')}</button>
           )}
-          <button onClick={handleForward} style={actBtn(false)}>↪ Переслати</button>
+          <button onClick={handleForward} style={actBtn(false)}>{t('↪ Forward')}</button>
         </div>
 
         {Array.isArray(e.attachments) && e.attachments.length > 0 && (
           <div style={{ marginTop: 22 }}>
             <div style={{ fontSize: 13, color: MUTED, marginBottom: 8, fontWeight: 600 }}>
-              Вкладення ({e.attachments.length})
+              Attachments ({e.attachments.length})
             </div>
             {e.attachments.map((att, i) => (
               <a
@@ -568,7 +569,7 @@ function EmailHtml({ html }) {
           borderRadius: 12, padding: '9px 12px', marginBottom: 8, flexWrap: 'wrap',
         }}>
           <span style={{ fontSize: 12.5, color: '#FFA94D' }}>
-            🛡 Зовнішні зображення заблоковано (захист від трекінгу)
+            {t('🛡 External images blocked (tracking protection)')}
           </span>
           <button
             onClick={() => setShowRemote(true)}
@@ -577,7 +578,7 @@ function EmailHtml({ html }) {
               background: 'transparent', border: `1px solid ${BORDER}`,
               borderRadius: 8, padding: '5px 12px',
             }}
-          >Показати</button>
+          >{t('Show')}</button>
         </div>
       )}
       <iframe
@@ -612,7 +613,7 @@ function EmailText({ text }) {
     buf.push(q ? ln.replace(/^\s*>\s?/, '') : ln);
   }
   if (buf.length) blocks.push({ quoted, body: buf.join('\n') });
-  if (!blocks.length) return <div style={{ color: MUTED, fontSize: 14 }}>(порожній лист)</div>;
+  if (!blocks.length) return <div style={{ color: MUTED, fontSize: 14 }}>{t('(empty email)')}</div>;
   return (
     <div>
       {blocks.map((b, i) => b.quoted ? (

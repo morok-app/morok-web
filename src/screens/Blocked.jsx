@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as contacts from '../lib/contacts.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * Blocked — screen listing peers the user has blocked.
@@ -33,10 +34,10 @@ export default function Blocked({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Заблоковані
+            {t('Blocked')}
           </div>
           <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
-            Від них не приймати повідомлень
+            {t('Don\'t accept messages from them')}
           </div>
         </div>
         <button
@@ -62,7 +63,7 @@ export default function Blocked({ onNavigate }) {
             padding: 24, textAlign: 'center',
             color: '#A4A6B2', fontSize: 13,
           }}>
-            Нема заблокованих
+            {t('Nobody blocked')}
           </div>
         )}
 
@@ -106,7 +107,7 @@ export default function Blocked({ onNavigate }) {
                   flexShrink: 0,
                 }}
               >
-                Розблокувати
+                {t('Unlock')}
               </button>
             </div>
           ))}

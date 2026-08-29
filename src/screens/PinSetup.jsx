@@ -3,6 +3,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import { utf8, hexToBytes } from '../lib/crypto.js';
 import { encryptWithSecret } from '../lib/vault.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * PinSetup — Linear-style 6-digit PIN setup.
@@ -51,7 +52,7 @@ export default function PinSetup({
 
   function finalizeClicked() {
     if (pin !== confirm) {
-      setError('PIN не співпадають');
+      setError('PINs don\'t match');
       setConfirm('');
       return;
     }
@@ -62,7 +63,7 @@ export default function PinSetup({
         // Pull from store
         const identity = store.loadIdentity();
         if (!identity || identity.encrypted) {
-          setError('Не можу знайти ідентичність у сховищі.');
+          setError('Can\'t find an identity in storage.');
           return;
         }
         seedBytes = hexToBytes(identity.seed_hex);
@@ -90,7 +91,7 @@ export default function PinSetup({
       onDone?.(seedBytes);
     } catch (e) {
       console.error(e);
-      setError(e.message || 'Помилка');
+      setError(e.message || t('Error'));
     }
   }
 
@@ -112,7 +113,7 @@ export default function PinSetup({
       vault.markUnlocked(prefilledSeed);
       onDone?.(prefilledSeed);
     } catch (e) {
-      setError(e.message || 'Помилка');
+      setError(e.message || t('Error'));
     }
   }
 
@@ -137,12 +138,12 @@ export default function PinSetup({
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            {step === 'enter' ? 'Створіть PIN' : 'Повторіть PIN'}
+            {step === 'enter' ? t('Create a PIN') : t('Repeat the PIN')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
             {step === 'enter'
-              ? '6 цифр для захисту акаунта'
-              : 'Введіть той самий PIN ще раз'}
+              ? t('6 digits to protect your account')
+              : t('Enter the same PIN again')}
           </div>
         </div>
         {isExistingMode && (
@@ -208,8 +209,8 @@ export default function PinSetup({
           }}
         >
           {isDesktop
-            ? '⌨ Введіть 6 цифр із клавіатури'
-            : "Натисніть тут якщо клавіатура не з'явилась"}
+            ? t('⌨ Type 6 digits on the keyboard')
+            : t("Tap here if the keyboard didn't appear")}
         </div>
 
         {error && (
@@ -238,7 +239,7 @@ export default function PinSetup({
               padding: 10,
             }}
           >
-            Пропустити — захищу пізніше
+            {t('Skip — I\'ll protect it later')}
           </button>
         </div>
       )}

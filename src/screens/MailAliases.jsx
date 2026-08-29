@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import * as api from '../lib/api.js';
 import { TopBar } from '../components/ui.jsx';
+import { t, tp } from '../lib/i18n.js';
 
 const ACCENT = '#7B96FF';
 const BG = '#0A0A0B';
@@ -10,9 +11,9 @@ const TEXT = '#F5F5F7';
 const MUTED = '#A8AAB5';
 
 const STATUS_UI = {
-  active: { label: 'активний', color: '#4ADE80', bg: 'rgba(74,222,128,0.12)' },
-  paused: { label: 'на паузі', color: '#FFA94D', bg: 'rgba(255,169,77,0.12)' },
-  dead:   { label: 'вбитий',   color: '#FF6B6B', bg: 'rgba(255,90,90,0.10)' },
+  active: { label: t('active'), color: '#4ADE80', bg: 'rgba(74,222,128,0.12)' },
+  paused: { label: t('paused'), color: '#FFA94D', bg: 'rgba(255,169,77,0.12)' },
+  dead:   { label: t('killed'),   color: '#FF6B6B', bg: 'rgba(255,90,90,0.10)' },
 };
 
 export default function MailAliases({ onNavigate }) {
@@ -30,7 +31,7 @@ export default function MailAliases({ onNavigate }) {
       const d = await api.mailListAliases();
       setData(d);
     } catch (e) {
-      setErr(e.message || 'Не вдалося завантажити адреси');
+      setErr(e.message || 'Couldn\'t load addresses');
       setData({ quota: 0, used: 0, aliases: [] });
     }
   }, []);
@@ -44,14 +45,14 @@ export default function MailAliases({ onNavigate }) {
       setShowCreate(false); setCustomName(''); setCustomLabel('');
       await reload();
     } catch (e) {
-      setErr(e.message || 'Не вдалося створити адресу');
+      setErr(e.message || 'Couldn\'t create the address');
     } finally { setBusy(false); }
   }
 
   async function editLabel(a) {
     const cur = a.label || '';
     const next = window.prompt(
-      'Підпис: для чого ця адреса? (олх, netflix, розсилки…)\nПорожньо — прибрати підпис.',
+      t('Label: what is this address for? (marketplace, netflix, newsletters…)\nLeave empty to remove the label.'),
       cur,
     );
     if (next === null || next.trim() === cur) return;
@@ -60,7 +61,7 @@ export default function MailAliases({ onNavigate }) {
       await api.mailSetAliasLabel(a.alias, next.trim());
       await reload();
     } catch (e) {
-      setErr(e.message || 'Не вдалося зберегти підпис');
+      setErr(e.message || 'Couldn\'t save the label');
     } finally { setBusy(false); }
   }
 
@@ -71,14 +72,14 @@ export default function MailAliases({ onNavigate }) {
       if (action === 'resume') await api.mailResumeAlias(a.alias);
       if (action === 'kill') {
         // незворотньо — перепитуємо
-        if (!window.confirm(`Вбити адресу ${a.address}?\n\nЛисти на неї перестануть приходити НАЗАВЖДИ, адресу не можна буде відновити чи створити знову.`)) {
+        if (!window.confirm(tp("Kill address {0}?\\n\\nMail to it will stop arriving FOREVER; the address can't be restored or created again.", [a.address]))) {
           setBusy(false); return;
         }
         await api.mailKillAlias(a.alias);
       }
       await reload();
     } catch (e) {
-      setErr(e.message || 'Не вдалося виконати дію');
+      setErr(e.message || t('The action failed'));
     } finally { setBusy(false); }
   }
 
@@ -93,13 +94,13 @@ export default function MailAliases({ onNavigate }) {
   const aliases = data?.aliases || [];
   const alive = aliases.filter((a) => a.status !== 'dead');
   const quotaLine = data
-    ? `Аліасів: ${data.used} з ${data.quota} доступних (+1 щомісяця)`
+    ? tp("Aliases: {0} of {1} available (+1 monthly)", [data.used, data.quota])
     : ' ';
 
   return (
     <div className="screen" style={{ background: BG, minHeight: '100%' }}>
       <TopBar
-        title="Мої адреси"
+        title={t("My addresses")}
         subtitle={quotaLine}
         onBack={() => onNavigate('mail')}
         backIcon="arrow"
@@ -112,7 +113,7 @@ export default function MailAliases({ onNavigate }) {
               color: ACCENT, border: `1px solid ${BORDER}`, borderRadius: 10,
               padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
-          >{showCreate ? 'Скасувати' : '+ Нова'}</button>
+          >{showCreate ? t('Cancel') : t('+ New')}</button>
         }
       />
 
@@ -136,11 +137,10 @@ export default function MailAliases({ onNavigate }) {
             borderRadius: 14, padding: 16, marginBottom: 14,
           }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 6 }}>
-              Основна адреса
+              {t('Primary address')}
             </div>
             <div style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.5, marginBottom: 12 }}>
-              Ваш нік у Morok стане вашою поштою: <b style={{ color: TEXT }}>@нік → нік@morok.email</b>.
-              Основну адресу не можна вбити — це ваша постійна скринька.
+              {t('Your Morok nick becomes your email:')} <b style={{ color: TEXT }}>{t('@nick → nick@morok.email')}</b>{t('. The primary address can\'t be killed — it\'s your permanent inbox.')}
             </div>
             <button
               onClick={() => createAlias(null, true)}
@@ -150,7 +150,7 @@ export default function MailAliases({ onNavigate }) {
                 padding: '10px 16px', fontSize: 13.5, fontWeight: 700,
                 cursor: 'pointer', opacity: busy ? 0.5 : 1,
               }}
-            >Активувати мою адресу</button>
+            >{t('Activate my address')}</button>
           </div>
         )}
 
@@ -161,14 +161,14 @@ export default function MailAliases({ onNavigate }) {
             padding: 16, marginBottom: 18,
           }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 10 }}>
-              Нова адреса
+              {t('New address')}
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
               <input
                 className="mk-in"
                 value={customName}
                 onChange={(e) => setCustomName(e.target.value.toLowerCase())}
-                placeholder="вигадай-свою"
+                placeholder={t("make-up-your-own")}
                 spellCheck={false}
                 style={{
                   flex: 1, minWidth: 0, background: BG, color: TEXT,
@@ -182,7 +182,7 @@ export default function MailAliases({ onNavigate }) {
               className="mk-in"
               value={customLabel}
               onChange={(e) => setCustomLabel(e.target.value)}
-              placeholder="для чого? (олх, netflix…) — необов'язково"
+              placeholder={t("what for? (marketplace, netflix…) — optional")}
               maxLength={64}
               style={{
                 width: '100%', boxSizing: 'border-box', background: BG, color: TEXT,
@@ -199,7 +199,7 @@ export default function MailAliases({ onNavigate }) {
                   padding: '10px 16px', fontSize: 13.5, fontWeight: 700,
                   cursor: 'pointer', opacity: busy || !customName.trim() ? 0.5 : 1,
                 }}
-              >Створити цю</button>
+              >{t('Create this one')}</button>
               <button
                 onClick={() => createAlias(null)}
                 disabled={busy}
@@ -208,11 +208,10 @@ export default function MailAliases({ onNavigate }) {
                   borderRadius: 10, padding: '10px 16px', fontSize: 13.5, fontWeight: 600,
                   cursor: 'pointer', opacity: busy ? 0.5 : 1,
                 }}
-              >🎲 Випадкову</button>
+              >{t('🎲 Random')}</button>
             </div>
             <div style={{ fontSize: 12, color: MUTED, marginTop: 10, lineHeight: 1.5 }}>
-              3–64 символи: малі латинські, цифри, дефіс, крапка. Випадкова —
-              на кшталт <span style={{ color: TEXT }}>wren-otter-042</span>.
+              {t('3–64 characters: lowercase latin, digits, hyphen, dot. Random — something like')} <span style={{ color: TEXT }}>wren-otter-042</span>.
             </div>
           </div>
         )}
@@ -221,10 +220,10 @@ export default function MailAliases({ onNavigate }) {
         {data && aliases.length === 0 && !showCreate && (
           <div style={{ textAlign: 'center', padding: '50px 24px', color: MUTED }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>✉️</div>
-            <div style={{ fontSize: 15, color: TEXT, marginBottom: 6 }}>Адрес поки немає</div>
+            <div style={{ fontSize: 15, color: TEXT, marginBottom: 6 }}>{t('No addresses yet')}</div>
             <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-              Активуйте основну адресу вище, а для сайтів і розсилок<br />
-              створюйте окремі аліаси кнопкою «+ Нова».
+              {t('Activate the primary address above; for websites and newsletters')}<br />
+              {t('create separate aliases with the “+ New” button.')}
             </div>
           </div>
         )}
@@ -243,7 +242,7 @@ export default function MailAliases({ onNavigate }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => copy(a.address)}
-                  title="Скопіювати адресу"
+                  title={t("Copy address")}
                   style={{
                     background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
                     fontSize: 14.5, fontWeight: 700, color: copied === a.address ? '#4ADE80' : TEXT,
@@ -251,20 +250,20 @@ export default function MailAliases({ onNavigate }) {
                   }}
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {copied === a.address ? '✓ скопійовано' : a.address}
+                    {copied === a.address ? t('✓ copied') : a.address}
                   </span>
                   {a.primary && (
                     <span style={{
                       fontSize: 12.5, fontWeight: 700, color: ACCENT, letterSpacing: '0.04em',
                       border: `1px solid rgba(123,150,255,0.4)`, borderRadius: 6, padding: '2px 6px',
-                    }}>ОСНОВНА</span>
+                    }}>{t('PRIMARY')}</span>
                   )}
                 </button>
                 {!a.primary && (
                   <button
                     onClick={() => editLabel(a)}
                     disabled={busy}
-                    title="Підпис: для чого ця адреса (клік — змінити)"
+                    title={t("Label: what this address is for (click to change)")}
                     style={{
                       background: a.label ? 'rgba(160,123,255,0.12)' : 'transparent',
                       color: a.label ? '#A07BFF' : MUTED,
@@ -273,7 +272,7 @@ export default function MailAliases({ onNavigate }) {
                       cursor: 'pointer', maxWidth: 160, overflow: 'hidden',
                       textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}
-                  >{a.label || '+ підпис'}</button>
+                  >{a.label || t('+ label')}</button>
                 )}
                 <span style={{
                   fontSize: 12.5, fontWeight: 600, color: st.color, background: st.bg,
@@ -283,22 +282,22 @@ export default function MailAliases({ onNavigate }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 8 }}>
                 <span style={{ fontSize: 12, color: MUTED }}>
-                  прийнято листів: {a.received ?? 0}
+                  emails received: {a.received ?? 0}
                 </span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {a.status === 'active' && (
-                    <MiniBtn onClick={() => doAction(a, 'pause')} disabled={busy} title="Листи тихо зникатимуть, відправник не дізнається">
-                      Пауза
+                    <MiniBtn onClick={() => doAction(a, 'pause')} disabled={busy} title={t("Mail will silently vanish; the sender won't know")}>
+                      {t('Pause')}
                     </MiniBtn>
                   )}
                   {a.status === 'paused' && (
                     <MiniBtn onClick={() => doAction(a, 'resume')} disabled={busy} accent>
-                      Увімкнути
+                      {t('Enable')}
                     </MiniBtn>
                   )}
                   {!a.primary && (
-                    <MiniBtn onClick={() => doAction(a, 'kill')} disabled={busy} danger title="Назавжди. Адреса не відновлюється.">
-                      Вбити
+                    <MiniBtn onClick={() => doAction(a, 'kill')} disabled={busy} danger title={t("Forever. The address can't be restored.")}>
+                      {t('Kill')}
                     </MiniBtn>
                   )}
                 </div>
@@ -310,7 +309,7 @@ export default function MailAliases({ onNavigate }) {
         {/* мертві — згорнуто, сірим */}
         {aliases.some((a) => a.status === 'dead') && (
           <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 12, color: MUTED, marginBottom: 8, fontWeight: 600 }}>Вбиті адреси</div>
+            <div style={{ fontSize: 12, color: MUTED, marginBottom: 8, fontWeight: 600 }}>{t('Killed addresses')}</div>
             {aliases.filter((a) => a.status === 'dead').map((a) => (
               <div key={a.alias} style={{
                 color: MUTED, fontSize: 13, padding: '8px 4px',
@@ -326,9 +325,9 @@ export default function MailAliases({ onNavigate }) {
             marginTop: 22, fontSize: 12, color: MUTED, lineHeight: 1.6,
             borderTop: `1px solid ${BORDER}`, paddingTop: 14,
           }}>
-            <b style={{ color: TEXT }}>Пауза</b> — листи тихо зникають, відправник не знає, що ви його відрізали.<br />
-            <b style={{ color: TEXT }}>Вбити</b> — адреса мертва назавжди (SMTP 550), її ніхто не зможе зайняти знову.<br />
-            Клік по адресі — копіювання в буфер.
+            <b style={{ color: TEXT }}>{t('Pause')}</b> {t('— mail silently vanishes; the sender doesn\'t know you\'ve cut them off.')}<br />
+            <b style={{ color: TEXT }}>{t('Kill')}</b> {t('— the address is dead forever (SMTP 550); nobody can ever claim it again.')}<br />
+            {t('Click an address to copy it.')}
           </div>
         )}
       </div>

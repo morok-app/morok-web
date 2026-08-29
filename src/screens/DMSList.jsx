@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as dms from '../lib/dms.js';
 import * as contacts from '../lib/contacts.js';
 import { formatPeerName } from '../lib/display.js';
+import { t, tp } from '../lib/i18n.js';
 
 export default function DMSList({ onNavigate }) {
   const [items, setItems] = useState(null);
@@ -14,7 +15,7 @@ export default function DMSList({ onNavigate }) {
       setError(null);
     } catch (e) {
       console.error(e);
-      setError(e.message || 'Помилка завантаження');
+      setError(e.message || t('Loading failed'));
       setItems([]);
     }
   }
@@ -43,14 +44,14 @@ export default function DMSList({ onNavigate }) {
             fontSize: 27, fontWeight: 800, letterSpacing: '-0.03em',
             color: '#F5F5F7', lineHeight: 1,
           }}>
-            Цифровий заповіт
+            {t('Digital last message')}
           </div>
           <div style={{
             fontSize: 12.5, color: '#A4A6B2',
             marginTop: 8, fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
           }}>
-            {items === null ? '...' : `активних: ${armedCount}`}
+            {items === null ? '...' : tp("active: {0}", [armedCount])}
           </div>
         </div>
         <button
@@ -86,8 +87,7 @@ export default function DMSList({ onNavigate }) {
             color: '#7B96FF', flexShrink: 0, fontSize: 14,
           }}>📜</div>
           <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55, flex: 1 }}>
-            Якщо ви не зайдете в Morok N днів — обране повідомлення доставиться отримувачу.
-            Зашифровано наскрізно: сервер бачить тільки шифротекст.
+            {t('If you don\'t sign in to Morok for N days, the chosen message is delivered to the recipient. End-to-end encrypted: the server sees only ciphertext.')}
           </div>
         </div>
 
@@ -132,9 +132,9 @@ export default function DMSList({ onNavigate }) {
                 <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
               </svg>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Поки немає жодного заповіту</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>{t('No last messages yet')}</div>
             <div style={{ fontSize: 12.5, color: '#A4A6B2', maxWidth: 260, lineHeight: 1.5 }}>
-              Натисніть «+» нижче щоб створити перший
+              {t('Tap “+” below to create your first one')}
             </div>
           </div>
         ) : (
@@ -170,7 +170,7 @@ export default function DMSList({ onNavigate }) {
                     color: '#F5F5F7',
                     letterSpacing: '-0.01em', flex: 1,
                   }}>
-                    {d.label || 'Без назви'}
+                    {d.label || t('Untitled')}
                   </div>
                   <div style={{
                     fontSize: 12.5, fontWeight: 600,
@@ -188,7 +188,7 @@ export default function DMSList({ onNavigate }) {
                   fontSize: 12.5, color: '#ABADB8',
                   marginBottom: 6,
                 }}>
-                  Отримувач: <span style={{ color: '#F5F5F7', fontFamily: 'var(--mono, monospace)' }}>
+                  {t('Recipient:')} <span style={{ color: '#F5F5F7', fontFamily: 'var(--mono, monospace)' }}>
                     @{renderRecipient(d)}
                   </span>
                 </div>
@@ -200,7 +200,7 @@ export default function DMSList({ onNavigate }) {
                 }}>
                   <span>{dms.formatTriggerLabel(d.trigger_seconds)}</span>
                   {d.status === 'armed' && (
-                    <span>· спрацює за {dms.formatRemainingTime(d.fires_at)}</span>
+                    <span>· triggers in {dms.formatRemainingTime(d.fires_at)}</span>
                   )}
                 </div>
               </div>

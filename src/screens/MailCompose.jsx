@@ -5,6 +5,7 @@ import * as vault from '../lib/vault.js';
 import * as mailStore from '../lib/mail_store.js';
 import { compressImage } from '../lib/images.js';
 import { TopBar } from '../components/ui.jsx';
+import { t, tp } from '../lib/i18n.js';
 
 const ACCENT = '#7B96FF';
 const BG = '#0A0A0B';
@@ -35,7 +36,7 @@ function parseRecipient(input) {
   if (v.includes('@')) {
     const [local, dom] = v.split('@');
     if (dom === MAIL_DOMAIN) return { kind: 'internal', local };
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return { error: 'Некоректна адреса' };
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return { error: t('Invalid address') };
     return { kind: 'external', addr: v };
   }
   return { kind: 'internal', local: v };
@@ -72,7 +73,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
     ev.target.value = '';
     if (!files.length) return;
     if (atts.length + files.length > 5) {
-      setStatus({ type: 'err', msg: 'Максимум 5 зображень' });
+      setStatus({ type: 'err', msg: t('5 images max') });
       return;
     }
     setAttBusy(true);
@@ -89,7 +90,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         }]);
       }
     } catch (e) {
-      setStatus({ type: 'err', msg: e?.message || 'Не вдалося додати зображення' });
+      setStatus({ type: 'err', msg: e?.message || 'Couldn\'t add the image' });
     } finally { setAttBusy(false); }
   }
 
@@ -98,14 +99,14 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
     ev.target.value = '';
     if (!files.length) return;
     if (atts.length + files.length > 5) {
-      setStatus({ type: 'err', msg: 'Максимум 5 вкладень' });
+      setStatus({ type: 'err', msg: t('5 attachments max') });
       return;
     }
     setAttBusy(true);
     try {
       for (const f of files) {
         if (f.size > 10 * 1024 * 1024) {
-          setStatus({ type: 'err', msg: `${f.name}: файл >10MB` });
+          setStatus({ type: 'err', msg: tp("{0}: file >10MB", [f.name]) });
           continue;
         }
         const b64 = await new Promise((res, rej) => {
@@ -126,13 +127,13 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           // розмір перевищив ліміт зовнішньої пошти (для внутрішніх — ок).
           if (attsB64Total(next) > ATT_B64_LIMIT) {
             setStatus({ type: 'err',
-              msg: 'Вкладення сумарно до ~4.5MB — заберіть зайве' });
+              msg: t('Attachments up to ~4.5MB total — remove the extras') });
           }
           return next;
         });
       }
     } catch (e) {
-      setStatus({ type: 'err', msg: 'Не вдалося додати файл' });
+      setStatus({ type: 'err', msg: 'Couldn\'t add the file' });
     } finally { setAttBusy(false); }
   }
 
@@ -144,17 +145,17 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
     setStatus(null);
     const parsed = parseRecipient(to);
     if (!parsed || parsed.error) {
-      setStatus({ type: 'err', msg: parsed?.error || 'Вкажіть адресу отримувача' });
+      setStatus({ type: 'err', msg: parsed?.error || 'Enter the recipient\'s address' });
       return;
     }
     if (!text.trim()) {
-      setStatus({ type: 'err', msg: 'Порожній лист' });
+      setStatus({ type: 'err', msg: t('Empty email') });
       return;
     }
     setBusy(true);
     try {
       const seed = vault.getUnlockedSeed();
-      if (!seed) { setStatus({ type: 'err', msg: 'Розблокуйте акаунт' }); setBusy(false); return; }
+      if (!seed) { setStatus({ type: 'err', msg: t('Unlock your account') }); setBusy(false); return; }
 
       // ── ЗОВНІШНІЙ лист: у чергу відправки (не E2E) ──
       // Ліміт вкладень перевіряємо ДО розгалуження: обмеження створює nginx
@@ -166,14 +167,14 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         if (b64Total > ATT_B64_LIMIT) {
           const mb = (b64Total * 0.75 / (1024 * 1024)).toFixed(1);
           setStatus({ type: 'err',
-            msg: `Вкладення ~${mb}MB — ліміт ~4.5MB. Заберіть частину файлів.` });
+            msg: tp("Attachments ~{0}MB — the limit is ~4.5MB. Remove some files.", [mb]) });
           setBusy(false); return;
         }
       }
 
       if (parsed.kind === 'external') {
         if (!fromAlias) {
-          setStatus({ type: 'err', msg: 'Для зовнішніх листів оберіть адресу «Від» (анонімно не можна)' });
+          setStatus({ type: 'err', msg: 'For external mail pick a \u201cFrom\u201d address (can\'t send anonymously)' });
           setBusy(false); return;
         }
         const r = await api.mailSendExternal({
@@ -194,7 +195,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
                 ext_ref: r.ref, ext_status: 'queued',
                 to_addr: parsed.addr,
                 from: `${fromAlias}@${MAIL_DOMAIN}`,
-                subject: subject.trim() || '(без теми)',
+                subject: subject.trim() || t('(no subject)'),
                 date: new Date().toUTCString(),
                 text, html: null,
                 attachments: atts.map(({ filename, content_type, b64 }) => ({ filename, content_type, b64 })),
@@ -203,10 +204,10 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
             });
             window.dispatchEvent(new CustomEvent('morok-mail-update'));
           } catch { /* не критично */ }
-          setStatus({ type: 'ok', msg: `Лист у черзі відправки на ${parsed.addr}` });
+          setStatus({ type: 'ok', msg: tp("Email queued for delivery to {0}", [parsed.addr]) });
           setTimeout(() => onNavigate('mail'), 900);
         } else {
-          setStatus({ type: 'err', msg: 'Не вдалося поставити в чергу' });
+          setStatus({ type: 'err', msg: 'Couldn\'t queue it' });
         }
         setBusy(false); return;
       }
@@ -217,21 +218,21 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
       try {
         res = await api.mailResolve(parsed.local);
       } catch (e) {
-        setStatus({ type: 'err', msg: `Адресу ${parsed.local}@${MAIL_DOMAIN} не знайдено або вона не приймає пошту` });
+        setStatus({ type: 'err', msg: tp("Address {0}@{1} not found or not accepting mail", [parsed.local, MAIL_DOMAIN]) });
         setBusy(false); return;
       }
 
       // 2) payload. from — обраний аліас або «анонім». УВАГА: серверний
       //    mail_from (перевірений) все одно переб'є це поле в отримувача,
       //    тут from лише для локальної копії «Відправлені».
-      const fromAddr = fromAlias ? `${fromAlias}@${MAIL_DOMAIN}` : 'Анонімний відправник';
+      const fromAddr = fromAlias ? `${fromAlias}@${MAIL_DOMAIN}` : t('Anonymous sender');
       const now = Math.floor(Date.now() / 1000);
       const payload = {
         kind: 'email',
         v: 1,
         to_alias: parsed.local,
         from: fromAddr,
-        subject: subject.trim() || '(без теми)',
+        subject: subject.trim() || t('(no subject)'),
         date: new Date().toUTCString(),
         text: text,
         html: null,
@@ -245,7 +246,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
       const r = await api.mailSendInternal({ toAlias: parsed.local, blobB64, fromAlias: fromAlias || null });
 
       if (r?.status === 'sent' || r?.status === 'duplicate') {
-        setStatus({ type: 'ok', msg: `Надіслано на ${parsed.local}@${MAIL_DOMAIN}` });
+        setStatus({ type: 'ok', msg: tp("Sent to {0}@{1}", [parsed.local, MAIL_DOMAIN]) });
         // локальна копія відправленого у власну скриньку
         try {
           await mailStore.addEmail({
@@ -257,10 +258,10 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         } catch { /* не критично */ }
         setTimeout(() => onNavigate('mail'), 900);
       } else {
-        setStatus({ type: 'err', msg: 'Не вдалося надіслати' });
+        setStatus({ type: 'err', msg: 'Couldn\'t send' });
       }
     } catch (e) {
-      setStatus({ type: 'err', msg: e?.message || 'Помилка надсилання' });
+      setStatus({ type: 'err', msg: e?.message || t('Sending failed') });
     } finally {
       setBusy(false);
     }
@@ -269,8 +270,8 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
   return (
     <div className="screen" style={{ background: BG, minHeight: '100%' }}>
       <TopBar
-        title="Новий лист"
-        subtitle={`від ${myPrimaryAddress || 'вас'}`}
+        title={t("New email")}
+        subtitle={tp("from {0}", [myPrimaryAddress || t('you')])}
         onBack={() => onNavigate('mail')}
         backIcon="arrow"
       />
@@ -290,11 +291,11 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           borderRadius: 12, padding: '10px 14px',
         }}>
           {parseRecipient(to)?.kind === 'external'
-            ? <>🔓 Зовнішній лист піде звичайною поштою (SMTP+TLS). Він <b style={{ color: TEXT }}>не наскрізно шифрований</b> — сервер бачить вміст до моменту доставки, після чого стирає його.</>
-            : <>🔒 Листи Morok→Morok шифруються наскрізно. Зовнішні адреси (Gmail тощо) теж працюють — але без E2E.</>}
+            ? <>{t('🔓 An external email travels as regular mail (SMTP+TLS). It is')} <b style={{ color: TEXT }}>{t('not end-to-end encrypted')}</b> {t('— the server sees the content until delivery, then erases it.')}</>
+            : <>{t('🔒 Morok→Morok mail is end-to-end encrypted. External addresses (Gmail etc.) work too — just without E2E.')}</>}
         </div>
 
-        <Field label="Від">
+        <Field label={t("From")}>
           <select
             className="mk-in mk-sel"
             value={fromAlias ?? ''}
@@ -303,41 +304,41 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           >
             {aliases.map((a) => (
               <option key={a.alias} value={a.alias}>
-                {a.alias}@{MAIL_DOMAIN}{a.primary ? ' (основна)' : ''}
+                {a.alias}@{MAIL_DOMAIN}{a.primary ? ' (primary)' : ''}
               </option>
             ))}
-            <option value="">Анонімно (без адреси)</option>
+            <option value="">{t('Anonymously (no address)')}</option>
           </select>
         </Field>
 
-        <Field label="Кому">
+        <Field label={t("To")}>
           <input
             className="mk-in"
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            placeholder={`нік@${MAIL_DOMAIN}`}
+            placeholder={tp("nick@{0}", [MAIL_DOMAIN])}
             spellCheck={false}
             autoCapitalize="none"
             style={inputStyle}
           />
         </Field>
 
-        <Field label="Тема">
+        <Field label={t("Subject")}>
           <input
             className="mk-in"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Без теми"
+            placeholder={t("No subject")}
             style={inputStyle}
           />
         </Field>
 
-        <Field label="Текст">
+        <Field label={t("Text")}>
           <textarea
             className="mk-in"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Ваш лист…"
+            placeholder={t("Your email…")}
             rows={10}
             style={{ ...inputStyle, resize: 'vertical', minHeight: 180, lineHeight: 1.5 }}
           />
@@ -352,7 +353,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
               borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', opacity: attBusy ? 0.6 : 1,
             }}>
-              🖼 {attBusy ? 'Обробка…' : 'Фото'}
+              🖼 {attBusy ? t('Processing…') : t('Photo')}
               <input type="file" accept="image/*" multiple onChange={addImages}
                      disabled={attBusy} style={{ display: 'none' }} />
             </label>
@@ -362,7 +363,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
               borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', opacity: attBusy ? 0.6 : 1,
             }}>
-              📎 Файл
+              {t('📎 File')}
               <input type="file" multiple onChange={addFiles}
                      disabled={attBusy} style={{ display: 'none' }} />
             </label>
@@ -372,8 +373,8 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
                   const nImg = atts.filter((a) => a.isImage).length;
                   const nFile = atts.length - nImg;
                   const parts = [];
-                  if (nImg) parts.push(`${nImg} фото`);
-                  if (nFile) parts.push(`${nFile} файл${nFile > 1 ? 'и' : ''}`);
+                  if (nImg) parts.push(tp("{0} photo{1}", [nImg, nImg > 1 ? 's' : '']));
+                  if (nFile) parts.push(tp("{0} file{1}", [nFile, nFile > 1 ? 's' : '']));
                   const kb = Math.round(atts.reduce((s, a) => s + a.size, 0) / 1024);
                   return `${parts.join(' + ')} · ~${kb}KB`;
                 })()}
@@ -432,7 +433,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
             borderRadius: 12, padding: '14px', fontSize: 15, fontWeight: 700,
             cursor: 'pointer', opacity: busy ? 0.6 : 1,
           }}
-        >{busy ? 'Надсилаю…' : 'Надіслати'}</button>
+        >{busy ? t('Sending…') : t('Send')}</button>
       </div>
     </div>
   );

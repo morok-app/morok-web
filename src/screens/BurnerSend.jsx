@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as burner from '../lib/burner.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * Public landing page for a burner link.
@@ -25,7 +26,7 @@ export default function BurnerSend({ routeArg }) {
 
   useEffect(() => {
     if (!token) {
-      setError('Невалідний лінк');
+      setError(t('Invalid link'));
       return;
     }
     (async () => {
@@ -34,9 +35,9 @@ export default function BurnerSend({ routeArg }) {
         setInfo(i);
       } catch (e) {
         if (e.status === 404) {
-          setError('Лінк не дійсний — можливо, його анулювали або термін закінчився.');
+          setError('This link isn\'t valid — it may have been revoked or expired.');
         } else {
-          setError(e.message || 'Помилка');
+          setError(e.message || t('Error'));
         }
       }
     })();
@@ -58,12 +59,12 @@ export default function BurnerSend({ routeArg }) {
       console.error(e);
       const code = e.message || '';
       const friendly = code.includes('message_limit_reached')
-        ? 'Цей лінк більше не приймає повідомлень.'
+        ? t('This link no longer accepts messages.')
         : code.includes('too_many_send_attempts')
-        ? 'Забагато спроб з вашої адреси. Спробуйте за хвилину.'
+        ? t('Too many attempts from your address. Try again in a minute.')
         : code.includes('invalid_or_expired')
-        ? 'Лінк недійсний або вже закінчився.'
-        : code || 'Помилка надсилання';
+        ? t('The link is invalid or has expired.')
+        : code || t('Sending failed');
       setError(friendly);
       setBusy(false);
     }
@@ -112,7 +113,7 @@ export default function BurnerSend({ routeArg }) {
             fontSize: 20, fontWeight: 700,
             color: '#F5F5F7',
             letterSpacing: '-0.02em',
-          }}>Лінк недоступний</div>
+          }}>{t('Link unavailable')}</div>
           <div style={{
             fontSize: 13, color: '#ABADB8',
             maxWidth: 320, lineHeight: 1.55,
@@ -130,7 +131,7 @@ export default function BurnerSend({ routeArg }) {
               marginTop: 8,
             }}
           >
-            Про Morok
+            {t('About Morok')}
           </a>
         </div>
       </div>
@@ -175,15 +176,13 @@ export default function BurnerSend({ routeArg }) {
             color: '#F5F5F7',
             letterSpacing: '-0.025em',
           }}>
-            Повідомлення надіслано
+            {t('Message sent')}
           </div>
           <div style={{
             fontSize: 13.5, color: '#ABADB8',
             maxWidth: 360, lineHeight: 1.55,
           }}>
-            Воно зашифроване і доставиться адресату. У повідомленні немає
-            вашого імені чи ключа. Але релей, як і будь-який сайт, бачить
-            вашу IP-адресу — для повної анонімності відкривайте лінк через Tor.
+            {t('It\'s encrypted and will reach the recipient. The message carries neither your name nor your key. But the relay, like any website, sees your IP address — for full anonymity open the link through Tor.')}
           </div>
           <div style={{
             display: 'flex', gap: 10, marginTop: 12,
@@ -204,7 +203,7 @@ export default function BurnerSend({ routeArg }) {
                 cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
-              Написати ще
+              {t('Write another')}
             </button>
             <a
               href="/web/"
@@ -217,7 +216,7 @@ export default function BurnerSend({ routeArg }) {
                 textDecoration: 'none',
               }}
             >
-              Створити свій Morok
+              {t('Build your own Morok')}
             </a>
           </div>
         </div>
@@ -249,14 +248,14 @@ export default function BurnerSend({ routeArg }) {
             color: '#F5F5F7',
             letterSpacing: '-0.01em',
           }}>
-            Morok · Анонімна скринька
+            {t('Morok · Anonymous inbox')}
           </div>
           <div style={{
             fontSize: 12, color: '#A4A6B2', marginTop: 2,
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
           }}>
-            🔒 шифрується у вашому браузері
+            {t('🔒 encrypted in your browser')}
           </div>
         </div>
       </div>
@@ -268,7 +267,7 @@ export default function BurnerSend({ routeArg }) {
           letterSpacing: '-0.025em',
           margin: '0 0 10px',
         }}>
-          Напишіть анонімне<br/>повідомлення
+          {t('Write an anonymous message')}<br/>{t('message')}
         </h2>
 
         {info.label && (
@@ -276,15 +275,14 @@ export default function BurnerSend({ routeArg }) {
             fontSize: 13, color: '#ABADB8',
             marginBottom: 6,
           }}>
-            отримувач: <strong style={{ color: '#F5F5F7' }}>{info.label}</strong>
+            {t('recipient:')} <strong style={{ color: '#F5F5F7' }}>{info.label}</strong>
           </div>
         )}
         <p style={{
           fontSize: 13, color: '#ABADB8',
           lineHeight: 1.55, margin: '0 0 24px',
         }}>
-          Цей лінк створив користувач Morok щоб приймати анонімні повідомлення.
-          Повідомлення шифрується тут, у браузері — на сервер іде лише шифротекст.
+          {t('A Morok user created this link to receive anonymous messages. The message is encrypted here, in your browser — only ciphertext goes to the server.')}
         </p>
 
         <div style={{
@@ -292,10 +290,10 @@ export default function BurnerSend({ routeArg }) {
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
-        }}>ЯК ПІДПИСАТИСЬ (ОПЦІЙНО)</div>
+        }}>{t('HOW TO SIGN (OPTIONAL)')}</div>
         <input
           type="text"
-          placeholder="Залиште порожнім для повної анонімності"
+          placeholder={t("Leave empty for full anonymity")}
           value={senderLabel}
           onChange={(e) => setSenderLabel(e.target.value.slice(0, 64))}
           style={{
@@ -316,7 +314,7 @@ export default function BurnerSend({ routeArg }) {
           fontSize: 12, color: '#9EA0AC',
           margin: '6px 0 22px', lineHeight: 1.5,
         }}>
-          Можна вказати ім'я, ник, email — що завгодно. Не перевіряється.
+          {t('You can put a name, a nick, an email — anything. It\'s not verified.')}
         </p>
 
         <div style={{
@@ -324,9 +322,9 @@ export default function BurnerSend({ routeArg }) {
           marginBottom: 8,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
-        }}>ПОВІДОМЛЕННЯ</div>
+        }}>{t('MESSAGE')}</div>
         <textarea
-          placeholder="Ваше повідомлення..."
+          placeholder={t("Your message...")}
           value={text}
           onChange={(e) => setText(e.target.value)}
           maxLength={4096}
@@ -380,7 +378,7 @@ export default function BurnerSend({ routeArg }) {
             fontFamily: 'inherit',
           }}
         >
-          {busy ? 'Шифруємо й надсилаємо...' : 'Надіслати анонімно'}
+          {busy ? t('Encrypting and sending...') : t('Send anonymously')}
         </button>
 
         <div style={{
@@ -392,16 +390,9 @@ export default function BurnerSend({ routeArg }) {
           fontSize: 12, color: '#ABADB8',
           lineHeight: 1.55,
         }}>
-          <strong style={{ color: '#F5F5F7' }}>🔒 Як це працює:</strong> ваш браузер створює одноразовий ключ,
-          шифрує повідомлення спеціально для отримувача, відправляє шифротекст.
-          Cookies не використовуються, ваша особа в повідомленні не фігурує.
+          <strong style={{ color: '#F5F5F7' }}>{t('🔒 How it works:')}</strong> {t('your browser creates a one-time key, encrypts the message specifically for the recipient and sends the ciphertext. No cookies are used; your identity appears nowhere in the message.')}
           <br /><br />
-          <strong style={{ color: '#F5F5F7' }}>Межі цієї анонімності:</strong> ключ отримувача
-          видає сам релей, і перевірити його тут нічим — у звичайних чатах для
-          цього є номер безпеки, в анонімних листах його немає. Тому недобросовісний
-          релей теоретично може підставити свій ключ. Плюс релей бачить вашу
-          IP-адресу. Для по-справжньому чутливого — звичайний чат із верифікацією
-          або Tor.
+          <strong style={{ color: '#F5F5F7' }}>{t('The limits of this anonymity:')}</strong> {t('the recipient\'s key is issued by the relay itself, and there\'s nothing here to verify it with — regular chats have a safety number for that, anonymous messages don\'t. So a dishonest relay could in theory substitute its own key. Plus the relay sees your IP address. For genuinely sensitive things — use a regular chat with verification, or Tor.')}
         </div>
       </div>
     </div>

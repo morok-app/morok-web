@@ -27,6 +27,7 @@
 
 import * as api from './api.js';
 import * as crypto from './crypto.js';
+import { t, tp } from './i18n.js';
 
 /**
  * Encrypt plaintext FOR a specific recipient using the same DH
@@ -139,11 +140,11 @@ export async function checkInAllArmed() {
 // ────────────────────────────────────────────────────────────
 
 export const TRIGGER_OPTIONS = [
-  { seconds: 86400,        label: '1 день',  hint: 'для тестування' },
-  { seconds: 7 * 86400,    label: '7 днів',  hint: 'якщо ви часто заходите' },
-  { seconds: 30 * 86400,   label: '30 днів', hint: 'рекомендовано' },
-  { seconds: 90 * 86400,   label: '90 днів', hint: 'для подорожей' },
-  { seconds: 365 * 86400,  label: '1 рік',   hint: 'для довгострокового заповіту' },
+  { seconds: 86400,        label: t('1 day'),  hint: t('for testing') },
+  { seconds: 7 * 86400,    label: t('7 days'),  hint: t('if you sign in often') },
+  { seconds: 30 * 86400,   label: t('30 days'), hint: t('recommended') },
+  { seconds: 90 * 86400,   label: t('90 days'), hint: t('for travel') },
+  { seconds: 365 * 86400,  label: t('1 year'),   hint: t('for a long-term last message') },
 ];
 
 export function formatTriggerLabel(seconds) {
@@ -151,28 +152,28 @@ export function formatTriggerLabel(seconds) {
   if (opt) return opt.label;
   // Custom — fallback
   const days = Math.round(seconds / 86400);
-  if (days < 1) return `${Math.round(seconds / 3600)}г`;
-  if (days < 30) return `${days}д`;
-  if (days < 365) return `${Math.round(days / 30)}міс`;
-  return `${Math.round(days / 365)}р`;
+  if (days < 1) return tp("{0}h", [Math.round(seconds / 3600)]);
+  if (days < 30) return tp("{0}d", [days]);
+  if (days < 365) return tp("{0}mo", [Math.round(days / 30)]);
+  return tp("{0}y", [Math.round(days / 365)]);
 }
 
 export function formatRemainingTime(firesAt) {
   const now = Math.floor(Date.now() / 1000);
   const remaining = firesAt - now;
-  if (remaining <= 0) return 'спрацювало';
+  if (remaining <= 0) return t('triggered');
   const days = Math.floor(remaining / 86400);
   const hours = Math.floor((remaining % 86400) / 3600);
-  if (days > 0) return `${days}д ${hours}г`;
+  if (days > 0) return tp("{0}d {1}h", [days, hours]);
   const minutes = Math.floor((remaining % 3600) / 60);
-  return `${hours}г ${minutes}хв`;
+  return tp("{0}h {1}m", [hours, minutes]);
 }
 
 export function statusLabel(status) {
   return {
-    armed: 'активний',
-    triggered: 'спрацював',
-    cancelled: 'скасований',
+    armed: t('active'),
+    triggered: t('triggered'),
+    cancelled: t('cancelled'),
   }[status] || status;
 }
 

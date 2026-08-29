@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 /**
  * Contacts — two distinct things in one module:
  *

@@ -8,17 +8,18 @@ import * as devBackup from '../lib/backup.js';
 import * as push from '../lib/push.js';
 import { encryptWithSecret, decryptWithSecret } from '../lib/vault.js';
 import { utf8, utf8Decode, bytesToBase64, base64ToBytes } from '../lib/crypto.js';
+import { t, tp } from '../lib/i18n.js';
 
 /**
  * Settings — Linear-style redesign.
  *
  * Visual direction:
  *   - Pure-black background (#0a0a0b), no decorative blobs
- *   - Title block at top-left ("Налаштування" large + subtle subtitle)
+ *   - Title block at top-left ("Settings" large + subtle subtitle)
  *   - X close button at top-right in a circular pill
  *   - Flat rows separated by thin dividers (no boxed sections)
  *   - Each row: icon + label on left, status/value on right, > arrow if tappable
- *   - Red "Аварійний вихід" at the bottom, isolated
+ *   - Red "Emergency exit" at the bottom, isolated
  *   - Footer with version at the very bottom, monospace, dim
  */
 export default function Settings({ onNavigate }) {
@@ -39,7 +40,7 @@ export default function Settings({ onNavigate }) {
     notif.setSoundEnabled(next);
     setSoundEnabled(next);
     if (next) notif.playMessageSound();     // одразу продемонструвати звук
-    showToast(next ? 'Звук повідомлень увімкнено.' : 'Звук вимкнено.');
+    showToast(next ? t('Message sounds on.') : t('Sound off.'));
   }
 
   // Read receipts toggle
@@ -51,15 +52,15 @@ export default function Settings({ onNavigate }) {
     const next = !readReceiptsEnabled;
     store.setPreference('read_receipts', next);
     setReadReceiptsEnabled(next);
-    showToast(next ? 'Підтвердження прочитання увімкнено' : 'Підтвердження прочитання вимкнено', 'ok');
+    showToast(next ? t('Read receipts on') : t('Read receipts off'), 'ok');
   }
 
   // Web push state — driven by both browser permission and server subscription
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   // Нативний застосунок (Capacitor): браузерного Notification API в
-  // WebView нема — рядок "Сповіщення" там не має сенсу, фонові
-  // сповіщення в нативі = "Push сповіщення" (FCM).
+  // WebView нема — рядок "Notifications" там не має сенсу, фонові
+  // сповіщення в нативі = "Push notifications" (FCM).
   const isNativeApp = !!window.Capacitor?.isNativePlatform?.();
   const pushSupported = push.isSupported();
   const pushPermission = push.getPermission();
@@ -75,13 +76,13 @@ export default function Settings({ onNavigate }) {
 
   const [readBurn, setReadBurn] = useState(() => convs.getReadBurnSeconds());
   const READBURN_ORDER = [0, 30, 300];
-  const READBURN_LABEL = { 0: 'Вимкнено', 30: '30 секунд', 300: '5 хвилин' };
+  const READBURN_LABEL = { 0: t('Off'), 30: t('30 seconds'), 300: t('5 minutes') };
   function cycleReadBurn() {
     const i = READBURN_ORDER.indexOf(readBurn);
     const next = READBURN_ORDER[(i + 1) % READBURN_ORDER.length] ?? 0;
     convs.setReadBurnSeconds(next);
     setReadBurn(next);
-    showToast(next === 0 ? 'Зникнення після прочитання вимкнено' : `Зникає через ${READBURN_LABEL[next]} після прочитання`, 'ok');
+    showToast(next === 0 ? t('Disappear-after-reading disabled') : tp("Disappears {0} after reading", [READBURN_LABEL[next]]), 'ok');
   }
 
   function toggleContactsOnly() {
@@ -109,20 +110,20 @@ export default function Settings({ onNavigate }) {
       if (pushEnabled) {
         await push.disable();
         setPushEnabled(false);
-        showToast('Push сповіщення вимкнено', 'ok');
+        showToast(t('Push notifications disabled'), 'ok');
       } else {
         await push.enable();
         setPushEnabled(true);
-        showToast('Push сповіщення увімкнено', 'ok');
+        showToast(t('Push notifications enabled'), 'ok');
       }
     } catch (e) {
       const msg = e?.message || String(e);
       if (msg === 'permission_denied') {
-        showToast('Дозвіл на сповіщення заблоковано в браузері', 'err');
+        showToast(t('Notification permission is blocked in the browser'), 'err');
       } else if (msg === 'not_supported') {
-        showToast('Браузер не підтримує push', 'err');
+        showToast('This browser doesn\'t support push', 'err');
       } else {
-        showToast(`Не вдалось: ${msg}`, 'err');
+        showToast(tp("Failed: {0}", [msg]), 'err');
       }
     } finally {
       setPushBusy(false);
@@ -157,13 +158,13 @@ export default function Settings({ onNavigate }) {
 
   async function toggleNotifications() {
     if (!notif.isSupported()) {
-      showToast('Браузер не підтримує сповіщення.', 'warn');
+      showToast('This browser doesn\'t support notifications.', 'warn');
       return;
     }
     if (notifEnabled) {
       notif.setPreferenceEnabled(false);
       setNotifEnabled(false);
-      showToast('Сповіщення вимкнено.');
+      showToast('Notifications off.');
       return;
     }
     const perm = await notif.requestPermission();
@@ -171,9 +172,9 @@ export default function Settings({ onNavigate }) {
     if (perm === 'granted') {
       notif.setPreferenceEnabled(true);
       setNotifEnabled(true);
-      showToast('Сповіщення увімкнено.', 'ok');
+      showToast(t('Notifications on.'), 'ok');
     } else if (perm === 'denied') {
-      showToast('Заблоковано в налаштуваннях браузера.', 'warn');
+      showToast(t('Blocked in browser settings.'), 'warn');
     }
   }
 
@@ -181,46 +182,46 @@ export default function Settings({ onNavigate }) {
   const [relayUrl, setRelayUrlState] = useState(() => api.getRelayUrl());
   const isDefaultRelay = relayUrl === api.getDefaultRelayUrl();
   const relayShort = isDefaultRelay
-    ? 'Стандартний'
+    ? t('Default')
     : relayUrl.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 
   async function switchRelayClicked() {
     if (!isDefaultRelay) {
       const back = window.confirm(
-        `Зараз використовується ваш релей:\n${relayUrl}\n\n` +
-        'Повернутися на стандартний relay1.morok.app?\n' +
-        '(ваші 24 слова працюють на будь-якому релеї)');
+        `Currently using your relay:\n${relayUrl}\n\n` +
+        t('Switch back to the default relay1.morok.app?\n') +
+        t('(your 24 words work on any relay)'));
       if (!back) return;
       api.setRelayUrl(api.getDefaultRelayUrl());
       setRelayUrlState(api.getDefaultRelayUrl());
-      showToast('Повертаємось на стандартний релей…', 'ok');
+      showToast(t('Switching back to the default relay…'), 'ok');
       setTimeout(() => window.location.reload(), 800);
       return;
     }
     const url = window.prompt(
-      'Адреса вашого релея (див. morok.app/selfhost.html):\n\n' +
-      'Напр. https://relay.mydomain.com', 'https://');
+      'Your relay address (see morok.app/selfhost.html):\n\n' +
+      t('E.g. https://relay.mydomain.com'), 'https://');
     if (!url) return;
-    showToast('Перевіряю релей…', 'ok');
+    showToast(t('Checking the relay…'), 'ok');
     let info;
     try {
       info = await api.checkRelayHealth(url);
     } catch (e) {
-      showToast(e?.message || 'Релей недоступний', 'warn');
+      showToast(e?.message || t('Relay unavailable'), 'warn');
       return;
     }
     const okGo = window.confirm(
-      `Знайдено релей:\n${info.name}\nверсія ${info.version}` +
-      (info.onion ? '\nTor: підтримується' : '') +
-      '\n\nПереключитись на нього?\n\n' +
-      'Що зміниться: застосунок працюватиме через ваш сервер. ' +
-      'Ваш ключ (24 слова) той самий, але нікнейм резервується окремо на ' +
-      'кожному релеї, а старі повідомлення лишаються на попередньому. ' +
-      'Повернутись назад можна будь-коли тут же.');
+      tp("Relay found:\\n{0}\\nversion {1}", [info.name, info.version]) +
+      (info.onion ? t('\nTor: supported') : '') +
+      '\n\nSwitch to it?\n\n' +
+      'What changes: the app will run through your server. ' +
+      'Your key (24 words) stays the same, but the username is reserved separately on ' +
+      'each relay, while old messages stay on the previous one. ' +
+      t('You can switch back any time right here.'));
     if (!okGo) return;
     api.setRelayUrl(info.url);
     setRelayUrlState(info.url);
-    showToast('Переключаємось на ваш релей…', 'ok');
+    showToast(t('Switching to your relay…'), 'ok');
     setTimeout(() => window.location.reload(), 800);
   }
 
@@ -231,37 +232,37 @@ export default function Settings({ onNavigate }) {
       if (id?.blob_b64) {
         try {
           decryptWithSecret(id.blob_b64, pin);
-          showToast('Цей код збігається з основним PIN — оберіть інший.', 'warn');
+          showToast(t('This code matches your main PIN — pick a different one.'), 'warn');
           return;
         } catch { /* не розшифрувався = не основний = добре */ }
       }
     } catch { /* ignore */ }
-    const p2 = window.prompt('Повторіть duress-PIN:');
+    const p2 = window.prompt('Repeat the duress PIN:');
     if (p2 === null) return;
-    if (p2.trim() !== pin) { showToast('Коди не збігаються.', 'warn'); return; }
+    if (p2.trim() !== pin) { showToast('The codes don\'t match.', 'warn'); return; }
     vault.setDuressPin(pin);
     setDuressOn(true);
-    showToast('Duress-PIN увімкнено. Перевірте його ДО реальної потреби.', 'ok');
+    showToast(t('Duress PIN enabled. Test it BEFORE you actually need it.'), 'ok');
   }
 
   function setupPinClicked() { onNavigate('pin-setup-existing'); }
 
   async function removePinClicked() {
-    if (!confirm('Видалити PIN? Доведеться знову захищати акаунт після перезавантаження.')) return;
+    if (!confirm('Remove the PIN? You\'ll need to protect the account again after a reload.')) return;
     const seed = vault.getUnlockedSeed();
     if (!seed) {
-      showToast('Сеанс закінчився. Перезавантажте сторінку.', 'warn');
+      showToast(t('Session expired. Reload the page.'), 'warn');
       return;
     }
     setBusy(true);
     try {
-      const pin = prompt('Введіть PIN ще раз щоб видалити захист:');
+      const pin = prompt('Enter the PIN again to remove protection:');
       if (!pin || pin.length !== 6) { setBusy(false); return; }
       let mnemonicBytes;
       try {
         mnemonicBytes = decryptWithSecret(identity.mnemonic_b64, pin);
       } catch {
-        showToast('Неправильний PIN', 'warn');
+        showToast(t('Wrong PIN'), 'warn');
         setBusy(false);
         return;
       }
@@ -273,9 +274,9 @@ export default function Settings({ onNavigate }) {
       });
       vault.clearLockout();
       vault.lockNow();
-      showToast('PIN видалено. Перезавантажте сторінку.', 'ok');
+      showToast(t('PIN removed. Reload the page.'), 'ok');
     } catch (e) {
-      showToast('Помилка: ' + e.message, 'warn');
+      showToast('Error: ' + e.message, 'warn');
     } finally {
       setBusy(false);
     }
@@ -283,21 +284,21 @@ export default function Settings({ onNavigate }) {
 
   async function createServerBackupClicked() {
     if (profile?.tier === 'free') {
-      showToast('Серверний бекап буде доступний пізніше. А поки — «Бекап пристрою» нижче: файл .morok зберігає все.', 'warn');
+      showToast(t('Server backup is coming later. Meanwhile use \u201cDevice backup\u201d below: a .morok file stores everything.'), 'warn');
       return;
     }
     const passphrase = prompt(
-      'Створіть passphrase для бекапу (мінімум 12 символів).\n' +
-      'Її потрібно ввести при відновленні з іншого пристрою.'
+      t('Create a backup passphrase (at least 12 characters).\n') +
+      'You\'ll need it when restoring from another device.'
     );
     if (!passphrase) return;
     if (passphrase.length < 12) {
-      showToast('Мінімум 12 символів.', 'warn');
+      showToast(t('At least 12 characters.'), 'warn');
       return;
     }
-    const confirm2 = prompt('Введіть passphrase ще раз:');
+    const confirm2 = prompt('Enter the passphrase again:');
     if (confirm2 !== passphrase) {
-      showToast('Не співпадає.', 'warn');
+      showToast('Doesn\'t match.', 'warn');
       return;
     }
     let seed = vault.getUnlockedSeed();
@@ -305,7 +306,7 @@ export default function Settings({ onNavigate }) {
       seed = new Uint8Array(identity.seed_hex.match(/.{2}/g).map((b) => parseInt(b, 16)));
     }
     if (!seed) {
-      showToast('Сеанс закінчився.', 'warn');
+      showToast(t('Session expired.'), 'warn');
       return;
     }
     setBusy(true);
@@ -318,22 +319,22 @@ export default function Settings({ onNavigate }) {
         kdfSaltB64: saltB64,
         kdfParams: { alg: 'pbkdf2', hash: 'sha256', iter: 200000 },
       });
-      showToast('Бекап створено.', 'ok');
+      showToast(t('Backup created.'), 'ok');
       setServerBackup({ exists: true });
       store.saveBackupHas({ has: true, updatedAt: Math.floor(Date.now() / 1000) });
     } catch (e) {
-      showToast(e.message || 'Помилка', 'warn');
+      showToast(e.message || t('Error'), 'warn');
     } finally {
       setBusy(false);
     }
   }
 
   async function deleteServerBackupClicked() {
-    if (!confirm('Видалити бекап? Відновлення можливо буде тільки через 24 слова.')) return;
+    if (!confirm(t('Delete the backup? Recovery will only be possible with the 24 words.'))) return;
     setBusy(true);
     try {
       await api.deleteMyBackup();
-      showToast('Бекап видалено.');
+      showToast('Backup deleted.');
       setServerBackup({ exists: false });
       store.saveBackupHas({ has: false, updatedAt: 0 });
     } catch (e) {
@@ -365,13 +366,13 @@ export default function Settings({ onNavigate }) {
             fontSize: 27, fontWeight: 800, letterSpacing: '-0.03em',
             color: '#F5F5F7', lineHeight: 1,
           }}>
-            Налаштування
+            {t('Settings')}
           </div>
           <div style={{
             fontSize: 13, color: '#A4A6B2',
             marginTop: 8, fontWeight: 500,
           }}>
-            Профіль · Захист · Сповіщення
+            {t('Profile · Security · Notifications')}
           </div>
         </div>
 
@@ -399,26 +400,26 @@ export default function Settings({ onNavigate }) {
       }}>
 
         {/* Group 1: Security */}
-        <div className="lin-group-label">Бекап пристрою</div>
+        <div className="lin-group-label">{t('Device backup')}</div>
         <div className="lin-section">
           <LinRow
-            label="Зберегти все у файл (.morok)"
-            value="чати · пошта · контакти"
+            label={t("Save everything to a file (.morok)")}
+            value={t("chats · mail · contacts")}
             onClick={async () => {
               const seed = vault.getUnlockedSeed();
-              if (!seed) { showToast('Спершу розблокуйте PIN.', 'warn'); return; }
+              if (!seed) { showToast(t('Unlock with your PIN first.'), 'warn'); return; }
               try {
                 const b = await devBackup.exportToFile(seed);
-                showToast(`Бекап збережено: ${b.chats} чатів, ${b.mails} листів.`, 'ok');
+                showToast(tp("Backup saved: {0} chats, {1} emails.", [b.chats, b.mails]), 'ok');
               } catch (e) {
-                showToast(e?.message || 'Не вдалося створити бекап', 'warn');
+                showToast(e?.message || 'Couldn\'t create the backup', 'warn');
               }
             }}
             chevron
           />
           <LinRow
-            label="Відновити з файлу"
-            value="злиття, нічого не стирає"
+            label={t("Restore from file")}
+            value={t("merges, erases nothing")}
             onClick={() => document.getElementById('morok-dev-backup-file')?.click()}
             chevron
           />
@@ -432,56 +433,54 @@ export default function Settings({ onNavigate }) {
               ev.target.value = '';
               if (!file) return;
               const seed = vault.getUnlockedSeed();
-              if (!seed) { showToast('Спершу розблокуйте PIN.', 'warn'); return; }
+              if (!seed) { showToast(t('Unlock with your PIN first.'), 'warn'); return; }
               try {
                 const obj = await devBackup.readBackupFile(file);
                 const r = await devBackup.importBackup(seed, obj);
                 showToast(
-                  `Відновлено: +${r.msgsAdded} повідомлень, +${r.mailsAdded} листів.`, 'ok');
+                  tp("Restored: +{0} messages, +{1} emails.", [r.msgsAdded, r.mailsAdded]), 'ok');
                 setTimeout(() => window.location.reload(), 900);
               } catch (e) {
-                showToast(e?.message || 'Не вдалося відновити', 'warn');
+                showToast(e?.message || 'Couldn\'t restore', 'warn');
               }
             }}
           />
         </div>
 
-        <div className="lin-group-label">Захист</div>
+        <div className="lin-group-label">{t('Security')}</div>
         <div className="lin-section">
           <LinRow
-            label="PIN-код"
-            value={hasPin ? 'Встановлено' : 'Не встановлено'}
+            label={t("PIN code")}
+            value={hasPin ? t('Installed') : t('Not installed')}
             valueColor={hasPin ? '#4ADE80' : '#FF6B7A'}
             onClick={hasPin ? removePinClicked : setupPinClicked}
           />
           <LinRow
             label="Duress-PIN"
-            value={duressOn ? 'Увімкнено' : 'Вимкнено'}
+            value={duressOn ? t('On') : t('Off')}
             valueColor={duressOn ? '#4ADE80' : '#A8A8B0'}
             onClick={() => {
               if (!hasPin) {
-                showToast('Спершу встановіть основний PIN.', 'warn');
+                showToast(t('Set up the main PIN first.'), 'warn');
                 return;
               }
               if (duressOn) {
-                const a = window.prompt(
-                  'Duress-PIN увімкнено.\n\nВведіть НОВИЙ 6-значний PIN, щоб змінити,\nабо слово OFF — щоб вимкнути.');
+                const a = window.prompt('Duress PIN is enabled.\n\nEnter a NEW 6-digit PIN to change it,\nor type OFF to disable.');
                 if (a === null) return;
                 if (a.trim().toUpperCase() === 'OFF') {
                   vault.clearDuressPin(); setDuressOn(false);
-                  showToast('Duress-PIN вимкнено.', 'ok'); return;
+                  showToast(t('Duress PIN disabled.'), 'ok'); return;
                 }
                 if (!/^\d{6}$/.test(a.trim())) {
-                  showToast('PIN — рівно 6 цифр.', 'warn'); return;
+                  showToast(t('PIN must be exactly 6 digits.'), 'warn'); return;
                 }
                 trySetDuress(a.trim());
                 return;
               }
-              const p1 = window.prompt(
-                'Duress-PIN: другий код на екрані входу.\nЙого введення МИТТЄВО і НЕПОМІТНО стирає все з цього пристрою (акаунт відновлюється 24 словами, історія — з бекапу .morok).\n\nВведіть 6 цифр:');
+              const p1 = window.prompt('Duress PIN: a second code on the unlock screen.\nEntering it INSTANTLY and SILENTLY wipes everything from this device (the account is recoverable with the 24 words, history — from a .morok backup).\n\nEnter 6 digits:');
               if (p1 === null) return;
               if (!/^\d{6}$/.test(p1.trim())) {
-                showToast('PIN — рівно 6 цифр.', 'warn'); return;
+                showToast(t('PIN must be exactly 6 digits.'), 'warn'); return;
               }
               trySetDuress(p1.trim());
             }}
@@ -493,14 +492,14 @@ export default function Settings({ onNavigate }) {
               у секції вище. Хендлери лишені в коді: якщо фіча колись
               зʼявиться, достатньо повернути цей блок. */}
           <LinRow
-            label="Тільки контакти можуть писати"
-            value={contactsOnly ? 'Увімкнено' : 'Вимкнено'}
+            label={t("Only contacts can message you")}
+            value={contactsOnly ? t('On') : t('Off')}
             valueColor={contactsOnly ? '#4ADE80' : '#A8A8B0'}
             onClick={toggleContactsOnly}
           />
           <LinRow
-            label="Зникати після прочитання"
-            value={READBURN_LABEL[readBurn] || 'Вимкнено'}
+            label={t("Disappear after reading")}
+            value={READBURN_LABEL[readBurn] || t('Off')}
             valueColor={readBurn === 0 ? '#A8A8B0' : '#4ADE80'}
             onClick={cycleReadBurn}
           />
@@ -509,10 +508,10 @@ export default function Settings({ onNavigate }) {
         {/* Group 2: App */}
         {api.canSwitchRelay() && (
           <>
-            <div className="lin-group-label">Мережа</div>
+            <div className="lin-group-label">{t('Network')}</div>
             <div className="lin-section">
               <LinRow
-                label="Свій релей"
+                label={t("Own relay")}
                 value={relayShort}
                 valueColor={isDefaultRelay ? '#A8A8B0' : '#4ADE80'}
                 onClick={switchRelayClicked}
@@ -523,20 +522,25 @@ export default function Settings({ onNavigate }) {
               color: '#A8AAB5', fontSize: 12.5, lineHeight: 1.5,
               padding: '8px 16px 4px',
             }}>
-              Свій сервер = ваші повідомлення проходять лише через нього.
-              Інструкція: <span style={{ color: '#7B96FF' }}>morok.app/selfhost.html</span>
+              {t('Your own server = your messages pass only through it. Guide:')} <span style={{ color: '#7B96FF' }}>morok.app/selfhost.html</span>
             </div>
           </>
         )}
 
-        <div className="lin-group-label">Додаток</div>
+        <div className="lin-group-label">{t('App')}</div>
         <div className="lin-section">
+          <LinRow
+            label={t("Language")}
+            value={getLang() === 'uk' ? 'Українська' : 'English'}
+            onClick={() => setLang(getLang() === 'uk' ? 'en' : 'uk')}
+            chevron
+          />
           {!isNativeApp && <LinRow
-            label="Сповіщення"
+            label={t("Notifications")}
             value={
-              !notif.isSupported() ? 'Недоступно' :
-              notifPermission === 'denied' ? 'Заблоковано' :
-              notifEnabled ? 'Увімкнено' : 'Вимкнено'
+              !notif.isSupported() ? t('Unavailable') :
+              notifPermission === 'denied' ? t('Blocked') :
+              notifEnabled ? t('On') : t('Off')
             }
             valueColor={
               !notif.isSupported() || notifPermission === 'denied' ? '#FF6B7A' :
@@ -546,24 +550,24 @@ export default function Settings({ onNavigate }) {
             chevron={notif.isSupported() && notifPermission !== 'denied'}
           />}
           <LinRow
-            label="Звук повідомлень"
-            value={soundEnabled ? 'Увімкнено' : 'Вимкнено'}
+            label={t("Message sounds")}
+            value={soundEnabled ? t('On') : t('Off')}
             valueColor={soundEnabled ? '#4ADE80' : '#6B6B72'}
             onClick={toggleSound}
           />
           <LinRow
-            label="Підтвердження прочитання"
-            value={readReceiptsEnabled ? 'Увімкнено' : 'Вимкнено'}
+            label={t("Read receipts")}
+            value={readReceiptsEnabled ? t('On') : t('Off')}
             valueColor={readReceiptsEnabled ? '#4ADE80' : '#6B6B72'}
             onClick={toggleReadReceipts}
           />
           <LinRow
-            label="Push сповіщення"
+            label={t("Push notifications")}
             value={
-              !pushSupported ? 'Недоступно' :
-              pushPermission === 'denied' ? 'Заблоковано' :
+              !pushSupported ? t('Unavailable') :
+              pushPermission === 'denied' ? t('Blocked') :
               pushBusy ? '…' :
-              pushEnabled ? 'Увімкнено' : 'Вимкнено'
+              pushEnabled ? t('On') : t('Off')
             }
             valueColor={
               !pushSupported || pushPermission === 'denied' ? '#FF6B7A' :
@@ -573,32 +577,32 @@ export default function Settings({ onNavigate }) {
             chevron={pushSupported && pushPermission !== 'denied'}
           />
           <LinRow
-            label="Заглушені чати"
-            value="перегляд"
+            label={t("Muted chats")}
+            value={t("preview")}
             onClick={() => onNavigate('muted')}
           />
         </div>
 
         {/* Group 3: Account */}
-        <div className="lin-group-label">Акаунт</div>
+        <div className="lin-group-label">{t('Account')}</div>
         <div className="lin-section">
           <LinRow
-            label="Профіль"
-            value={profile?.username ? `@${profile.username}` : 'без імені'}
+            label={t("Profile")}
+            value={profile?.username ? `@${profile.username}` : t('unnamed')}
             onClick={() => onNavigate('profile')}
           />
           <LinRow
-            label="Ключ відновлення"
-            value="24 слова"
+            label={t("Recovery key")}
+            value={t("24 words")}
             onClick={() => onNavigate('recovery-key')}
           />
           <LinRow
-            label="Історія входів"
-            value="останні 30"
+            label={t("Login history")}
+            value={t("last 30")}
             onClick={() => onNavigate('sessions')}
           />
           <LinRow
-            label="Аварійний вихід"
+            label={t("Emergency exit")}
             labelColor="#FF6B7A"
             onClick={emergencyLogoutClicked}
             chevron={false}
@@ -606,12 +610,12 @@ export default function Settings({ onNavigate }) {
         </div>
 
         {/* Danger zone */}
-        <div className="lin-group-label">Зона ризику</div>
+        <div className="lin-group-label">{t('Danger zone')}</div>
         <div className="lin-section">
           <LinRow
-            label="Видалити акаунт"
+            label={t("Delete account")}
             labelColor="#FF6B7A"
-            value="незворотно"
+            value={t("irreversible")}
             valueColor="#FF6B7A"
             onClick={() => onNavigate('delete-account')}
           />

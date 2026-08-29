@@ -5,6 +5,7 @@ import * as contacts from '../lib/contacts.js';
 import * as store from '../lib/storage.js';
 import { parseAddress } from '../lib/addr.js';
 import { formatPeerName } from '../lib/display.js';
+import { t, tp } from '../lib/i18n.js';
 
 export default function NewChat({ onNavigate, routeArg }) {
   const me = store.loadProfile();
@@ -27,7 +28,7 @@ export default function NewChat({ onNavigate, routeArg }) {
     if (mPub) {
       const pub = mPub[1].toLowerCase();
       if (pub === me?.pubkey_hex) {
-        setError('Це посилання на ваш власний акаунт.');
+        setError(t('This link points to your own account.'));
         return;
       }
       openAnonChat(pub);
@@ -86,7 +87,7 @@ export default function NewChat({ onNavigate, routeArg }) {
           home_relay: user.home_relay,
         });
         if (contact.pubkey_hex === me.pubkey_hex) {
-          setError('Це ви самі.');
+          setError('That\'s you.');
           setBusy(false);
           return;
         }
@@ -94,7 +95,7 @@ export default function NewChat({ onNavigate, routeArg }) {
         return;
       } catch (e) {
         if (e.status === 404 && !parsed.relay) {
-          setHint(`Юзера немає на цьому сервері. Спробуйте написати повну адресу типу @${parsed.username}@relay2.morok.app`);
+          setHint(tp("No such user on this server. Try the full address like @{0}@relay2.morok.app", [parsed.username]));
           setBusy(false);
           return;
         }
@@ -115,7 +116,7 @@ export default function NewChat({ onNavigate, routeArg }) {
           home_relay: user.home_relay,
         });
         if (contact.pubkey_hex === me.pubkey_hex) {
-          setError('Це ви самі.');
+          setError('That\'s you.');
           setBusy(false);
           return;
         }
@@ -123,18 +124,18 @@ export default function NewChat({ onNavigate, routeArg }) {
         return;
       } catch (e) {
         if (e.status === 404) {
-          setError(`Юзер @${parsed.username} не знайдений на ${parsed.relay}`);
+          setError(tp("User @{0} not found on {1}", [parsed.username, parsed.relay]));
         } else if (e.status === 503) {
-          setError(`Сервер ${parsed.relay} тимчасово недоступний. Спробуйте пізніше.`);
+          setError(tp("Server {0} is temporarily unavailable. Try again later.", [parsed.relay]));
         } else {
-          setError(e.message || 'Помилка пошуку');
+          setError(e.message || t('Search failed'));
         }
         setBusy(false);
         return;
       }
     }
 
-    setError('Юзера не знайдено');
+    setError(t('User not found'));
     setBusy(false);
   }
 
@@ -163,10 +164,10 @@ export default function NewChat({ onNavigate, routeArg }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Новий чат
+            {t('New chat')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
-            Знайти юзера за іменем
+            {t('Find a user by name')}
           </div>
         </div>
         <button
@@ -192,7 +193,7 @@ export default function NewChat({ onNavigate, routeArg }) {
           marginBottom: -4,
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
-        }}>ЮЗЕРНЕЙМ</div>
+        }}>{t('USERNAME')}</div>
 
         <input
           type="text"
@@ -263,11 +264,11 @@ export default function NewChat({ onNavigate, routeArg }) {
             fontFamily: 'inherit',
           }}
         >
-          {busy ? 'Шукаємо...' : 'Знайти'}
+          {busy ? t('Searching...') : t('Find')}
         </button>
 
         <p style={{ fontSize: 12.5, color: '#9EA0AC', margin: '4px 0 0', lineHeight: 1.5 }}>
-          Якщо у людини нема юзернейма — попросіть її QR/лінк і відкрийте його.
+          {t('If the person has no username, ask for their QR/link and open it.')}
         </p>
       </div>
 
@@ -278,7 +279,7 @@ export default function NewChat({ onNavigate, routeArg }) {
             textTransform: 'uppercase', letterSpacing: '0.1em',
             padding: '4px 20px 10px', fontWeight: 600,
           }}>
-            Нещодавні
+            {t('Recent')}
           </div>
           {knownContacts.slice(0, 30).map((c) => {
             const hue = parseInt(c.pubkey_hex.slice(0, 6), 16) % 360;

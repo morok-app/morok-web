@@ -78,6 +78,7 @@ export function loadSession() { return readJSON(K_SESSION); }
 // відкритий 7-денний токен на диску — зайвий вектор (розширення,
 // фізичний доступ). Лишаємо тільки нечутливі метадані.
 // token приймаємо в аргументах заради сумісності сигнатури, але не пишемо.
+// ⚠ НЕ ДОДАВАТИ token у writeJSON нижче — це свідоме рішення безпеки.
 export function saveSession({ token, pubkeyHex, expiresAt, relayUrl }) {
   void token;
   writeJSON(K_SESSION, {

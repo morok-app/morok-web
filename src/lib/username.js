@@ -1,3 +1,4 @@
+import { t, tp } from './i18n.js';
 /**
  * username.js — валідація юзернейма НА КЛІЄНТІ, дзеркало серверних правил.
  *
@@ -50,27 +51,27 @@ export function validateUsername(raw, tier = 'free') {
   const minLen = minLengthForTier(tier);
 
   if (!u) {
-    return { ok: false, normalized: u, error: 'Введіть юзернейм' };
+    return { ok: false, normalized: u, error: t('Enter a username') };
   }
   if (!CHARS.test(u)) {
     return {
       ok: false,
       normalized: u,
-      error: 'Дозволені лише малі латинські літери, цифри та «_»',
+      error: t('Only lowercase latin letters, digits and \u201c_\u201d are allowed'),
     };
   }
   if (/^[0-9_]/.test(u)) {
     return {
       ok: false,
       normalized: u,
-      error: 'Юзернейм має починатися з літери',
+      error: t('Username must start with a letter'),
     };
   }
   if (u.length > MAX_LEN) {
     return {
       ok: false,
       normalized: u,
-      error: `Занадто довго — максимум ${MAX_LEN} символів`,
+      error: tp("Too long — {0} characters max", [MAX_LEN]),
     };
   }
   if (u.length < minLen) {
@@ -78,12 +79,12 @@ export function validateUsername(raw, tier = 'free') {
       ok: false,
       normalized: u,
       error: tier === 'free'
-        ? `Занадто коротко — потрібно від ${minLen} символів. Коротші імена доступні на преміумі.`
-        : `Занадто коротко — потрібно від ${minLen} символів`,
+        ? tp("Too short — at least {0} characters. Shorter names are available on premium.", [minLen])
+        : tp("Too short — at least {0} characters", [minLen]),
     };
   }
   if (RESERVED.has(u)) {
-    return { ok: false, normalized: u, error: 'Це ім’я зарезервовано' };
+    return { ok: false, normalized: u, error: t('This name is reserved') };
   }
   return { ok: true, normalized: u, error: null };
 }

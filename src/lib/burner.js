@@ -1,3 +1,4 @@
+import { t, tp } from './i18n.js';
 /**
  * Burner inbox business logic.
  *
@@ -76,10 +77,10 @@ export async function sendAnonymousMessage({
   senderLabel = null,
 }) {
   if (!plaintext || !plaintext.trim()) {
-    throw new Error('Порожнє повідомлення');
+    throw new Error(t('Empty message'));
   }
   if (!ownerPubkeyHex || ownerPubkeyHex.length !== 64) {
-    throw new Error('Некоректний адресат');
+    throw new Error(t('Invalid recipient'));
   }
 
   // 1. Generate ephemeral Ed25519 keypair.
@@ -117,28 +118,28 @@ export async function sendAnonymousMessage({
 // ────────────────────────────────────────────────────────────
 
 export const TTL_OPTIONS = [
-  { seconds: 3600,        label: '1 година',   hint: 'для разової швидкої передачі' },
-  { seconds: 24 * 3600,   label: '24 години',  hint: 'для активної кампанії' },
-  { seconds: 7 * 86400,   label: '7 днів',     hint: 'довгий публічний лінк' },
+  { seconds: 3600,        label: t('1 hour'),   hint: t('for a quick one-off handover') },
+  { seconds: 24 * 3600,   label: t('24 hours'),  hint: t('for an active campaign') },
+  { seconds: 7 * 86400,   label: t('7 days'),     hint: t('long public link') },
 ];
 
 export function formatTTLLabel(seconds) {
   const opt = TTL_OPTIONS.find((o) => o.seconds === seconds);
   if (opt) return opt.label;
   const days = Math.round(seconds / 86400);
-  if (days < 1) return `${Math.round(seconds / 3600)}г`;
-  return `${days}д`;
+  if (days < 1) return tp("{0}h", [Math.round(seconds / 3600)]);
+  return tp("{0}d", [days]);
 }
 
 export function formatRemainingTime(expiresAt) {
   const now = Math.floor(Date.now() / 1000);
   const remaining = expiresAt - now;
-  if (remaining <= 0) return 'застарілий';
+  if (remaining <= 0) return t('outdated');
   const days = Math.floor(remaining / 86400);
   const hours = Math.floor((remaining % 86400) / 3600);
-  if (days > 0) return `${days}д ${hours}г`;
+  if (days > 0) return tp("{0}d {1}h", [days, hours]);
   const minutes = Math.floor((remaining % 3600) / 60);
-  return `${hours}г ${minutes}хв`;
+  return tp("{0}h {1}m", [hours, minutes]);
 }
 
 /**

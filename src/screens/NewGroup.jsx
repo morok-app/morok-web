@@ -4,6 +4,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import * as groups from '../lib/groups.js';
 import { hexToBytes } from '../lib/crypto.js';
+import { t } from '../lib/i18n.js';
 
 function getSeedBytes() {
   const v = vault.getUnlockedSeed();
@@ -32,11 +33,11 @@ export default function NewGroup({ onNavigate }) {
     if (!name.trim() || busy) return;
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Сеанс закінчився. Перезавантажте сторінку.');
+      alert('Session expired. Reload the page.');
       return;
     }
     if (!me?.pubkey_hex) {
-      alert('Не знайдено мій pubkey.');
+      alert('My pubkey not found.');
       return;
     }
     setBusy(true);
@@ -53,7 +54,7 @@ export default function NewGroup({ onNavigate }) {
       onNavigate(`group/${result.group_id}`);
     } catch (e) {
       console.error(e);
-      setError(e.message || 'Помилка');
+      setError(e.message || t('Error'));
       setBusy(false);
     }
   }
@@ -72,10 +73,10 @@ export default function NewGroup({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Нова група
+            {t('New group')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
-            Назва зашифрована, видима тільки учасникам
+            {t('The name is encrypted, visible only to members')}
           </div>
         </div>
         <button
@@ -99,11 +100,11 @@ export default function NewGroup({ onNavigate }) {
           fontSize: 12, color: '#9EA0AC',
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
-        }}>НАЗВА</div>
+        }}>{t('NAME')}</div>
 
         <input
           type="text"
-          placeholder="Друзі, Сімʼя, Робота..."
+          placeholder={t("Friends, Family, Work...")}
           value={name}
           onChange={(e) => { setName(e.target.value); setError(null); }}
           maxLength={50}
@@ -140,9 +141,9 @@ export default function NewGroup({ onNavigate }) {
         fontWeight: 600,
         display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
       }}>
-        <span>УЧАСНИКИ</span>
+        <span>{t('MEMBERS')}</span>
         <span style={{ color: '#A4A6B2', fontFamily: 'var(--mono, monospace)', letterSpacing: '0.02em' }}>
-          {selected.size} обрано
+          {selected.size} selected
         </span>
       </div>
 
@@ -165,9 +166,9 @@ export default function NewGroup({ onNavigate }) {
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/>
               </svg>
             </div>
-            <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>Поки нема контактів</div>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>{t('No contacts yet')}</div>
             <div style={{ fontSize: 12, color: '#A4A6B2', maxWidth: 260, lineHeight: 1.5 }}>
-              Спершу напишіть комусь — і він зʼявиться тут
+              {t('Message someone first — they\'ll appear here')}
             </div>
           </div>
         ) : (
@@ -245,7 +246,7 @@ export default function NewGroup({ onNavigate }) {
             fontFamily: 'inherit',
           }}
         >
-          {busy ? 'Створюємо...' : `Створити${selected.size > 0 ? ` · ${selected.size}` : ''}`}
+          {busy ? t('Creating...') : `Create${selected.size > 0 ? ` · ${selected.size}` : ''}`}
         </button>
       </div>
     </div>

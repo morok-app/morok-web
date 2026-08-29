@@ -1,3 +1,4 @@
+import { t, tp } from './i18n.js';
 /**
  * Display helpers for user names.
  *
@@ -6,7 +7,7 @@
  * the anon_ display is derived from it, so two clients always agree.
  *
  * Special case: burner-inbox DMs arrive with a `from_username` of either
- * "🔥burner" or "🔥burner::<label>". We render those as "Анонім" or
+ * "🔥burner" or "🔥burner::<label>". We render those as "Anonymous" or
  * "Анонім · <label>" without the @-prefix, since they're one-way.
  */
 
@@ -30,7 +31,7 @@ function tryParseBurner(username) {
 export function formatPeerName({ username, pubkey }) {
   const burner = tryParseBurner(username);
   if (burner) {
-    return burner.label ? `Анонім · ${burner.label}` : 'Анонім';
+    return burner.label ? tp("Anonymous · {0}", [burner.label]) : t('Anonymous');
   }
   if (username) return username;
   if (!pubkey) return 'unknown';
@@ -38,12 +39,12 @@ export function formatPeerName({ username, pubkey }) {
 }
 
 /**
- * "@kaban" or "@anon_abc12345" — but for burner, just "Анонім" (no @).
+ * "@kaban" or "@anon_abc12345" — but for burner, just "Anonymous" (no @).
  */
 export function formatPeerHandle({ username, pubkey }) {
   const burner = tryParseBurner(username);
   if (burner) {
-    return burner.label ? `🔥 Анонім · ${burner.label}` : '🔥 Анонім';
+    return burner.label ? tp("🔥 Anonymous · {0}", [burner.label]) : t('🔥 Anonymous');
   }
   return `@${formatPeerName({ username, pubkey })}`;
 }

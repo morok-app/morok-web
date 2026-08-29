@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import * as dms from '../lib/dms.js';
 import * as contacts from '../lib/contacts.js';
 import { formatPeerName } from '../lib/display.js';
+import { t } from '../lib/i18n.js';
 
 function formatDate(unix) {
   if (!unix) return '—';
@@ -21,7 +22,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
       setInfo(data);
       setError(null);
     } catch (e) {
-      setError(e.message || 'Помилка завантаження');
+      setError(e.message || t('Loading failed'));
     }
   }
 
@@ -32,24 +33,24 @@ export default function DMSDetail({ dmsId, onNavigate }) {
     setMessage(null);
     try {
       await dms.checkIn(dmsId);
-      setMessage('Check-in зроблено. Таймер скинуто.');
+      setMessage(t('Checked in. Timer reset.'));
       await refresh();
     } catch (e) {
-      setError(e.message || 'Помилка');
+      setError(e.message || t('Error'));
     } finally {
       setBusy(false);
     }
   }
 
   async function cancelClicked() {
-    if (!confirm('Скасувати цей заповіт? Дія незворотна — щоб мати його знову треба буде створювати новий.')) return;
+    if (!confirm('Cancel this last message? This can\'t be undone — you\'ll have to create a new one.')) return;
     setBusy(true);
     try {
       await dms.cancel(dmsId);
-      setMessage('Заповіт скасовано.');
+      setMessage(t('Last message cancelled.'));
       await refresh();
     } catch (e) {
-      setError(e.message || 'Помилка');
+      setError(e.message || t('Error'));
     } finally {
       setBusy(false);
     }
@@ -58,7 +59,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
   if (!info) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
-        <Header title="Заповіт" onClose={() => onNavigate('dms')} />
+        <Header title={t("Last message")} onClose={() => onNavigate('dms')} />
         <div style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
@@ -102,7 +103,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
 
-      <Header title={info.label || 'Заповіт'} onClose={() => onNavigate('dms')} />
+      <Header title={info.label || t('Last message')} onClose={() => onNavigate('dms')} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
 
@@ -157,47 +158,47 @@ export default function DMSDetail({ dmsId, onNavigate }) {
                 {dms.formatRemainingTime(info.fires_at)}
               </div>
               <div style={{ fontSize: 12, color: '#A4A6B2', marginTop: 8 }}>
-                до спрацювання
+                {t('until it triggers')}
               </div>
             </>
           )}
           {info.status === 'triggered' && (
             <div style={{ fontSize: 13, color: '#ABADB8' }}>
-              Спрацював {formatDate(info.triggered_at)}
+              Triggered {formatDate(info.triggered_at)}
             </div>
           )}
           {info.status === 'cancelled' && (
             <div style={{ fontSize: 13, color: '#ABADB8' }}>
-              Скасований {formatDate(info.cancelled_at)}
+              Cancelled {formatDate(info.cancelled_at)}
             </div>
           )}
         </div>
 
         {/* Details */}
-        <SectionLabel>Деталі</SectionLabel>
+        <SectionLabel>{t('Details')}</SectionLabel>
         <div style={{
           background: '#13131A',
           border: '1px solid #232329',
           borderRadius: 14,
         }}>
-          <Row label="Отримувач" value={
+          <Row label={t("Recipient")} value={
             <>
               <span style={{ fontFamily: 'var(--mono, monospace)' }}>
                 @{formatPeerName({ username: contact?.username, pubkey: recipientPubkey })}
               </span>
               {recipient?.delivered_at && (
                 <div style={{ fontSize: 12, color: '#4ADE80', marginTop: 4 }}>
-                  ✓ доставлено {formatDate(recipient.delivered_at)}
+                  ✓ delivered {formatDate(recipient.delivered_at)}
                 </div>
               )}
             </>
           } />
-          <Row label="Період" value={dms.formatTriggerLabel(info.trigger_seconds)} />
-          <Row label="Останній check-in" value={formatDate(info.last_check_in_at)} />
+          <Row label={t("Period")} value={dms.formatTriggerLabel(info.trigger_seconds)} />
+          <Row label={t("Last check-in")} value={formatDate(info.last_check_in_at)} />
           {isArmed && (
-            <Row label="Спрацює" value={formatDate(info.fires_at)} />
+            <Row label={t("Triggers")} value={formatDate(info.fires_at)} />
           )}
-          <Row label="Створено" value={formatDate(info.created_at)} last />
+          <Row label={t("Created")} value={formatDate(info.created_at)} last />
         </div>
 
         {/* Actions */}
@@ -221,13 +222,13 @@ export default function DMSDetail({ dmsId, onNavigate }) {
                 marginBottom: 8,
               }}
             >
-              {busy ? '...' : 'Check-in · скинути таймер'}
+              {busy ? '...' : t('Check in · reset the timer')}
             </button>
             <p style={{
               fontSize: 12.5, color: '#9EA0AC',
               marginBottom: 16, lineHeight: 1.5, textAlign: 'center',
             }}>
-              Зазвичай не треба — таймер скидається автоматично при кожному заході.
+              {t('Usually unnecessary — the timer resets automatically every time you sign in.')}
             </p>
 
             <button
@@ -245,7 +246,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
                 fontFamily: 'inherit',
               }}
             >
-              Скасувати заповіт
+              {t('Cancel the last message')}
             </button>
           </>
         )}

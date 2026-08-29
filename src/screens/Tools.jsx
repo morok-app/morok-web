@@ -4,6 +4,7 @@ import * as burner from '../lib/burner.js';
 import * as contacts from '../lib/contacts.js';
 import * as mailStore from '../lib/mail_store.js';
 import { TopBar } from '../components/ui.jsx';
+import { t } from '../lib/i18n.js';
 
 export default function Tools({ onNavigate }) {
   const [dmsCount, setDmsCount] = useState(null);
@@ -45,8 +46,8 @@ export default function Tools({ onNavigate }) {
     <div className="screen" style={{ background: '#0A0A0B' }}>
 
       <TopBar
-        title="Інструменти"
-        subtitle="Додаткові функції для приватності"
+        title={t("Tools")}
+        subtitle={t("Extra privacy features")}
         onBack={() => onNavigate('chats')}
         backIcon="close"
       />
@@ -61,10 +62,10 @@ export default function Tools({ onNavigate }) {
               <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>
             </svg>
           }
-          title="Пошта"
-          description="Анонімна email-скринька. Створюйте адреси @morok.email — листи приходять зашифрованими лише для вас, сервер їх не зберігає."
+          title={t("Mail")}
+          description={t("An anonymous email inbox. Create @morok.email addresses — mail arrives encrypted for you alone; the server doesn't store it.")}
           countLabel={mailUnread > 0 ? mailUnread : null}
-          countSuffix=" нових"
+          countSuffix=" new"
           onClick={() => onNavigate('mail')}
         />
 
@@ -76,10 +77,10 @@ export default function Tools({ onNavigate }) {
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
             </svg>
           }
-          title="Цифровий заповіт"
-          description="Якщо ви довго не заходите — обране повідомлення доставиться адресату. Корисно для паролів, ключів, інструкцій."
+          title={t("Digital last message")}
+          description={t("If you're away for a long time, a chosen message is delivered to its recipient. Useful for passwords, keys, instructions.")}
           countLabel={dmsCount === null ? null : dmsCount}
-          countSuffix="активних"
+          countSuffix={t("active")}
           onClick={() => onNavigate('dms')}
         />
 
@@ -91,10 +92,10 @@ export default function Tools({ onNavigate }) {
               <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
             </svg>
           }
-          title="Анонімна скринька"
-          description="Створіть одноразовий лінк — будь-хто зможе написати вам анонімно без реєстрації. Зашифровано наскрізно."
+          title={t("Anonymous inbox")}
+          description={t("Create a one-time link — anyone can message you anonymously without signing up. End-to-end encrypted.")}
           countLabel={burnerCount === null ? null : burnerCount}
-          countSuffix="активних"
+          countSuffix={t("active")}
           onClick={() => onNavigate('burner')}
         />
 
@@ -106,10 +107,10 @@ export default function Tools({ onNavigate }) {
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
           }
-          title="Контакти"
-          description="Збережіть людей, з якими часто спілкуєтесь. Можна додавати локальні нікнейми — їх бачите тільки ви."
+          title={t("Contacts")}
+          description={t("Save the people you talk to often. You can add local nicknames — only you can see them.")}
           countLabel={contactsCount}
-          countSuffix={pluralize(contactsCount, 'контакт', 'контакти', 'контактів')}
+          countSuffix={pluralize(contactsCount, t('contact'), t('contacts'), t('contacts'))}
           onClick={() => onNavigate('contacts')}
         />
 
@@ -121,10 +122,10 @@ export default function Tools({ onNavigate }) {
               <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
             </svg>
           }
-          title="Заблоковані"
-          description="Юзери, від яких не приймаєте повідомлень. Список локальний — сервер про нього не знає."
+          title={t("Blocked")}
+          description={t("Users you don't accept messages from. The list is local — the server doesn't know about it.")}
           countLabel={blockedCount}
-          countSuffix={blockedCount === 1 ? 'юзер' : (blockedCount >= 2 && blockedCount <= 4 ? 'юзери' : 'юзерів')}
+          countSuffix={blockedCount === 1 ? t('user') : (blockedCount >= 2 && blockedCount <= 4 ? t('users') : t('users'))}
           onClick={() => onNavigate('blocked')}
         />
 
@@ -135,7 +136,7 @@ export default function Tools({ onNavigate }) {
           fontWeight: 600,
           padding: '24px 0 12px',
         }}>
-          СКОРО
+          {t('SOON')}
         </div>
 
         <ComingSoonCard
@@ -144,8 +145,8 @@ export default function Tools({ onNavigate }) {
               <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/>
             </svg>
           }
-          title="Мульти-акаунт"
-          description="Кілька облікових записів в одному додатку"
+          title={t("Multi-account")}
+          description={t("Several accounts in one app")}
         />
 
         <ComingSoonCard
@@ -154,8 +155,8 @@ export default function Tools({ onNavigate }) {
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
             </svg>
           }
-          title="Верифіковані бейджі"
-          description="Підтверджені особистості — менше шахраїв"
+          title={t("Verified badges")}
+          description={t("Verified identities — fewer scammers")}
         />
 
         <ComingSoonCard
@@ -164,8 +165,8 @@ export default function Tools({ onNavigate }) {
               <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/>
             </svg>
           }
-          title="Зашифрований бекап"
-          description="Безпечне зберігання ключів на сервері"
+          title={t("Encrypted backup")}
+          description={t("Secure key storage on the server")}
         />
       </div>
     </div>

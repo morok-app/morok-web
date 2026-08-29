@@ -7,6 +7,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import { parseAddress } from '../lib/addr.js';
 import { hexToBytes } from '../lib/crypto.js';
+import { t, tp } from '../lib/i18n.js';
 
 function getSeedBytes() {
   const v = vault.getUnlockedSeed();
@@ -55,9 +56,9 @@ export default function GroupInfo({ groupId, onNavigate }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch {}
-      setMessage('Лінк створено і скопійовано');
+      setMessage(t('Link created and copied'));
     } catch (e) {
-      setMessage('Помилка: ' + e.message);
+      setMessage('Error: ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -75,7 +76,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
   async function addByUsername() {
     if (!addInput.trim() || !isAdmin) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Сеанс закінчився.'); return; }
+    if (!seed) { alert('Session expired.'); return; }
 
     setBusy(true); setMessage(null);
     try {
@@ -88,11 +89,11 @@ export default function GroupInfo({ groupId, onNavigate }) {
         myPubkeyHex,
       });
       setGroup(gstore.getGroup(groupId));
-      setMessage(`@${user.username} додано і ключ надіслано`);
+      setMessage(tp("@{0} added, key sent", [user.username]));
       setAddInput('');
       setShowAddMember(false);
     } catch (e) {
-      setMessage('Помилка: ' + e.message);
+      setMessage('Error: ' + e.message);
     } finally {
       setBusy(false);
     }
@@ -100,41 +101,41 @@ export default function GroupInfo({ groupId, onNavigate }) {
 
   async function removeMember(pubkeyHex) {
     if (!isAdmin) return;
-    if (!confirm('Видалити учасника з групи?')) return;
+    if (!confirm(t('Remove this member from the group?'))) return;
     setBusy(true);
     try {
       await api.removeGroupMember(groupId, pubkeyHex);
       await groups.refreshGroup(groupId);
       setGroup(gstore.getGroup(groupId));
-      setMessage('Видалено');
+      setMessage(t('Deleted'));
     } catch (e) {
-      setMessage('Помилка: ' + e.message);
+      setMessage('Error: ' + e.message);
     } finally {
       setBusy(false);
     }
   }
 
   async function leaveGroupClicked() {
-    if (!confirm('Вийти з групи?')) return;
+    if (!confirm(t('Leave the group?'))) return;
     setBusy(true);
     try {
       await groups.leaveGroup(groupId, myPubkeyHex);
       onNavigate('chats');
     } catch (e) {
-      setMessage('Помилка: ' + e.message);
+      setMessage('Error: ' + e.message);
       setBusy(false);
     }
   }
 
   async function deleteGroupClicked() {
     if (!isCreator) return;
-    if (!confirm('Видалити групу для всіх? Це незворотньо.')) return;
+    if (!confirm(t('Delete the group for everyone? This is irreversible.'))) return;
     setBusy(true);
     try {
       await groups.deleteGroupCompletely(groupId, getSeedBytes());
       onNavigate('chats');
     } catch (e) {
-      setMessage('Помилка: ' + e.message);
+      setMessage('Error: ' + e.message);
       setBusy(false);
     }
   }
@@ -142,7 +143,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
   if (!group) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
-        <Header title="Група" onClose={() => onNavigate('chats')} />
+        <Header title={t("Group")} onClose={() => onNavigate('chats')} />
         <div style={{ flex: 1 }} />
       </div>
     );
@@ -153,7 +154,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
 
-      <Header title="Інфо групи" onClose={() => onNavigate(`group/${groupId}`)} />
+      <Header title={t("Group info")} onClose={() => onNavigate(`group/${groupId}`)} />
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
 
@@ -190,21 +191,21 @@ export default function GroupInfo({ groupId, onNavigate }) {
             letterSpacing: '-0.02em',
             textAlign: 'center',
           }}>
-            {group.name || 'Без назви'}
+            {group.name || t('Untitled')}
           </div>
           <div style={{
             fontSize: 12, color: '#A4A6B2',
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
           }}>
-            {members.length} / {group.max_members} учасників
+            {members.length} / {group.max_members} members
           </div>
         </div>
 
         {/* Admin actions */}
         {isAdmin && (
           <>
-            <SectionLabel>Запросити</SectionLabel>
+            <SectionLabel>{t('Invite')}</SectionLabel>
             <button
               onClick={createInviteLink}
               disabled={busy}
@@ -221,7 +222,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                 marginBottom: 8,
               }}
             >
-              {busy ? '...' : 'Створити лінк запрошення'}
+              {busy ? '...' : t('Create an invite link')}
             </button>
 
             {activeInvite && (
@@ -254,7 +255,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {copied ? '✓ Скопійовано' : 'Копіювати ще раз'}
+                  {copied ? t('✓ Copied') : t('Copy again')}
                 </button>
               </div>
             )}
@@ -273,13 +274,13 @@ export default function GroupInfo({ groupId, onNavigate }) {
                 marginTop: 4,
               }}
             >
-              + Додати за юзернеймом
+              {t('+ Add by username')}
             </button>
           </>
         )}
 
         {/* Members */}
-        <SectionLabel>Учасники</SectionLabel>
+        <SectionLabel>{t('Members')}</SectionLabel>
         <div style={{
           background: '#13131A',
           border: '1px solid #232329',
@@ -312,7 +313,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                   }}>
                     <span style={{
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>{isMe ? 'Ви' : `@${m.username || m.pubkey_hex.slice(0, 8)}`}</span>
+                    }}>{isMe ? t('You') : `@${m.username || m.pubkey_hex.slice(0, 8)}`}</span>
                     {m.is_admin && (
                       <span style={{
                         fontSize: 9.5, fontWeight: 600,
@@ -342,7 +343,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                       fontFamily: 'inherit',
                     }}
                   >
-                    Видалити
+                    {t('Delete')}
                   </button>
                 )}
               </div>
@@ -367,7 +368,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                 fontFamily: 'inherit',
               }}
             >
-              Видалити групу
+              {t('Delete group')}
             </button>
           ) : (
             <button
@@ -385,7 +386,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                 fontFamily: 'inherit',
               }}
             >
-              Вийти з групи
+              {t('Leave group')}
             </button>
           )}
         </div>
@@ -424,7 +425,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
               letterSpacing: '-0.02em',
               margin: '0 0 16px',
             }}>
-              Додати за юзернеймом
+              {t('Add by username')}
             </h3>
 
             <input
@@ -464,7 +465,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                 fontFamily: 'inherit',
               }}
             >
-              {busy ? 'Додаємо...' : 'Додати'}
+              {busy ? t('Adding...') : t('Add')}
             </button>
           </div>
         </div>

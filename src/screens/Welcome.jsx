@@ -1,3 +1,5 @@
+import { t } from '../lib/i18n.js';
+import LangSwitch from '../components/LangSwitch.jsx';
 /**
  * Welcome screen — Linear-style redesign.
  *
@@ -5,7 +7,7 @@
  *   - Pure black background, subtle dot-grid pattern
  *   - Large 3D-feel M logo centered (with gradient + shadow)
  *   - "Welcome to" small + "Morok" large below it
- *   - Two CTA buttons at bottom: primary "Створити акаунт", secondary "Відновити"
+ *   - Two CTA buttons at bottom: primary "Create account", secondary "Відновити"
  *   - Tiny footer "v0.4 · beta"
  */
 
@@ -16,6 +18,8 @@ export default function Welcome({ onNavigate }) {
       display: 'flex', flexDirection: 'column',
       position: 'relative', overflow: 'hidden',
     }}>
+      <LangSwitch />
+
       {/* Dot-grid background pattern */}
       <div style={{
         position: 'absolute', inset: 0,
@@ -61,7 +65,7 @@ export default function Welcome({ onNavigate }) {
           marginBottom: 8,
           letterSpacing: '0.01em',
         }}>
-          Ласкаво просимо в
+          {t('Welcome to')}
         </div>
 
         <div style={{
@@ -81,8 +85,7 @@ export default function Welcome({ onNavigate }) {
           lineHeight: 1.55,
           letterSpacing: '-0.005em',
         }}>
-          Месенджер який нічого про вас не знає.
-          Без телефону, без email, без слідів.
+          {t('A messenger that knows nothing about you. No phone, no email, no traces.')}
         </div>
       </div>
 
@@ -113,7 +116,7 @@ export default function Welcome({ onNavigate }) {
           onMouseEnter={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = '#F5F5F7'; }}
         >
-          Створити акаунт
+          {t('Create account')}
         </button>
 
         <button
@@ -135,7 +138,7 @@ export default function Welcome({ onNavigate }) {
           onMouseEnter={(e) => { e.currentTarget.style.background = '#1E1E27'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = '#16161B'; }}
         >
-          У мене вже є акаунт
+          {t('I already have an account')}
         </button>
 
         {/* Кнопку «Відновити бекапом із сервера» прибрано — серверних

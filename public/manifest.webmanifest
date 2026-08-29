@@ -1,7 +1,7 @@
 {
-  "name": "Morok — приватний месенджер",
+  "name": "Morok — private messenger",
   "short_name": "Morok",
-  "description": "Приватний E2EE-месенджер без номера телефону",
+  "description": "A private E2EE messenger with no phone number",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

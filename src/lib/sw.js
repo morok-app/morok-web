@@ -1,3 +1,4 @@
+import { t, tp } from './i18n.js';
 /* Morok Service Worker — handles web push notifications. */
 
 const APP_URL = '/web/';
@@ -25,10 +26,10 @@ self.addEventListener('push', (event) => {
   const isMail = data.kind === 'mail';
   const title = 'Morok';
   const body = isMail
-    ? 'Новий лист · morok.email'
+    ? t('New email · morok.email')
     : from
-      ? (isGroup ? `@${from} у групі` : `Нове повідомлення від @${from}`)
-      : (isGroup ? 'Нове повідомлення у групі' : 'Нове повідомлення');
+      ? (isGroup ? tp("@{0} in a group", [from]) : tp("New message from @{0}", [from]))
+      : (isGroup ? t('New message in a group') : t('New message'));
 
   event.waitUntil((async () => {
     // If any tab is currently focused, the user is reading right now —

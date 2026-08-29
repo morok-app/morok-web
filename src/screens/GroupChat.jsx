@@ -9,12 +9,13 @@ import { hexToBytes } from '../lib/crypto.js';
 import { formatBytes } from '../lib/images.js';
 import { Recorder, isSupported as voiceIsSupported, formatDuration, MAX_DURATION_MS } from '../lib/voice.js';
 import * as muted from '../lib/muted.js';
+import { t, tp } from '../lib/i18n.js';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
-  { label: '1 година',  seconds: 3600 },
-  { label: '6 годин',   seconds: 6 * 3600 },
-  { label: '24 години', seconds: 24 * 3600 },
+  { label: t('1 hour'),  seconds: 3600 },
+  { label: t('6 hours'),   seconds: 6 * 3600 },
+  { label: t('24 hours'), seconds: 24 * 3600 },
 ];
 
 const LONG_PRESS_MS = 500;
@@ -32,11 +33,11 @@ function fmtClock(unix) {
 function fmtTTLLeft(expires_at) {
   if (!expires_at) return '';
   const left = expires_at - Math.floor(Date.now() / 1000);
-  if (left <= 0) return 'зник';
-  if (left < 60) return `${left}с`;
-  if (left < 3600) return `${Math.floor(left / 60)}хв`;
-  if (left < 86400) return `${Math.floor(left / 3600)}г`;
-  return `${Math.floor(left / 86400)}д`;
+  if (left <= 0) return t('gone');
+  if (left < 60) return tp("{0}s", [left]);
+  if (left < 3600) return tp("{0}m", [Math.floor(left / 60)]);
+  if (left < 86400) return tp("{0}h", [Math.floor(left / 3600)]);
+  return tp("{0}d", [Math.floor(left / 86400)]);
 }
 
 function getSeedBytes() {
@@ -93,7 +94,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     const toDelete = getSelectedMessages();
     if (!toDelete.length) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Сеанс закінчився.'); return; }
+    if (!seed) { alert('Session expired.'); return; }
     exitSelectMode();
     let failed = 0;
     for (const m of toDelete) {
@@ -103,7 +104,7 @@ export default function GroupChat({ groupId, onNavigate }) {
       } catch { failed += 1; }
     }
     setGroup(gstore.getGroup(groupId));
-    if (failed) alert(`Не вдалось видалити у всіх: ${failed} повід.`);
+    if (failed) alert(tp("Couldn't delete for everyone: {0} msg.", [failed]));
   }
 
   const [lightboxImage, setLightboxImage] = useState(null);
@@ -132,7 +133,7 @@ export default function GroupChat({ groupId, onNavigate }) {
         if (groups.isGroupGoneError(e)) {
           // Групу видалив адмін (або нас прибрали) — зносимо локально.
           gstore.removeGroup(groupId);
-          alert('Цю групу було видалено.');
+          alert('This group has been deleted.');
           onNavigate('chats');
           return;
         }
@@ -317,7 +318,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     setActionMessage(null);
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Сеанс закінчився.');
+      alert('Session expired.');
       return;
     }
     try {
@@ -347,7 +348,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Сеанс закінчився.');
+      alert('Session expired.');
       return;
     }
 
@@ -356,15 +357,15 @@ export default function GroupChat({ groupId, onNavigate }) {
       gstore.deleteMessage(groupId, msg.id);
       setGroup(gstore.getGroup(groupId));
     } catch (e) {
-      alert(`Не вдалось видалити для всіх: ${e.message}`);
+      alert(tp("Couldn't delete for everyone: {0}", [e.message]));
     }
   }
 
   async function sendClicked() {
     if (!draft.trim() || sending) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Сеанс закінчився.'); return; }
-    if (!myPubkeyHex) { alert('Не знайдено мій pubkey.'); return; }
+    if (!seed) { alert('Session expired.'); return; }
+    if (!myPubkeyHex) { alert('My pubkey not found.'); return; }
     setSending(true);
     try {
       await groups.sendGroupMessage({
@@ -378,11 +379,11 @@ export default function GroupChat({ groupId, onNavigate }) {
     } catch (e) {
       if (groups.isGroupGoneError(e)) {
         gstore.removeGroup(groupId);
-        alert('Цю групу було видалено.');
+        alert('This group has been deleted.');
         onNavigate('chats');
         return;
       }
-      alert(`Помилка: ${e.message}`);
+      alert(tp("Error: {0}", [e.message]));
     } finally {
       setSending(false);
     }
@@ -396,12 +397,12 @@ export default function GroupChat({ groupId, onNavigate }) {
   async function sendImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('Це не картинка.');
+      alert('That\'s not an image.');
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Сеанс закінчився.');
+      alert('Session expired.');
       return;
     }
     setImageBusy(true);
@@ -414,7 +415,7 @@ export default function GroupChat({ groupId, onNavigate }) {
       setDraft('');
       setGroup(gstore.getGroup(groupId));
     } catch (err) {
-      alert(`Не вдалось надіслати картинку: ${err.message}`);
+      alert(tp("Couldn't send the image: {0}", [err.message]));
     } finally {
       setImageBusy(false);
     }
@@ -444,12 +445,12 @@ export default function GroupChat({ groupId, onNavigate }) {
   async function startRecording() {
     if (recording || voiceBusy || sending || imageBusy) return;
     if (!voiceIsSupported()) {
-      alert('Браузер не підтримує запис голосу.');
+      alert('This browser doesn\'t support voice recording.');
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Сеанс закінчився. Перезавантажте сторінку.');
+      alert('Session expired. Reload the page.');
       return;
     }
     const rec = new Recorder();
@@ -459,8 +460,8 @@ export default function GroupChat({ groupId, onNavigate }) {
       });
     } catch (e) {
       const msg = e?.name === 'NotAllowedError'
-        ? 'Доступ до мікрофону заблоковано.'
-        : (e?.message || 'Не вдалось почати запис');
+        ? t('Microphone access is blocked.')
+        : (e?.message || 'Couldn\'t start recording');
       alert(msg);
       return;
     }
@@ -500,7 +501,7 @@ export default function GroupChat({ groupId, onNavigate }) {
       }
       const seed = getSeedBytes();
       if (!seed || !myPubkeyHex) {
-        alert('Сеанс закінчився.');
+        alert('Session expired.');
         setVoiceBusy(false);
         return;
       }
@@ -515,7 +516,7 @@ export default function GroupChat({ groupId, onNavigate }) {
       vault.refreshSession();
       setGroup(gstore.getGroup(groupId));
     } catch (e) {
-      alert(`Не вдалось надіслати голосове: ${e.message}`);
+      alert(tp("Couldn't send the voice message: {0}", [e.message]));
     } finally {
       setVoiceBusy(false);
     }
@@ -544,7 +545,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
         <CompactHeader
-          title="Група"
+          title={t("Group")}
           subtitle=""
           onBack={() => onNavigate('chats')}
         />
@@ -564,7 +565,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Групу не знайдено</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>{t('Group not found')}</div>
         </div>
       </div>
     );
@@ -605,7 +606,7 @@ export default function GroupChat({ groupId, onNavigate }) {
           pointerEvents: 'none',
           color: '#C8CFFF', fontSize: 15, fontWeight: 600,
         }}>
-          Відпустіть, щоб надіслати картинку
+          {t('Release to send the image')}
         </div>
       )}
       <style>{`
@@ -621,33 +622,33 @@ export default function GroupChat({ groupId, onNavigate }) {
           padding: '10px 14px',
           background: '#0E0E12', borderBottom: '1px solid #1E1E27',
         }}>
-          <button onClick={exitSelectMode} aria-label="Скасувати" style={{
+          <button onClick={exitSelectMode} aria-label={t("Cancel")} style={{
             width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
             background: 'rgba(255,255,255,0.06)', border: '1px solid #232329',
             color: '#F5F5F7', cursor: 'pointer', fontSize: 15,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>✕</button>
           <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#F5F5F7', fontFamily: 'JetBrains Mono, monospace' }}>
-            {selectedIds.size} вибрано
+            {selectedIds.size} selected
           </div>
           <button onClick={batchDeleteForMe} disabled={!selectedIds.size} style={{
             padding: '8px 12px', borderRadius: 10,
             background: 'rgba(255,255,255,0.06)', border: '1px solid #232329',
             color: '#F5F5F7', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             opacity: selectedIds.size ? 1 : 0.4,
-          }}>У мене</button>
+          }}>{t('For me')}</button>
           {selCanDeleteAll && (
             <button onClick={batchDeleteForEveryone} style={{
               padding: '8px 12px', borderRadius: 10,
               background: 'rgba(255,107,122,0.12)', border: '1px solid rgba(255,107,122,0.35)',
               color: '#FF6B7A', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>У всіх</button>
+            }}>{t('For everyone')}</button>
           )}
         </div>
       ) : (
       <CompactHeader
-        title={group.name || 'Група без назви'}
-        subtitle={`${memberCount} учасників`}
+        title={group.name || t('Untitled group')}
+        subtitle={tp("{0} members", [memberCount])}
         onBack={() => onNavigate('chats')}
         onTitleClick={() => onNavigate(`groupinfo/${groupId}`)}
         onMenuClick={() => setMuteSheetOpen(true)}
@@ -666,7 +667,7 @@ export default function GroupChat({ groupId, onNavigate }) {
         }}>
           <div style={{ fontSize: 14, lineHeight: 1, marginTop: 1 }}>⏳</div>
           <div>
-            Чекаємо на ключ групи від адміна. Як тільки прийде — побачите назву і повідомлення.
+            {t('Waiting for the group key from the admin. Once it arrives you\'ll see the name and messages.')}
           </div>
         </div>
       )}
@@ -685,9 +686,9 @@ export default function GroupChat({ groupId, onNavigate }) {
             textAlign: 'center', color: '#9EA0AC', fontSize: 12.5,
             marginTop: 40, lineHeight: 1.6,
           }}>
-            Поки немає повідомлень.<br/>
+            {t('No messages yet.')}<br/>
             <span style={{ color: '#8B8D99', fontSize: 11.5 }}>
-              Напишіть перше нижче.
+              {t('Write the first one below.')}
             </span>
           </div>
         )}
@@ -759,7 +760,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                   className={`msg-hover-btn${isOut ? ' out' : ' in'}`}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); setActionMessage(m); }}
-                  title="Дії"
+                  title={t("Actions")}
                 >⋯</button>
               )}
               {/* Sender name — only for incoming messages, and only first in group */}
@@ -790,7 +791,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               >
                 {m.status === 'undecryptable' ? (
                   <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
-                    ⚠ {m.error || 'не вдалось розшифрувати'}
+                    ⚠ {m.error || 'couldn\'t decrypt'}
                   </span>
                 ) : m.voice ? (
                   <VoicePlayer voice={m.voice} isOut={isOut} />
@@ -933,13 +934,13 @@ export default function GroupChat({ groupId, onNavigate }) {
             letterSpacing: '-0.02em',
             margin: '0 20px 6px',
           }}>
-            Час життя повідомлення
+            {t('Message lifetime')}
           </h3>
           <p style={{
             fontSize: 12, color: '#A4A6B2',
             margin: '0 20px 14px', lineHeight: 1.5,
           }}>
-            Після цього часу повідомлення зникне у всіх учасників.
+            {t('After this time the message disappears for all members.')}
           </p>
           {TTL_OPTIONS.map((opt) => {
             const active = ttlSeconds === opt.seconds;
@@ -980,7 +981,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 padding: '6px 22px 14px',
                 color: '#A8A8B0', fontSize: 13, textAlign: 'center',
               }}>
-                Заглушено · {muted.formatMuteUntil(muteEntry.until)}
+                Muted · {muted.formatMuteUntil(muteEntry.until)}
               </div>
               <button
                 onClick={unmuteGroup}
@@ -991,7 +992,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                   textAlign: 'center', cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
-                🔔 Розгасити групу
+                {t('🔔 Unmute group')}
               </button>
             </>
           ) : (
@@ -1000,7 +1001,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 padding: '6px 22px 14px',
                 color: '#A8A8B0', fontSize: 13, textAlign: 'center',
               }}>
-                Заглушити сповіщення
+                {t('Mute notifications')}
               </div>
               {muted.MUTE_DURATIONS.map((d) => (
                 <button
@@ -1060,11 +1061,11 @@ export default function GroupChat({ groupId, onNavigate }) {
             fontStyle: 'italic',
           }}>
             {actionMessage.voice
-              ? `🎤 Голосове (${formatDuration(actionMessage.voice.duration_ms || 0)})`
+              ? tp("🎤 Voice ({0})", [formatDuration(actionMessage.voice.duration_ms || 0)])
               : actionMessage.image
               ? (actionMessage.text
-                  ? `📷 Картинка · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
-                  : '📷 Картинка')
+                  ? `📷 Image · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
+                  : t('📷 Image'))
               : `"${actionMessage.text?.slice(0, 80) || ''}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
           <div
@@ -1078,7 +1079,7 @@ export default function GroupChat({ groupId, onNavigate }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
-            Вибрати
+            {t('Select')}
           </div>
           {actionMessage.text && (
             <div
@@ -1095,7 +1096,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
-              {actionMessage.image ? 'Скопіювати підпис' : 'Скопіювати'}
+              {actionMessage.image ? t('Copy label') : t('Copy')}
             </div>
           )}
           {(() => {
@@ -1118,7 +1119,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                   </svg>
-                  {canDeleteForAll ? 'Видалити у мене' : 'Видалити у себе'}
+                  {canDeleteForAll ? t('Delete for me') : t('Delete for me')}
                 </div>
                 {canDeleteForAll && (
                   <div
@@ -1132,7 +1133,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                     </svg>
-                    {isMine ? 'Видалити у всіх' : 'Видалити для всіх (адмін)'}
+                    {isMine ? t('Delete for everyone') : t('Delete for everyone (admin)')}
                   </div>
                 )}
               </>
@@ -1160,7 +1161,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 color: '#FF6B7A', cursor: 'pointer',
                 flexShrink: 0,
               }}
-              title="Скасувати"
+              title={t("Cancel")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1186,7 +1187,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               </div>
               <div style={{ flex: 1 }} />
               <div style={{ fontSize: 12, color: '#9EA0AC' }}>
-                {Math.floor((MAX_DURATION_MS - recordMs) / 1000)}с
+                {Math.floor((MAX_DURATION_MS - recordMs) / 1000)}s
               </div>
             </div>
             <button
@@ -1199,7 +1200,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 cursor: voiceBusy ? 'wait' : 'pointer',
                 flexShrink: 0,
               }}
-              title="Надіслати"
+              title={t("Send")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"/>
@@ -1227,12 +1228,12 @@ export default function GroupChat({ groupId, onNavigate }) {
               fontWeight: 600, letterSpacing: '0.02em',
               flexShrink: 0,
             }}
-            title="Час життя повідомлення"
+            title={t("Message lifetime")}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
-            {ttlSeconds < 86400 ? `${ttlSeconds / 3600}г` : `${ttlSeconds / 86400}д`}
+            {ttlSeconds < 86400 ? tp("{0}h", [ttlSeconds / 3600]) : tp("{0}d", [ttlSeconds / 86400])}
           </button>
           <button
             onClick={attachClicked}
@@ -1247,7 +1248,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               cursor: (imageBusy || sending) ? 'wait' : 'pointer',
               flexShrink: 0,
             }}
-            title="Додати картинку"
+            title={t("Add an image")}
           >
             {imageBusy ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -1383,7 +1384,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               color: '#F5F5F7', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-            aria-label="Закрити"
+            aria-label={t("Close")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -1452,7 +1453,7 @@ function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isM
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>{title}</span>
           {isMuted && (
-            <span style={{ fontSize: 12, color: '#A4A6B2', flexShrink: 0 }} title="Заглушено">🔕</span>
+            <span style={{ fontSize: 12, color: '#A4A6B2', flexShrink: 0 }} title={t("Muted")}>🔕</span>
           )}
         </div>
         {subtitle && (
@@ -1477,7 +1478,7 @@ function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isM
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}
-          title="Дії"
+          title={t("Actions")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>

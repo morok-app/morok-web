@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 /**
  * Parse Morok user addresses.
  *
@@ -16,7 +17,7 @@ const HOST_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)
 
 export function parseAddress(input) {
   if (!input || typeof input !== 'string') {
-    throw new Error('пуста адреса');
+    throw new Error(t('empty address'));
   }
   let s = input.trim();
   if (s.startsWith('@')) s = s.slice(1);
@@ -33,10 +34,10 @@ export function parseAddress(input) {
   }
 
   if (!USERNAME_RE.test(username)) {
-    throw new Error('Некоректний юзернейм');
+    throw new Error(t('Invalid username'));
   }
   if (relay !== null && !HOST_RE.test(relay)) {
-    throw new Error('Некоректний адрес relay');
+    throw new Error(t('Invalid relay address'));
   }
   return { username, relay };
 }

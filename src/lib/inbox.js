@@ -14,6 +14,7 @@
  */
 
 import * as api from './api.js';
+import { t } from './i18n.js';
 
 const BACKOFF_SECONDS = [1, 2, 5, 10, 30];
 

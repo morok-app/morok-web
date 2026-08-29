@@ -9,6 +9,7 @@ import * as muted from '../lib/muted.js';
 import * as contacts from '../lib/contacts.js';
 import { formatPeerName } from '../lib/display.js';
 import * as groupsLib from '../lib/groups.js';
+import { t, tp } from '../lib/i18n.js';
 
 const LONG_PRESS_MS = 500;
 
@@ -16,22 +17,22 @@ function formatTime(unix) {
   if (!unix) return '';
   const now = Date.now() / 1000;
   const diff = now - unix;
-  if (diff < 60) return 'щойно';
-  if (diff < 3600) return `${Math.floor(diff / 60)}хв`;
+  if (diff < 60) return t('just now');
+  if (diff < 3600) return tp("{0}m", [Math.floor(diff / 60)]);
   if (diff < 86400) {
     const d = new Date(unix * 1000);
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
-  if (diff < 7 * 86400) return `${Math.floor(diff / 86400)}д`;
+  if (diff < 7 * 86400) return tp("{0}d", [Math.floor(diff / 86400)]);
   const d = new Date(unix * 1000);
   return `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 function formatTTL(seconds) {
   if (!seconds) return '';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}хв`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}г`;
-  return `${Math.floor(seconds / 86400)}д`;
+  if (seconds < 3600) return tp("{0}m", [Math.floor(seconds / 60)]);
+  if (seconds < 86400) return tp("{0}h", [Math.floor(seconds / 3600)]);
+  return tp("{0}d", [Math.floor(seconds / 86400)]);
 }
 
 function formatVoiceDuration(ms) {
@@ -62,7 +63,7 @@ function useInboxState() {
  * Build the unified list of DMs + groups for the chats screen.
  *
  * Each item is tagged with a `category`:
- *   'chat'    — shows up in the main "Чати" tab
+ *   'chat'    — shows up in the main "Chats" tab
  *   'request' — shows up in "Запити повідомлень" tab
  *
  * Categorisation rules for DMs:
@@ -117,7 +118,7 @@ function buildMixedList(contactsOnly) {
     items.push({
       kind: 'group',
       id: g.group_id,
-      title: g.name || 'Група без назви',
+      title: g.name || t('Untitled group'),
       last,
       unread,
       ts: g.updated_at || last?.ts || 0,
@@ -132,6 +133,12 @@ function buildMixedList(contactsOnly) {
 
 export default function ChatsList({ onNavigate, activeChatId = null }) {
   const [profile, setProfile] = useState(store.loadProfile());
+  // Нудж: акаунт без PIN — сід лежить у localStorage відкрито.
+  // Показуємо, поки PIN не встановлено; «Later» ховає до кінця сесії вкладки.
+  const [pinNudgeHidden, setPinNudgeHidden] = useState(
+    () => store.isIdentityEncrypted()
+      || sessionStorage.getItem('morok.pin_nudge_hidden') === '1',
+  );
   const [contactsOnly, setContactsOnly] = useState(
     () => !!store.getPreference('contacts_only_mode', false)
   );
@@ -285,7 +292,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
         // 404/403 = групи на релеї вже немає (адмін видалив раніше).
         // Це не помилка для користувача — просто чистимо локально.
         if (!groupsLib.isGroupGoneError(e)) {
-          alert(`Помилка: ${e.message}`);
+          alert(tp("Error: {0}", [e.message]));
         }
       }
       gstore.removeGroup(item.id);
@@ -303,7 +310,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
   const requestCount = requestItems.length;
   const requestUnread = requestItems.reduce((sum, it) => sum + (it.unread || 0), 0);
 
-  // If "Запити" tab no longer has items (user accepted/blocked them all),
+  // If "Requests" tab no longer has items (user accepted/blocked them all),
   // snap back to the main tab automatically.
   useEffect(() => {
     if (activeTab === 'requests' && requestCount === 0) {
@@ -321,13 +328,29 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
     : `@anon_${myPubkey?.slice(0, 8) || '????????'}`;
 
   const stateBadge = (() => {
-    if (inboxState === 'connecting') return { text: 'підключення', color: 'var(--text-dim)' };
-    if (inboxState === 'closed' || inboxState === 'error') return { text: 'офлайн', color: 'var(--danger)' };
+    if (inboxState === 'connecting') return { text: t('connecting'), color: 'var(--text-dim)' };
+    if (inboxState === 'closed' || inboxState === 'error') return { text: t('offline'), color: 'var(--danger)' };
     return null;
   })();
 
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
+      {!pinNudgeHidden && (
+        <div style={{
+          margin: '10px 14px 0', padding: '10px 14px', borderRadius: 12,
+          background: 'rgba(255,169,77,0.10)', border: '1px solid rgba(255,169,77,0.35)',
+          display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#F5F5F7',
+        }}>
+          <span style={{ flex: 1 }}>{t('Your account has no PIN — anyone with this browser can open it.')}</span>
+          <button onClick={() => onNavigate('pin-setup-existing')} style={{
+            whiteSpace: 'nowrap', border: 'none', borderRadius: 8, padding: '7px 12px',
+            background: 'var(--accent, #6B8AFE)', color: '#fff', fontWeight: 600, cursor: 'pointer',
+          }}>{t('Set up a PIN')}</button>
+          <button onClick={() => { sessionStorage.setItem('morok.pin_nudge_hidden', '1'); setPinNudgeHidden(true); }} style={{
+            background: 'none', border: 'none', color: '#A4A6B2', cursor: 'pointer', padding: '7px 4px',
+          }}>{t('Later')}</button>
+        </div>
+      )}
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <div style={{
@@ -341,7 +364,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
             color: '#F5F5F7', lineHeight: 1,
             display: 'flex', alignItems: 'center', gap: 10,
           }}>
-            Чати
+            Chats
             {stateBadge && (
               <span style={{
                 fontSize: 9.5, fontWeight: 600,
@@ -381,7 +404,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
         }}>
           <button
             onClick={() => onNavigate('tools')}
-            title="Інструменти"
+            title={t("Tools")}
             style={{
               background: 'transparent', border: 'none',
               width: 34, height: 30, borderRadius: 100,
@@ -396,7 +419,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           </button>
           <button
             onClick={() => onNavigate('settings')}
-            title="Налаштування"
+            title={t("Settings")}
             style={{
               background: 'transparent', border: 'none',
               width: 34, height: 30, borderRadius: 100,
@@ -438,10 +461,10 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>
-              Створіть юзернейм
+              {t('Create a username')}
             </div>
             <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 2 }}>
-              Інакше акаунт видалиться через 7 днів неактивності
+              {t('Otherwise the account is deleted after 7 days of inactivity')}
             </div>
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -476,10 +499,10 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: '#F5F5F7' }}>
-              Захистіть акаунт PIN-кодом
+              {t('Protect your account with a PIN')}
             </div>
             <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 2 }}>
-              Хто має доступ до браузера — може прочитати ваші повідомлення
+              {t('Anyone with access to this browser can read your messages')}
             </div>
           </div>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -497,12 +520,12 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           <TabButton
             active={activeTab === 'chats'}
             onClick={() => setActiveTab('chats')}
-            label="Чати"
+            label={t("Chats")}
           />
           <TabButton
             active={activeTab === 'requests'}
             onClick={() => setActiveTab('requests')}
-            label="Запити"
+            label={t("Requests")}
             badge={requestUnread > 0 ? requestUnread : null}
             count={requestCount}
           />
@@ -528,12 +551,12 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
             </svg>
           </div>
           <div style={{ fontSize: 15, fontWeight: 600, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
-            {activeTab === 'requests' ? 'Нема нових запитів' : 'Поки немає чатів'}
+            {activeTab === 'requests' ? t('No new requests') : t('No chats yet')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', maxWidth: 280, lineHeight: 1.5 }}>
             {activeTab === 'requests'
-              ? 'Сюди потрапляють повідомлення від людей, яких немає у ваших контактах'
-              : 'Натисніть кнопку нижче щоб почати новий чат або групу'}
+              ? 'Messages from people who aren\'t in your contacts land here'
+              : t('Tap the button below to start a new chat or group')}
           </div>
         </div>
       ) : (
@@ -585,7 +608,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>{item.title}</span>
                       {isMuted && (
-                        <span style={{ fontSize: 12, color: '#9EA0AC', flexShrink: 0 }} title="Заглушено">🔕</span>
+                        <span style={{ fontSize: 12, color: '#9EA0AC', flexShrink: 0 }} title={t("Muted")}>🔕</span>
                       )}
                     </div>
                     <div style={{
@@ -604,12 +627,12 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                     }}>
                       {isGroup && last && last.direction !== 'out'
                         ? `${formatPeerName({ username: last.sender_username, pubkey: last.sender_pubkey })}: `
-                        : (last?.direction === 'out' ? 'Ви: ' : '')}
+                        : (last?.direction === 'out' ? 'You: ' : '')}
                       {last?.voice
-                        ? `🎤 Голосове (${formatVoiceDuration(last.voice.duration_ms)})`
+                        ? tp("🎤 Voice ({0})", [formatVoiceDuration(last.voice.duration_ms)])
                         : last?.image
-                        ? (last.text ? `📷 ${last.text}` : '📷 Картинка')
-                        : (last?.text || (last?.status === 'undecryptable' ? '⚠ не вдалось розшифрувати' : '...'))}
+                        ? (last.text ? `📷 ${last.text}` : t('📷 Image'))
+                        : (last?.text || (last?.status === 'undecryptable' ? '⚠ couldn\'t decrypt' : '...'))}
                     </div>
                     {last?.ttl && (
                       <div style={{ fontSize: 12.5, color: '#9EA0AC', fontFamily: 'var(--mono, monospace)' }}>
@@ -677,7 +700,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                   padding: '14px 20px', cursor: 'pointer',
                   fontSize: 14, color: '#F5F5F7',
                 }}
-              >Інфо групи</div>
+              >{t('Group info')}</div>
             )}
             {actionItem.kind === 'dm' && actionItem.category === 'request' && (
               <>
@@ -695,7 +718,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                     padding: '14px 20px', cursor: 'pointer',
                     color: '#4ADE80', fontSize: 14, fontWeight: 600,
                   }}
-                >✓ Прийняти (додати в контакти)</div>
+                >{t('✓ Accept (add to contacts)')}</div>
                 <div
                   onClick={() => {
                     contacts.blockPeer(actionItem.pubkey);
@@ -706,7 +729,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                     padding: '14px 20px', cursor: 'pointer',
                     color: '#FF6B7A', fontSize: 14, fontWeight: 500,
                   }}
-                >🚫 Заблокувати</div>
+                >{t('🚫 Block')}</div>
                 <div style={{ height: 1, background: '#232329', margin: '4px 0' }} />
               </>
             )}
@@ -718,14 +741,14 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                     padding: '14px 20px', cursor: 'pointer',
                     color: '#F5F5F7', fontSize: 14, fontWeight: 500,
                   }}
-                >Видалити чат у мене</div>
+                >{t('Delete chat for me')}</div>
                 <div
                   onClick={deleteForAll}
                   style={{
                     padding: '14px 20px', cursor: 'pointer',
                     color: '#FF6B7A', fontSize: 14, fontWeight: 500,
                   }}
-                >Видалити чат у всіх</div>
+                >{t('Delete chat for everyone')}</div>
               </>
             )}
             {actionItem.kind === 'group' && (() => {
@@ -738,7 +761,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                     padding: '14px 20px', cursor: 'pointer',
                     color: '#FF6B7A', fontSize: 14, fontWeight: 500,
                   }}
-                >{isAdmin ? 'Видалити групу для всіх' : 'Вийти з групи'}</div>
+                >{isAdmin ? t('Delete group for everyone') : t('Leave group')}</div>
               );
             })()}
           </div>
@@ -783,7 +806,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
               </div>
-              <span style={{ fontSize: 14, color: '#F5F5F7', fontWeight: 500 }}>Новий чат</span>
+              <span style={{ fontSize: 14, color: '#F5F5F7', fontWeight: 500 }}>{t('New chat')}</span>
             </div>
             <div
               onClick={() => { setShowNewMenu(false); onNavigate('newgroup'); }}
@@ -802,7 +825,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
               </div>
-              <span style={{ fontSize: 14, color: '#F5F5F7', fontWeight: 500 }}>Нова група</span>
+              <span style={{ fontSize: 14, color: '#F5F5F7', fontWeight: 500 }}>{t('New group')}</span>
             </div>
           </div>
         </div>

@@ -10,6 +10,7 @@ import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
 import * as safety from '../lib/safety.js';
 import QRCode from 'qrcode';
+import { t } from '../lib/i18n.js';
 
 export default function SafetyNumber({ peerPubkey, onNavigate }) {
   const conv = convs.getConversation(peerPubkey);
@@ -98,12 +99,12 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
-      <TopBar title="Номер безпеки" onBack={() => onNavigate(`peer/${peerPubkey}`)} />
+      <TopBar title={t("Safety number")} onBack={() => onNavigate(`peer/${peerPubkey}`)} />
 
       <div style={{ padding: '0 18px 32px' }}>
         <p style={{ color: '#A8AAB5', fontSize: 14, lineHeight: 1.5, marginTop: 0, marginBottom: 22 }}>
-          Порівняйте ці числа з {peerLabel} — у дзвінку, особисто або через інший
-          канал. Якщо вони однакові, ваше з'єднання захищене й ніхто не підмінив ключі.
+          Compare these numbers with {peerLabel} — on a call, in person or through another
+          channel. If they match, your connection is secure and nobody has swapped the keys.
         </p>
 
         {sn ? (
@@ -121,27 +122,27 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
           </div>
         ) : (
           <div style={{ background: '#13131A', border: '1px solid #232329', borderRadius: 16, padding: 22, textAlign: 'center', color: '#FF6B7A', fontSize: 13 }}>
-            Не вдалося обчислити — некоректні ключі.
+            {t('Couldn\'t compute — invalid keys.')}
           </div>
         )}
 
         {qrUrl && (
           <>
-            <div className="lin-group-label" style={{ marginTop: 26 }}>QR ДЛЯ ЗВІРКИ</div>
+            <div className="lin-group-label" style={{ marginTop: 26 }}>{t('QR FOR VERIFICATION')}</div>
             <div style={{
               background: '#13131A', border: '1px solid #232329', borderRadius: 16,
               padding: 18, display: 'flex', flexDirection: 'column', alignItems: 'center',
             }}>
               <img src={qrUrl} alt="QR" style={{ width: 200, height: 200, borderRadius: 10 }} />
               <span style={{ color: '#A4A6B2', fontSize: 12, marginTop: 12 }}>
-                Інша сторона зможе відсканувати для звірки
+                {t('The other side can scan it to verify')}
               </span>
             </div>
           </>
         )}
 
         {/* ── Сканер QR іншої сторони ── */}
-        <div className="lin-group-label" style={{ marginTop: 26 }}>СКАНУВАТИ ЇХНІЙ QR</div>
+        <div className="lin-group-label" style={{ marginTop: 26 }}>{t('SCAN THEIR QR')}</div>
         {scanning ? (
           <div style={{
             background: '#13131A', border: '1px solid #232329', borderRadius: 16,
@@ -152,8 +153,8 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
               muted playsInline
               style={{ width: '100%', maxWidth: 320, borderRadius: 12, background: '#000' }}
             />
-            <span style={{ color: '#A8AAB5', fontSize: 13 }}>Наведіть на QR на екрані співрозмовника</span>
-            <PrimaryButton onClick={stopScan} variant="neutral">Скасувати</PrimaryButton>
+            <span style={{ color: '#A8AAB5', fontSize: 13 }}>{t('Point at the QR on the other person\'s screen')}</span>
+            <PrimaryButton onClick={stopScan} variant="neutral">{t('Cancel')}</PrimaryButton>
           </div>
         ) : (
           <>
@@ -168,14 +169,14 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
                   </svg>
                 }
               >
-                Сканувати QR співрозмовника
+                {t('Scan their QR')}
               </PrimaryButton>
             ) : (
               <div style={{
                 background: '#13131A', border: '1px solid #232329', borderRadius: 14,
                 padding: '13px 16px', color: '#A4A6B2', fontSize: 13, textAlign: 'center',
               }}>
-                Сканер недоступний у цьому браузері — звірте цифри вручну
+                {t('The scanner isn\'t available in this browser — compare the digits manually')}
               </div>
             )}
             {scanResult === 'match' && (
@@ -184,7 +185,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
                 background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.35)',
                 color: '#4ADE80', fontSize: 14, fontWeight: 600,
               }}>
-                ✓ Ключі збігаються — з'єднання захищене, позначено як підтверджене
+                {t('✓ Keys match — the connection is secure, marked as verified')}
               </div>
             )}
             {scanResult === 'mismatch' && (
@@ -193,7 +194,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
                 background: 'rgba(255,107,122,0.08)', border: '1px solid rgba(255,107,122,0.4)',
                 color: '#FF6B7A', fontSize: 14, fontWeight: 600,
               }}>
-                ✗ Ключі НЕ збігаються! Можливе перехоплення — не довіряйте цьому чату
+                {t('✗ Keys DO NOT match! Possible interception — don\'t trust this chat')}
               </div>
             )}
             {scanResult === 'error' && (
@@ -202,7 +203,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
                 background: '#13131A', border: '1px solid #232329',
                 color: '#A8AAB5', fontSize: 13,
               }}>
-                Не вдалося відкрити камеру — перевірте дозвіл у браузері
+                {t('Couldn\'t open the camera — check the browser permission')}
               </div>
             )}
           </>
@@ -219,12 +220,12 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
               </svg>
             }
           >
-            {verified ? 'Підтверджено' : 'Позначити як підтверджений'}
+            {verified ? t('Verified') : t('Mark as verified')}
           </PrimaryButton>
         </div>
 
         <p style={{ color: '#8B8D99', fontSize: 12, lineHeight: 1.5, textAlign: 'center', marginTop: 16 }}>
-          Позначка зберігається лише на вашому пристрої. Сервер про неї не знає.
+          {t('The mark is stored only on your device. The server doesn\'t know about it.')}
         </p>
       </div>
     </div>

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { identityFromMnemonic } from '../lib/crypto.js';
+import { t, tp } from '../lib/i18n.js';
+import LangSwitch from '../components/LangSwitch.jsx';
 
 /**
  * LoginByMnemonic — Linear-style.
@@ -18,7 +20,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
 
   async function submitClicked() {
     if (wordCount !== 24) {
-      setError(`Потрібно рівно 24 слова, зараз ${wordCount}`);
+      setError(tp("Exactly 24 words required, currently {0}", [wordCount]));
       return;
     }
     setBusy(true);
@@ -31,13 +33,14 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
         mnemonic: id.mnemonic,
       });
     } catch (e) {
-      setError(e.message || 'Не вдалось розпізнати фразу');
+      setError(e.message || 'Couldn\'t recognize the phrase');
       setBusy(false);
     }
   }
 
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
+      <LangSwitch />
 
       {/* Header */}
       <div style={{
@@ -49,10 +52,10 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Увійти в акаунт
+            {t('Sign in')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
-            Введіть свої 24 слова
+            {t('Enter your 24 words')}
           </div>
         </div>
         <button
@@ -80,7 +83,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
           letterSpacing: '0.05em',
           display: 'flex', justifyContent: 'space-between',
         }}>
-          <span>24 СЛОВА</span>
+          <span>{t('24 WORDS')}</span>
           <span style={{
             color: wordCount === 24 ? '#4ADE80' : (wordCount > 24 ? '#FF6B7A' : '#5A5A65'),
           }}>
@@ -114,7 +117,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
         />
 
         <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 10, lineHeight: 1.5 }}>
-          Вставте всі 24 слова через пробіл. Регістр не має значення.
+          {t('Paste all 24 words separated by spaces. Case doesn\'t matter.')}
         </p>
 
         {error && (
@@ -147,7 +150,7 @@ export default function LoginByMnemonic({ onNavigate, onSeedReady }) {
               fontFamily: 'inherit',
             }}
           >
-            {busy ? 'Перевіряємо...' : 'Увійти'}
+            {busy ? t('Checking...') : t('Sign in')}
           </button>
         </div>
 

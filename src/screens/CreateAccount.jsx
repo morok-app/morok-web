@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { generateIdentity } from '../lib/crypto.js';
+import { t } from '../lib/i18n.js';
+import LangSwitch from '../components/LangSwitch.jsx';
 
 /**
  * CreateAccount — Linear-style 2-step flow:
@@ -42,16 +44,17 @@ export default function CreateAccount({ onNavigate, onSeedReady }) {
 
   return (
     <div className="screen" style={{ background: '#0A0A0B', position: 'relative' }}>
+      <LangSwitch />
 
       {/* Header */}
       <Header
         title={
-          step === 'intro' ? 'Створити акаунт' :
-          'Ваш ключ відновлення'
+          step === 'intro' ? t('Create account') :
+          t('Your recovery key')
         }
         subtitle={
-          step === 'intro' ? 'Крок 1 з 2' :
-          'Крок 2 з 2'
+          step === 'intro' ? t('Step 1 of 2') :
+          t('Step 2 of 2')
         }
         onClose={() => onNavigate('welcome')}
       />
@@ -101,11 +104,10 @@ function IntroPanel({ onGenerate }) {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#F5F5F7', marginBottom: 6 }}>
-            24 секретні слова
+            {t('24 secret words')}
           </div>
           <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55 }}>
-            Це єдиний спосіб відновити акаунт. Сервер не знає вашого паролю — тільки ви.
-            Без слів — без доступу.
+            {t('This is the only way to recover the account. The server doesn\'t know your password — only you do. No words — no access.')}
           </div>
         </div>
       </div>
@@ -130,11 +132,10 @@ function IntroPanel({ onGenerate }) {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#F5F5F7', marginBottom: 6 }}>
-            Запишіть на папір
+            {t('Write them down on paper')}
           </div>
           <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55 }}>
-            Не фотографуйте, не зберігайте в хмарі. Папір у безпечному місці —
-            найнадійніший спосіб.
+            {t('Don\'t photograph them, don\'t store them in a cloud. Paper in a safe place is the most reliable way.')}
           </div>
         </div>
       </div>
@@ -159,16 +160,16 @@ function IntroPanel({ onGenerate }) {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#F5F5F7', marginBottom: 6 }}>
-            Ніхто не побачить
+            {t('Nobody will see it')}
           </div>
           <div style={{ fontSize: 12.5, color: '#ABADB8', lineHeight: 1.55 }}>
-            Слова генеруються прямо у вашому браузері. Не передаються нікому — навіть нам.
+            {t('The words are generated right in your browser. They\'re sent to nobody — not even us.')}
           </div>
         </div>
       </div>
 
       <PrimaryButton onClick={onGenerate}>
-        Згенерувати 24 слова
+        {t('Generate 24 words')}
       </PrimaryButton>
     </div>
   );
@@ -183,7 +184,7 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue, onCopy, co
         fontSize: 13, color: '#ABADB8',
         lineHeight: 1.55, marginBottom: 20,
       }}>
-        Запишіть ці слова у точному порядку. Без них відновити доступ неможливо.
+        {t('Write these words down in exact order. Without them access can\'t be recovered.')}
       </div>
 
       {/* Words grid — 2 columns */}
@@ -238,7 +239,7 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue, onCopy, co
           transition: 'all 0.15s',
         }}
       >
-        {copied ? '✓ Скопійовано в буфер' : 'Копіювати всі 24 слова'}
+        {copied ? t('✓ Copied to clipboard') : t('Copy all 24 words')}
       </button>
 
       <div
@@ -267,12 +268,12 @@ function ShowWordsPanel({ mnemonic, confirmed, onConfirm, onContinue, onCopy, co
           )}
         </div>
         <div style={{ flex: 1, fontSize: 13, color: '#F5F5F7' }}>
-          Я записав 24 слова у безпечному місці
+          {t('I\'ve written the 24 words down somewhere safe')}
         </div>
       </div>
 
       <PrimaryButton onClick={onContinue} disabled={!confirmed}>
-        Продовжити
+        {t('Continue')}
       </PrimaryButton>
     </div>
   );

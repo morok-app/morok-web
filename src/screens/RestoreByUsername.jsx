@@ -4,6 +4,8 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import { decryptWithSecret } from '../lib/vault.js';
 import { bytesToHex } from '../lib/crypto.js';
+import { t } from '../lib/i18n.js';
+import LangSwitch from '../components/LangSwitch.jsx';
 
 /**
  * RestoreByUsername — Linear-style.
@@ -35,9 +37,9 @@ export default function RestoreByUsername({ onNavigate }) {
       setStep('passphrase');
     } catch (e) {
       if (e.status === 404) {
-        setError('Юзернейм не знайдено або в нього немає бекапу');
+        setError(t('Username not found or it has no backup'));
       } else {
-        setError(e.message || 'Помилка');
+        setError(e.message || t('Error'));
       }
     } finally {
       setBusy(false);
@@ -82,13 +84,14 @@ export default function RestoreByUsername({ onNavigate }) {
       window.location.reload();
     } catch (e) {
       console.error(e);
-      setError('Неправильна passphrase або сервер відмовив');
+      setError(t('Wrong passphrase or the server refused'));
       setBusy(false);
     }
   }
 
   return (
     <div className="screen" style={{ background: '#0A0A0B' }}>
+      <LangSwitch />
 
       {/* Header */}
       <div style={{
@@ -100,7 +103,7 @@ export default function RestoreByUsername({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Відновити з бекапу
+            {t('Restore from backup')}
           </div>
           <div style={{
             fontSize: 12.5, color: '#A4A6B2',
@@ -108,7 +111,7 @@ export default function RestoreByUsername({ onNavigate }) {
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.05em',
           }}>
-            КРОК {step === 'username' ? '1' : '2'} З 2
+            STEP {step === 'username' ? '1' : '2'} OF 2
           </div>
         </div>
         <button
@@ -132,7 +135,7 @@ export default function RestoreByUsername({ onNavigate }) {
         {step === 'username' ? (
           <>
             <div style={{ fontSize: 13, color: '#ABADB8', lineHeight: 1.55, marginBottom: 20 }}>
-              Введіть свій юзернейм. Сервер віддасть зашифрований бекап — розшифрувати його зможете тільки ви, локально.
+              {t('Enter your username. The server returns an encrypted backup — only you can decrypt it, locally.')}
             </div>
 
             <div style={{
@@ -141,7 +144,7 @@ export default function RestoreByUsername({ onNavigate }) {
               fontFamily: 'var(--mono, monospace)',
               letterSpacing: '0.05em',
             }}>
-              ЮЗЕРНЕЙМ
+              {t('USERNAME')}
             </div>
             <div style={{
               display: 'flex', alignItems: 'center',
@@ -198,7 +201,7 @@ export default function RestoreByUsername({ onNavigate }) {
                 fontFamily: 'inherit',
               }}
             >
-              {busy ? 'Шукаємо...' : 'Знайти бекап'}
+              {busy ? t('Searching...') : t('Find backup')}
             </button>
           </>
         ) : (
@@ -222,12 +225,12 @@ export default function RestoreByUsername({ onNavigate }) {
                 </svg>
               </div>
               <div style={{ fontSize: 13, color: '#F5F5F7' }}>
-                Бекап знайдено для <strong style={{ fontFamily: 'var(--mono, monospace)' }}>@{username}</strong>
+                {t('Backup found for')} <strong style={{ fontFamily: 'var(--mono, monospace)' }}>@{username}</strong>
               </div>
             </div>
 
             <div style={{ fontSize: 13, color: '#ABADB8', lineHeight: 1.55, marginBottom: 20 }}>
-              Введіть passphrase яку ви створили при налаштуванні бекапу. Розшифрування відбувається на вашому пристрої.
+              {t('Enter the passphrase you created when setting up the backup. Decryption happens on your device.')}
             </div>
 
             <div style={{
@@ -283,7 +286,7 @@ export default function RestoreByUsername({ onNavigate }) {
                 fontFamily: 'inherit',
               }}
             >
-              {busy ? 'Розшифровуємо...' : 'Розшифрувати і увійти'}
+              {busy ? t('Decrypting...') : t('Decrypt and sign in')}
             </button>
           </>
         )}

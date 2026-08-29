@@ -16,6 +16,7 @@ import * as api from '../lib/api.js';
 import * as contacts from '../lib/contacts.js';
 import * as safety from '../lib/safety.js';
 import Avatar from '../components/Avatar.jsx';
+import { t } from '../lib/i18n.js';
 
 export default function PeerProfile({ peerPubkey, onNavigate }) {
   const [conv, setConv] = useState(() => convs.getConversation(peerPubkey));
@@ -153,7 +154,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}
-          aria-label="Назад"
+          aria-label={t("Back")}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />
@@ -163,7 +164,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
           fontSize: 14.5, fontWeight: 700, color: '#F5F5F7',
           letterSpacing: '-0.01em',
         }}>
-          Профіль
+          {t('Profile')}
         </div>
       </div>
 
@@ -181,7 +182,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
           letterSpacing: '-0.01em',
           wordBreak: 'break-word',
         }}>
-          {username ? `@${username}` : 'Анонім'}
+          {username ? `@${username}` : t('Anonymous')}
         </div>
 
         {homeRelay && (
@@ -213,7 +214,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
               letterSpacing: '0.06em',
               fontWeight: 600,
             }}>
-              Публічний ключ
+              {t('Public key')}
             </div>
             <button
               onClick={copyPubkey}
@@ -229,7 +230,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
                 letterSpacing: '0.02em',
               }}
             >
-              {copied ? 'Скопійовано' : 'Копіювати'}
+              {copied ? t('Copied') : t('Copy')}
             </button>
           </div>
           <div
@@ -241,7 +242,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
               lineHeight: 1.5,
               letterSpacing: '0.01em',
             }}
-            title="Натисніть, щоб скопіювати"
+            title={t("Tap to copy")}
           >
             {peerPubkey}
           </div>
@@ -267,7 +268,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
           </svg>
-          Написати повідомлення
+          {t('Write a message')}
         </button>
 
         <button
@@ -285,7 +286,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
             opacity: blocked ? 0.6 : 1,
           }}
         >
-          {inContacts ? '✓ В контактах' : '+ Додати в контакти'}
+          {inContacts ? t('✓ In contacts') : t('+ Add to contacts')}
         </button>
 
         <button
@@ -303,7 +304,7 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             {safety.isVerified(peerPubkey) && <polyline points="9 12 11 14 15 10" />}
           </svg>
-          {safety.isVerified(peerPubkey) ? 'Ключі підтверджено' : 'Номер безпеки (звірити ключі)'}
+          {safety.isVerified(peerPubkey) ? t('Keys verified') : t('Safety number (verify keys)')}
         </button>
 
         <button
@@ -320,8 +321,8 @@ export default function PeerProfile({ peerPubkey, onNavigate }) {
           }}
         >
           {confirmBlock
-            ? '🚫 Натисніть ще раз — заблокувати'
-            : (blocked ? '✓ Розблокувати' : '🚫 Заблокувати')}
+            ? t('🚫 Tap again to block')
+            : (blocked ? t('✓ Unlock') : t('🚫 Block'))}
         </button>
       </div>
     </div>

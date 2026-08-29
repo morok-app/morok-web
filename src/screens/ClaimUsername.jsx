@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import { validateUsername, minLengthForTier } from '../lib/username.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * ClaimUsername — Linear-style, optional step.
@@ -35,10 +36,10 @@ export default function ClaimUsername({ onNavigate }) {
     } catch (e) {
       const code = e.message || '';
       const friendly =
-        code.includes('username_taken') ? 'Юзернейм вже зайнятий' :
-        code.includes('reserved') ? 'Юзернейм зарезервовано системою' :
-        code.includes('invalid') ? 'Невалідний формат' :
-        code || 'Помилка';
+        code.includes('username_taken') ? t('Username already taken') :
+        code.includes('reserved') ? t('This username is reserved by the system') :
+        code.includes('invalid') ? t('Invalid format') :
+        code || t('Error');
       setError(friendly);
       setBusy(false);
     }
@@ -57,10 +58,10 @@ export default function ClaimUsername({ onNavigate }) {
           fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
           color: '#F5F5F7', lineHeight: 1.1,
         }}>
-          Виберіть юзернейм
+          {t('Pick a username')}
         </div>
         <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
-          Щоб вас можна було знайти за іменем
+          {t('So people can find you by name')}
         </div>
       </div>
 
@@ -76,7 +77,7 @@ export default function ClaimUsername({ onNavigate }) {
           fontSize: 12.5, color: '#ABADB8',
           lineHeight: 1.55,
         }}>
-          Юзернейм опційний. Якщо пропустите — отримаєте анонімний акаунт. Він буде доступний тільки за лінком чи QR.
+          {t('The username is optional. Skip it and you get an anonymous account, reachable only via link or QR.')}
         </div>
 
         <div style={{
@@ -85,7 +86,7 @@ export default function ClaimUsername({ onNavigate }) {
           fontFamily: 'var(--mono, monospace)',
           letterSpacing: '0.05em',
         }}>
-          ЮЗЕРНЕЙМ
+          {t('USERNAME')}
         </div>
         <div style={{
           display: 'flex', alignItems: 'center',
@@ -102,7 +103,7 @@ export default function ClaimUsername({ onNavigate }) {
               setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20));
               setError(null);
             }}
-            placeholder="ваше_імʼя"
+            placeholder={t("your_name")}
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
@@ -130,8 +131,8 @@ export default function ClaimUsername({ onNavigate }) {
         </div>
 
         <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 8, lineHeight: 1.5 }}>
-          {minLengthForTier(tier)}–20 символів, починається з літери.
-          Тільки маленькі латинські літери, цифри і _
+          {minLengthForTier(tier)}–20 characters, starts with a letter.
+          Only lowercase latin letters, digits and _
         </p>
 
         {hint && (
@@ -168,7 +169,7 @@ export default function ClaimUsername({ onNavigate }) {
             fontFamily: 'inherit',
           }}
         >
-          {busy ? 'Зайняти...' : 'Зайняти юзернейм'}
+          {busy ? t('Claiming...') : t('Claim a username')}
         </button>
 
         <button
@@ -182,7 +183,7 @@ export default function ClaimUsername({ onNavigate }) {
             cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
-          Пропустити — залишусь анонімним
+          {t('Skip — I\'ll stay anonymous')}
         </button>
       </div>
     </div>

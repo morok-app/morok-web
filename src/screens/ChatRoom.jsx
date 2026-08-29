@@ -10,12 +10,13 @@ import { parseBurnerMeta } from '../lib/burner.js';
 import { formatBytes } from '../lib/images.js';
 import { Recorder, isSupported as voiceIsSupported, formatDuration, MAX_DURATION_MS } from '../lib/voice.js';
 import * as muted from '../lib/muted.js';
+import { t, tp } from '../lib/i18n.js';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
-  { seconds: 3600,        label: '1 година' },
-  { seconds: 6 * 3600,    label: '6 годин' },
-  { seconds: 24 * 3600,   label: '24 години' },
+  { seconds: 3600,        label: t('1 hour') },
+  { seconds: 6 * 3600,    label: t('6 hours') },
+  { seconds: 24 * 3600,   label: t('24 hours') },
 ];
 
 const LONG_PRESS_MS = 500;
@@ -35,12 +36,12 @@ function fmtClock(unix) {
 function fmtTTLLeft(expires_at) {
   const now = Math.floor(Date.now() / 1000);
   const remaining = expires_at - now;
-  if (remaining <= 0) return 'застаріле';
+  if (remaining <= 0) return t('outdated');
   const days = Math.floor(remaining / 86400);
-  if (days > 0) return `${days}д`;
+  if (days > 0) return tp("{0}d", [days]);
   const hours = Math.floor(remaining / 3600);
-  if (hours > 0) return `${hours}г`;
-  return `${Math.floor(remaining / 60)}хв`;
+  if (hours > 0) return tp("{0}h", [hours]);
+  return tp("{0}m", [Math.floor(remaining / 60)]);
 }
 
 function getSeedBytes() {
@@ -94,7 +95,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     const toDelete = getSelectedMessages();
     if (!toDelete.length) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Сеанс закінчився.'); return; }
+    if (!seed) { alert('Session expired.'); return; }
     exitSelectMode();
     let failed = 0;
     for (const m of toDelete) {
@@ -110,7 +111,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       } catch { failed += 1; }
     }
     setConv(convs.getConversation(peerPubkey));
-    if (failed) alert(`Не вдалось видалити у співрозмовника: ${failed} повід.`);
+    if (failed) alert(tp("Couldn't delete on the recipient's side: {0} msg.", [failed]));
   }
 
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -318,7 +319,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     setActionMessage(null);
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Сеанс закінчився.');
+      alert('Session expired.');
       return;
     }
     try {
@@ -351,7 +352,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Сеанс закінчився.');
+      alert('Session expired.');
       return;
     }
 
@@ -364,7 +365,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       convs.deleteMessage(peerPubkey, msg.id);
       setConv(convs.getConversation(peerPubkey));
     } catch (e) {
-      alert(`Не вдалось видалити у співрозмовника: ${e.message}`);
+      alert(tp("Couldn't delete on the recipient's side: {0}", [e.message]));
     }
   }
 
@@ -390,11 +391,11 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     if (!draft.trim() || sending) return;
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Сеанс закінчився. Перезавантажте сторінку.');
+      alert('Session expired. Reload the page.');
       return;
     }
     if (!myPubkeyHex) {
-      alert('Не знайдено мій pubkey.');
+      alert('My pubkey not found.');
       return;
     }
     setSending(true);
@@ -409,7 +410,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       setDraft('');
       setConv(convs.getConversation(peerPubkey));
     } catch (e) {
-      alert(`Помилка надсилання: ${e.message}`);
+      alert(tp("Sending failed: {0}", [e.message]));
     } finally {
       setSending(false);
     }
@@ -423,12 +424,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   async function sendImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('Це не картинка.');
+      alert('That\'s not an image.');
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Сеанс закінчився. Перезавантажте сторінку.');
+      alert('Session expired. Reload the page.');
       return;
     }
     setImageBusy(true);
@@ -444,7 +445,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       setDraft('');
       setConv(convs.getConversation(peerPubkey));
     } catch (err) {
-      alert(`Не вдалось надіслати картинку: ${err.message}`);
+      alert(tp("Couldn't send the image: {0}", [err.message]));
     } finally {
       setImageBusy(false);
     }
@@ -474,12 +475,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   async function startRecording() {
     if (recording || voiceBusy || sending || imageBusy) return;
     if (!voiceIsSupported()) {
-      alert('Браузер не підтримує запис голосу.');
+      alert('This browser doesn\'t support voice recording.');
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Сеанс закінчився. Перезавантажте сторінку.');
+      alert('Session expired. Reload the page.');
       return;
     }
     const rec = new Recorder();
@@ -489,8 +490,8 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       });
     } catch (e) {
       const msg = e?.name === 'NotAllowedError'
-        ? 'Доступ до мікрофону заблоковано.'
-        : (e?.message || 'Не вдалось почати запис');
+        ? t('Microphone access is blocked.')
+        : (e?.message || 'Couldn\'t start recording');
       alert(msg);
       return;
     }
@@ -532,7 +533,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       }
       const seed = getSeedBytes();
       if (!seed || !myPubkeyHex) {
-        alert('Сеанс закінчився.');
+        alert('Session expired.');
         setVoiceBusy(false);
         return;
       }
@@ -547,7 +548,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       vault.refreshSession();
       setConv(convs.getConversation(peerPubkey));
     } catch (e) {
-      alert(`Не вдалось надіслати голосове: ${e.message}`);
+      alert(tp("Couldn't send the voice message: {0}", [e.message]));
     } finally {
       setVoiceBusy(false);
     }
@@ -577,7 +578,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
         <CompactHeader
-          title="Чат"
+          title={t("Chat")}
           subtitle=""
           isBurner={false}
           onBack={() => onNavigate('chats')}
@@ -598,7 +599,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
             </svg>
           </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>Чат не знайдено</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#F5F5F7' }}>{t('Chat not found')}</div>
         </div>
       </div>
     );
@@ -618,10 +619,10 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   const burnerMeta = parseBurnerMeta(conv.peer_username);
   const isBurner = burnerMeta.isBurner;
   const displayTitle = isBurner
-    ? (burnerMeta.label ? `Анонім · ${burnerMeta.label}` : 'Анонім')
+    ? (burnerMeta.label ? tp("Anonymous · {0}", [burnerMeta.label]) : t('Anonymous'))
     : `@${conv.peer_username || conv.peer_pubkey.slice(0, 12) + '…'}`;
   const displaySubtitle = isBurner
-    ? 'анонімна скринька'
+    ? t('anonymous inbox')
     : (conv.peer_home_relay || '');
 
   // Compute peer color
@@ -656,7 +657,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           pointerEvents: 'none',
           color: '#C8CFFF', fontSize: 15, fontWeight: 600,
         }}>
-          Відпустіть, щоб надіслати картинку
+          {t('Release to send the image')}
         </div>
       )}
       <style>{`
@@ -672,27 +673,27 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           padding: '10px 14px',
           background: '#0E0E12', borderBottom: '1px solid #1E1E27',
         }}>
-          <button onClick={exitSelectMode} aria-label="Скасувати" style={{
+          <button onClick={exitSelectMode} aria-label={t("Cancel")} style={{
             width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
             background: 'rgba(255,255,255,0.06)', border: '1px solid #232329',
             color: '#F5F5F7', cursor: 'pointer', fontSize: 15,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>✕</button>
           <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
-            {selectedIds.size} вибрано
+            {selectedIds.size} selected
           </div>
           <button onClick={batchDeleteForMe} disabled={!selectedIds.size} style={{
             padding: '8px 12px', borderRadius: 10,
             background: 'rgba(255,255,255,0.06)', border: '1px solid #232329',
             color: '#F5F5F7', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             opacity: selectedIds.size ? 1 : 0.4,
-          }}>У мене</button>
+          }}>{t('For me')}</button>
           {selCanDeleteAll && (
             <button onClick={batchDeleteForEveryone} style={{
               padding: '8px 12px', borderRadius: 10,
               background: 'rgba(255,107,122,0.12)', border: '1px solid rgba(255,107,122,0.35)',
               color: '#FF6B7A', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>У всіх</button>
+            }}>{t('For everyone')}</button>
           )}
         </div>
       ) : (
@@ -738,10 +739,10 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             </div>
             <div style={{ textAlign: 'center', lineHeight: 1.6 }}>
               <div style={{ color: '#A8A8B0', fontSize: 14, fontWeight: 600 }}>
-                Поки немає повідомлень
+                {t('No messages yet')}
               </div>
               <div style={{ color: '#9EA0AC', fontSize: 12.5, marginTop: 3 }}>
-                Напишіть перше — воно зашифроване наскрізно
+                {t('Write the first one — it\'s end-to-end encrypted')}
               </div>
             </div>
           </div>
@@ -810,7 +811,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                   className={`msg-hover-btn${isOut ? ' out' : ' in'}`}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => { e.stopPropagation(); setActionMessage(m); }}
-                  title="Дії"
+                  title={t("Actions")}
                 >⋯</button>
               )}
               {m.dms_trigger && (
@@ -826,7 +827,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                     letterSpacing: '-0.005em',
                   }}
                 >
-                  🕯 Спрацював цифровий заповіт — автор залишив це заздалегідь
+                  {t('🕯 A digital last message has triggered — its author prepared it in advance')}
                 </div>
               )}
               <div
@@ -844,7 +845,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               >
                 {m.status === 'undecryptable' ? (
                   <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
-                    ⚠ {m.error || 'не вдалось розшифрувати'}
+                    ⚠ {m.error || 'couldn\'t decrypt'}
                   </span>
                 ) : m.voice ? (
                   <VoicePlayer voice={m.voice} isOut={isOut} />
@@ -967,7 +968,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             color: '#F5F5F7', cursor: 'pointer',
             boxShadow: '0 4px 16px rgba(0,0,0,0.6)',
           }}
-          title="Вниз"
+          title={t("Down")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M6 9l6 6 6-6" />
@@ -984,13 +985,13 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             letterSpacing: '-0.02em',
             margin: '0 20px 6px',
           }}>
-            Час життя повідомлення
+            {t('Message lifetime')}
           </h3>
           <p style={{
             fontSize: 12, color: '#A4A6B2',
             margin: '0 20px 14px', lineHeight: 1.5,
           }}>
-            Після цього часу повідомлення зникне у вас і в адресата.
+            {t('After this time the message disappears for you and the recipient.')}
           </p>
           {TTL_OPTIONS.map((opt) => {
             const active = ttlSeconds === opt.seconds;
@@ -1030,7 +1031,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 padding: '6px 22px 14px',
                 color: '#A8A8B0', fontSize: 13, textAlign: 'center',
               }}>
-                Заглушено · {muted.formatMuteUntil(muteEntry.until)}
+                Muted · {muted.formatMuteUntil(muteEntry.until)}
               </div>
               <button
                 onClick={unmuteChat}
@@ -1041,7 +1042,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                   textAlign: 'center', cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
-                🔔 Розгасити чат
+                {t('🔔 Unmute chat')}
               </button>
             </>
           ) : (
@@ -1050,7 +1051,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 padding: '6px 22px 14px',
                 color: '#A8A8B0', fontSize: 13, textAlign: 'center',
               }}>
-                Заглушити сповіщення
+                {t('Mute notifications')}
               </div>
               {muted.MUTE_DURATIONS.map((d) => (
                 <button
@@ -1111,11 +1112,11 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             fontStyle: 'italic',
           }}>
             {actionMessage.voice
-              ? `🎤 Голосове (${formatDuration(actionMessage.voice.duration_ms || 0)})`
+              ? tp("🎤 Voice ({0})", [formatDuration(actionMessage.voice.duration_ms || 0)])
               : actionMessage.image
               ? (actionMessage.text
-                  ? `📷 Картинка · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
-                  : '📷 Картинка')
+                  ? `📷 Image · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
+                  : t('📷 Image'))
               : `"${actionMessage.text?.slice(0, 80) || ''}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
           <div
@@ -1129,7 +1130,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
-            Вибрати
+            {t('Select')}
           </div>
           {actionMessage.text && (
             <div
@@ -1146,7 +1147,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
               </svg>
-              {actionMessage.image ? 'Скопіювати підпис' : 'Скопіювати'}
+              {actionMessage.image ? t('Copy label') : t('Copy')}
             </div>
           )}
           {actionMessage.direction === 'out' && (
@@ -1162,7 +1163,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                 </svg>
-                Видалити у мене
+                {t('Delete for me')}
               </div>
               <div
                 onClick={deleteForEveryone}
@@ -1175,7 +1176,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                 </svg>
-                Видалити у всіх
+                {t('Delete for everyone')}
               </div>
             </>
           )}
@@ -1191,7 +1192,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
               </svg>
-              Видалити у себе
+              {t('Delete for me')}
             </div>
           )}
         </Sheet>
@@ -1215,8 +1216,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             flex: 1, fontSize: 12.5,
             color: '#ABADB8', lineHeight: 1.55,
           }}>
-            Це повідомлення з анонімної скриньки.
-            Відправник невідомий — відповісти неможливо.
+            {t('This message came through an anonymous inbox. The sender is unknown — replying isn\'t possible.')}
           </div>
         </div>
       ) : recording ? (
@@ -1236,7 +1236,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               color: '#FF6B7A', cursor: 'pointer',
               flexShrink: 0,
             }}
-            title="Скасувати"
+            title={t("Cancel")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -1262,7 +1262,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             </div>
             <div style={{ flex: 1 }} />
             <div style={{ fontSize: 12, color: '#9EA0AC' }}>
-              {Math.floor((MAX_DURATION_MS - recordMs) / 1000)}с
+              {Math.floor((MAX_DURATION_MS - recordMs) / 1000)}s
             </div>
           </div>
           <button
@@ -1275,7 +1275,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               cursor: voiceBusy ? 'wait' : 'pointer',
               flexShrink: 0,
             }}
-            title="Надіслати"
+            title={t("Send")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"/>
@@ -1303,12 +1303,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               fontWeight: 600, letterSpacing: '0.02em',
               flexShrink: 0,
             }}
-            title="Час життя повідомлення"
+            title={t("Message lifetime")}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
             </svg>
-            {ttlSeconds < 86400 ? `${ttlSeconds / 3600}г` : `${ttlSeconds / 86400}д`}
+            {ttlSeconds < 86400 ? tp("{0}h", [ttlSeconds / 3600]) : tp("{0}d", [ttlSeconds / 86400])}
           </button>
           <button
             onClick={attachClicked}
@@ -1323,7 +1323,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               cursor: (imageBusy || sending) ? 'wait' : 'pointer',
               flexShrink: 0,
             }}
-            title="Додати картинку"
+            title={t("Add an image")}
           >
             {imageBusy ? (
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -1458,7 +1458,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               color: '#F5F5F7', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-            aria-label="Закрити"
+            aria-label={t("Close")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -1510,7 +1510,7 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
         }}
         onMouseEnter={clickable ? (e) => { e.currentTarget.style.background = '#13131A'; } : undefined}
         onMouseLeave={clickable ? (e) => { e.currentTarget.style.background = 'transparent'; } : undefined}
-        title={clickable ? 'Відкрити профіль' : undefined}
+        title={clickable ? t('Open profile') : undefined}
       >
         {firstLetter && (
           <div style={{
@@ -1541,7 +1541,7 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>{title}</span>
             {isMuted && (
-              <span style={{ fontSize: 12, color: '#A4A6B2', flexShrink: 0 }} title="Заглушено">🔕</span>
+              <span style={{ fontSize: 12, color: '#A4A6B2', flexShrink: 0 }} title={t("Muted")}>🔕</span>
             )}
           </div>
           {subtitle && (
@@ -1566,7 +1566,7 @@ function CompactHeader({ title, subtitle, isBurner, peerHue, firstLetter, onBack
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}
-          title="Дії"
+          title={t("Actions")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>

@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 /**
  * Client-side image compression utilities.
  *
@@ -28,7 +29,7 @@ function loadImageFromBlob(blob) {
     };
     img.onerror = (e) => {
       URL.revokeObjectURL(url);
-      reject(new Error('Не вдалось завантажити зображення'));
+      reject(new Error('Couldn\'t load the image'));
     };
     img.src = url;
   });
@@ -65,9 +66,9 @@ export async function compressImage(file, {
   quality = DEFAULT_QUALITY,
   rawBudgetBytes = 140 * 1024,
 } = {}) {
-  if (!file || !file.size) throw new Error('Файл не вибрано');
+  if (!file || !file.size) throw new Error(t('No file selected'));
   if (file.size > 50 * 1024 * 1024) {
-    throw new Error('Файл завеликий (>50MB)');
+    throw new Error(t('File too large (>50MB)'));
   }
 
   const img = await loadImageFromBlob(file);

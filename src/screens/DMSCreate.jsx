@@ -5,6 +5,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import { hexToBytes } from '../lib/crypto.js';
 import { formatPeerName } from '../lib/display.js';
+import { t } from '../lib/i18n.js';
 
 function getSeedBytes() {
   const v = vault.getUnlockedSeed();
@@ -36,7 +37,7 @@ export default function DMSCreate({ onNavigate }) {
       const myProfile = store.loadProfile();
       const myPubkeyHex = myProfile?.pubkey_hex || store.loadIdentity()?.pubkey_hex;
       if (!seed || !myPubkeyHex) {
-        setError('Сеанс закінчився. Перезавантажте сторінку.');
+        setError(t('Session expired. Reload the page.'));
         setBusy(false);
         return;
       }
@@ -51,8 +52,8 @@ export default function DMSCreate({ onNavigate }) {
     } catch (e) {
       console.error(e);
       const friendly = {
-        'too_many_recipients_for_tier_max_5': 'Ліміт — 5 активних заповітів',
-      }[e.message] || (e.message || 'Помилка');
+        'too_many_recipients_for_tier_max_5': t('Limit: 5 active last messages'),
+      }[e.message] || (e.message || t('Error'));
       setError(friendly);
       setBusy(false);
     }
@@ -73,10 +74,10 @@ export default function DMSCreate({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Новий заповіт
+            {t('New last message')}
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', marginTop: 6 }}>
-            Доставиться якщо ви не зайдете
+            {t('Delivered if you don\'t sign in')}
           </div>
         </div>
         <button
@@ -98,10 +99,10 @@ export default function DMSCreate({ onNavigate }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 32px' }}>
 
         {/* Label */}
-        <FieldLabel>Назва (опційно)</FieldLabel>
+        <FieldLabel>{t('Name (optional)')}</FieldLabel>
         <input
           type="text"
-          placeholder="Наприклад: «Сімʼя» або «Бекап ключів»"
+          placeholder={t("For example: \\u201cFamily\\u201d or \\u201cKey backup\\u201d")}
           value={label}
           onChange={(e) => setLabel(e.target.value.slice(0, 100))}
           style={inputStyle}
@@ -111,7 +112,7 @@ export default function DMSCreate({ onNavigate }) {
         <div style={{ height: 18 }} />
 
         {/* Recipient */}
-        <FieldLabel>Отримувач</FieldLabel>
+        <FieldLabel>{t('Recipient')}</FieldLabel>
         {recipient ? (
           <div
             onClick={() => setShowContactPicker(true)}
@@ -141,7 +142,7 @@ export default function DMSCreate({ onNavigate }) {
                 @{formatPeerName({ username: recipient.username, pubkey: recipient.pubkey_hex })}
               </div>
               <div style={{ fontSize: 12, color: '#9EA0AC', marginTop: 2 }}>
-                натисніть щоб змінити
+                {t('tap to change')}
               </div>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3F3F45" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -156,7 +157,7 @@ export default function DMSCreate({ onNavigate }) {
             borderRadius: 12,
             fontSize: 12.5, color: '#FFA94D', lineHeight: 1.5,
           }}>
-            Спершу почніть звичайний чат з людиною — тоді її можна вибрати тут.
+            {t('Start a regular chat with the person first — then you can pick them here.')}
           </div>
         ) : (
           <button
@@ -172,13 +173,13 @@ export default function DMSCreate({ onNavigate }) {
               textAlign: 'left',
             }}
           >
-            + Вибрати з контактів
+            {t('+ Pick from contacts')}
           </button>
         )}
         <div style={{ height: 18 }} />
 
         {/* Trigger period */}
-        <FieldLabel>Період неактивності</FieldLabel>
+        <FieldLabel>{t('Inactivity period')}</FieldLabel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {dms.TRIGGER_OPTIONS.map((opt) => {
             const active = triggerSeconds === opt.seconds;
@@ -211,9 +212,9 @@ export default function DMSCreate({ onNavigate }) {
         <div style={{ height: 18 }} />
 
         {/* Payload */}
-        <FieldLabel>Повідомлення</FieldLabel>
+        <FieldLabel>{t('Message')}</FieldLabel>
         <textarea
-          placeholder="Те що отримає адресат коли заповіт спрацює..."
+          placeholder={t("What the recipient gets when the last message triggers...")}
           value={text}
           onChange={(e) => setText(e.target.value)}
           style={{ ...inputStyle, minHeight: 140, resize: 'none' }}
@@ -221,7 +222,7 @@ export default function DMSCreate({ onNavigate }) {
           onBlur={(e) => e.target.style.borderColor = '#232329'}
         />
         <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 8, lineHeight: 1.5 }}>
-          Шифрується на вашому пристрої. Сервер не може прочитати.
+          {t('Encrypted on your device. The server can\'t read it.')}
         </p>
 
         {error && (
@@ -250,7 +251,7 @@ export default function DMSCreate({ onNavigate }) {
             fontFamily: 'inherit',
           }}
         >
-          {busy ? 'Створюємо...' : 'Створити заповіт'}
+          {busy ? t('Creating...') : t('Create a last message')}
         </button>
       </div>
 
@@ -285,7 +286,7 @@ export default function DMSCreate({ onNavigate }) {
               borderBottom: '1px solid #232329',
               fontWeight: 500,
             }}>
-              Виберіть отримувача
+              {t('Pick a recipient')}
             </div>
             {validRecipients.map((c) => {
               const hue = parseInt(c.pubkey_hex.slice(0, 6), 16) % 360;

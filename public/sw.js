@@ -68,9 +68,9 @@ self.addEventListener('push', (event) => {
   const title = 'Morok';
   const body = from
     ? (isGroup
-        ? `@${from} у групі`
-        : `Нове повідомлення від @${from}`)
-    : (isGroup ? 'Нове повідомлення у групі' : 'Нове повідомлення');
+        ? `@${from} in a group`
+        : `New message from @${from}`)
+    : (isGroup ? 'New message in a group' : 'New message');
 
   // Mute key matches the format used by src/lib/muted.js:
   //   group:<uuid> for groups

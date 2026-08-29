@@ -3,9 +3,10 @@ import * as vault from '../lib/vault.js';
 import * as store from '../lib/storage.js';
 import { mnemonicFromSeed } from '../lib/crypto.js';
 import { hapticSuccess, hapticWarning } from '../lib/haptics.js';
+import { t } from '../lib/i18n.js';
 
 /*
- * Екран "Ключ відновлення" — присвячений саме 24 словам.
+ * Екран "Recovery key" — присвячений саме 24 словам.
  *
  * Раніше пункт у налаштуваннях вів у загальний Профіль, де слова губились
  * серед аватара/QR/публічного ключа (а для залогіненого акаунта взагалі
@@ -55,10 +56,10 @@ export default function RecoveryKey({ onNavigate }) {
             fontSize: 27, fontWeight: 800, letterSpacing: '-0.03em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Ключ відновлення
+            {t('Recovery key')}
           </div>
           <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
-            24 слова для відновлення акаунта
+            {t('24 words to recover your account')}
           </div>
         </div>
         <button
@@ -87,8 +88,7 @@ export default function RecoveryKey({ onNavigate }) {
             borderRadius: 14, padding: 20, textAlign: 'center',
           }}>
             <div style={{ fontSize: 14, color: '#A8A8B0', lineHeight: 1.6 }}>
-              Сесію заблоковано. Розблокуйте застосунок PIN-кодом і
-              спробуйте ще раз.
+              {t('The session is locked. Unlock the app with your PIN and try again.')}
             </div>
           </div>
         ) : (
@@ -105,8 +105,7 @@ export default function RecoveryKey({ onNavigate }) {
                 <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
               <div style={{ fontSize: 13, color: '#D4A04A', lineHeight: 1.55 }}>
-                Будь-хто з цими словами отримає повний доступ до акаунта.
-                Нікому не показуйте і не вводьте на чужих сайтах.
+                {t('Anyone with these words gets full access to the account. Don\'t show them to anyone and never type them on other sites.')}
               </div>
             </div>
 
@@ -155,7 +154,7 @@ export default function RecoveryKey({ onNavigate }) {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                   </svg>
-                  Показати 24 слова
+                  {t('Show the 24 words')}
                 </button>
               )}
             </div>
@@ -180,14 +179,14 @@ export default function RecoveryKey({ onNavigate }) {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
-                    Скопійовано
+                    {t('Copied')}
                   </>
                 ) : (
                   <>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                     </svg>
-                    Копіювати всі слова
+                    {t('Copy all words')}
                   </>
                 )}
               </button>

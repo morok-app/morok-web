@@ -3,6 +3,7 @@
  */
 
 import { signAuthChallenge, canonicalJson, sign } from './crypto.js';
+import { t, tp } from './i18n.js';
 
 // Storage key for the user's chosen relay (only consulted in Capacitor
 // where window.location.origin is meaningless — localhost or the
@@ -103,7 +104,7 @@ export function getDefaultRelayUrl() { return 'https://relay1.morok.app'; }
 export async function checkRelayHealth(url) {
   const clean = String(url || '').trim().replace(/\/+$/, '');
   if (!/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/i.test(clean)) {
-    throw new Error('Адреса має вигляд https://relay.вашдомен.com');
+    throw new Error(t('The address looks like https://relay.yourdomain.com'));
   }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 8000);
@@ -111,14 +112,14 @@ export async function checkRelayHealth(url) {
   try {
     r = await fetch(`${clean}/health`, { signal: ctrl.signal });
   } catch {
-    throw new Error('Релей не відповідає — перевірте адресу і що сервер запущено');
+    throw new Error('The relay isn\'t responding — check the address and that the server is running');
   } finally {
     clearTimeout(timer);
   }
-  if (!r.ok) throw new Error(`Релей відповів помилкою ${r.status}`);
+  if (!r.ok) throw new Error(tp("The relay returned error {0}", [r.status]));
   let d;
-  try { d = await r.json(); } catch { throw new Error('Це не схоже на Morok-релей'); }
-  if (d?.status !== 'ok' || !d?.version) throw new Error('Це не схоже на Morok-релей');
+  try { d = await r.json(); } catch { throw new Error('This doesn\'t look like a Morok relay'); }
+  if (d?.status !== 'ok' || !d?.version) throw new Error('This doesn\'t look like a Morok relay');
   return { ok: true, url: clean, name: d.relay_name || clean, version: d.version, onion: d.onion || null };
 }
 
@@ -149,7 +150,7 @@ async function http(method, path, { body, auth, timeoutMs } = {}) {
   } catch (e) {
     // Таймаут (abort) і мережеві помилки приводимо до однакового вигляду,
     // щоб виклики могли по err.code === 'network' відрізнити «relay недоступний».
-    const err = new Error(e?.name === 'AbortError' ? 'Перевищено час очікування' : 'Немає з’єднання з сервером');
+    const err = new Error(e?.name === 'AbortError' ? t('Timed out') : t('No connection to the server'));
     err.code = 'network';
     err.cause = e;
     throw err;
@@ -360,7 +361,7 @@ export async function fetchBlob(envelopeId) {
     });
   } catch (e) {
     const err = new Error(
-      e?.name === 'AbortError' ? 'Перевищено час очікування' : 'Немає з’єднання з сервером',
+      e?.name === 'AbortError' ? t('Timed out') : t('No connection to the server'),
     );
     err.code = 'network';
     err.cause = e;

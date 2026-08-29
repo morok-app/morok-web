@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as contacts from '../lib/contacts.js';
 import * as convs from '../lib/conversations.js';
+import { t, tp } from '../lib/i18n.js';
 
 /**
  * ContactsList — list of saved contacts with search.
@@ -97,12 +98,12 @@ export default function ContactsList({ onNavigate }) {
             fontSize: 28, fontWeight: 700, letterSpacing: '-0.025em',
             color: '#F5F5F7', lineHeight: 1.1,
           }}>
-            Контакти
+            {t('Contacts')}
           </div>
           <div style={{ fontSize: 12.5, color: '#A4A6B2', marginTop: 6 }}>
             {items.length === 0
-              ? 'Поки нікого'
-              : `${items.length} ${pluralize(items.length, 'контакт', 'контакти', 'контактів')}`}
+              ? t('Nobody yet')
+              : tp("{0} {1}", [items.length, pluralize(items.length, t('contact'), t('contacts'), t('contacts'))])}
           </div>
         </div>
         <button
@@ -126,7 +127,7 @@ export default function ContactsList({ onNavigate }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Пошук за іменем"
+            placeholder={t("Search by name")}
             style={{
               width: '100%', boxSizing: 'border-box',
               padding: '11px 14px',
@@ -153,13 +154,12 @@ export default function ContactsList({ onNavigate }) {
               fontSize: 14, color: '#A8A8B0', marginBottom: 10,
               lineHeight: 1.5,
             }}>
-              Контактів ще нема
+              {t('No contacts yet')}
             </div>
             <div style={{
               fontSize: 12.5, color: '#A4A6B2', lineHeight: 1.6,
             }}>
-              Зайдіть у будь-який профіль (вгорі чату на ім'я)
-              і натисніть <b>«+ Додати в контакти»</b>.
+              {t('Open any profile (tap the name at the top of a chat) and press')} <b>{t('“+ Add to contacts”')}</b>.
             </div>
           </div>
         )}
@@ -169,7 +169,7 @@ export default function ContactsList({ onNavigate }) {
             padding: 24, textAlign: 'center',
             color: '#A4A6B2', fontSize: 13,
           }}>
-            Нічого не знайдено
+            {t('Nothing found')}
           </div>
         )}
 
@@ -191,13 +191,13 @@ export default function ContactsList({ onNavigate }) {
             padding: '6px 22px 14px',
             color: '#A8A8B0', fontSize: 13, textAlign: 'center',
           }}>
-            {actionItem.nickname || (actionItem.username ? `@${actionItem.username}` : 'Контакт')}
+            {actionItem.nickname || (actionItem.username ? `@${actionItem.username}` : t('Contact'))}
           </div>
           <button onClick={startRename} style={sheetBtnStyle('#F5F5F7')}>
-            Змінити нікнейм
+            {t('Change nickname')}
           </button>
           <button onClick={removeClicked} style={sheetBtnStyle('#FF6B7A')}>
-            Видалити з контактів
+            {t('Remove from contacts')}
           </button>
         </Sheet>
       )}
@@ -205,14 +205,14 @@ export default function ContactsList({ onNavigate }) {
       {renameTarget && (
         <Sheet onClose={() => { setRenameTarget(null); setRenameValue(''); }}>
           <div style={{ padding: '6px 22px 12px', textAlign: 'center', color: '#A8A8B0', fontSize: 13 }}>
-            Локальний нікнейм
+            {t('Local nickname')}
           </div>
           <div style={{ padding: '0 22px 4px' }}>
             <input
               autoFocus
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
-              placeholder={renameTarget.username ? `@${renameTarget.username}` : 'Назва'}
+              placeholder={renameTarget.username ? `@${renameTarget.username}` : t('Name')}
               maxLength={40}
               style={{
                 width: '100%', boxSizing: 'border-box',
@@ -226,11 +226,11 @@ export default function ContactsList({ onNavigate }) {
               onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); }}
             />
             <div style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 6, lineHeight: 1.5 }}>
-              Видно тільки тобі. Інші бачать оригінальне ім'я.
+              {t('Visible only to you. Others see the original name.')}
             </div>
           </div>
           <button onClick={saveRename} style={sheetBtnStyle('#7B96FF')}>
-            Зберегти
+            {t('Save')}
           </button>
         </Sheet>
       )}
