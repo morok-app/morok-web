@@ -327,8 +327,18 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
     ? `@${profile.username}`
     : `@anon_${myPubkey?.slice(0, 8) || '????????'}`;
 
+  // Бейдж "connecting" — з грейсом 800мс, щоб не мигав при швидкому
+  // старті WS одразу після входу. "offline" — без затримки.
+  const [connSlow, setConnSlow] = useState(false);
+  useEffect(() => {
+    if (inboxState !== 'connecting') { setConnSlow(false); return; }
+    const id = setTimeout(() => setConnSlow(true), 800);
+    return () => clearTimeout(id);
+  }, [inboxState]);
   const stateBadge = (() => {
-    if (inboxState === 'connecting') return { text: t('connecting'), color: 'var(--text-dim)' };
+    if (inboxState === 'connecting') {
+      return connSlow ? { text: t('connecting'), color: 'var(--text-dim)' } : null;
+    }
     if (inboxState === 'closed' || inboxState === 'error') return { text: t('offline'), color: 'var(--danger)' };
     return null;
   })();
