@@ -18,7 +18,51 @@ import { t } from '../lib/i18n.js';
  * створенні акаунта. Слова за замовчуванням приховані (blur), показуються
  * лише за явним тапом.
  */
-export default function RecoveryKey({ onNavigate }) {
+// Фраза = повний акаунт. Якщо стоїть PIN — перед показом його треба ввести
+// ще раз: розблокований браузер у чужих руках не має віддавати 24 слова
+// одним кліком. Невірний PIN рахується тим самим лічильником блокувань.
+export default function RecoveryKey(props) {
+  const identity = store.loadIdentity?.() || {};
+  const [ok, setOk] = useState(!identity.encrypted);
+  const [pin, setPin] = useState('');
+  const [err, setErr] = useState(null);
+  if (ok) return <RecoveryKeyInner {...props} />;
+
+  function tryPin(v) {
+    const digits = v.replace(/\D/g, '').slice(0, 6);
+    setPin(digits);
+    if (digits.length !== 6) return;
+    const lock = vault.getLockoutStatus();
+    if (lock.locked) { setErr(`Too many attempts. Wait ${lock.remaining_s}s.`); setPin(''); return; }
+    const pre = vault.recordWrongPin();
+    try {
+      const seed = vault.unlockSeedWithPin(identity.blob_b64, digits);
+      const cur = vault.getUnlockedSeed?.();
+      if (cur && Array.from(cur).join() !== Array.from(seed).join()) throw new Error('mismatch');
+      vault.clearLockout();
+      setOk(true);
+    } catch {
+      setErr(pre.locked ? `Too many attempts. Wait ${pre.remaining_s}s.` : t('Wrong PIN'));
+      setPin('');
+    }
+  }
+
+  return (
+    <div className="screen" style={{ background: '#0A0A0B', padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 14 }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: '#F5F5F7' }}>{t('Recovery key')}</div>
+      <div style={{ fontSize: 13, color: '#A4A6B2' }}>Enter your PIN to show the 24 words</div>
+      <input
+        type="password" inputMode="numeric" autoComplete="off" autoFocus
+        value={pin} onChange={(e) => tryPin(e.target.value)} maxLength={6}
+        style={{ fontSize: 22, letterSpacing: 8, textAlign: 'center', padding: 12, borderRadius: 12, background: '#16161B', color: '#F5F5F7', border: '1px solid #232329' }}
+      />
+      {err && <div style={{ color: 'var(--danger, #FF6B7A)', fontSize: 13 }}>{err}</div>}
+      <button className="btn btn-secondary" onClick={() => props.onNavigate('settings')}>{t('Back')}</button>
+    </div>
+  );
+}
+
+function RecoveryKeyInner({ onNavigate }) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -36,6 +80,10 @@ export default function RecoveryKey({ onNavigate }) {
     if (!mnemonic) return;
     try {
       await navigator.clipboard.writeText(mnemonic);
+      // Буфер (і історія буфера Windows) не має тримати фразу вічно:
+      // через 60 с затираємо, якщо там досі вона.
+      // (readText навмисно не викликаємо — браузер питав би дозвіл.)
+      setTimeout(() => { navigator.clipboard.writeText('').catch(() => {}); }, 60_000);
       setCopied(true);
       hapticSuccess();
       setTimeout(() => setCopied(false), 1800);

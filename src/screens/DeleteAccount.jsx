@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { identityFromMnemonic } from '../lib/crypto.js';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
@@ -30,6 +30,8 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  // seed із щойно перевіреної фрази — для криптопідпису запиту на видалення
+  const seedRef = useRef(null);
 
   const words = text.trim().split(/\s+/).filter(Boolean);
   const wordCount = words.length;
@@ -46,6 +48,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
         setError('These 24 words don\'t belong to your account');
         return;
       }
+      seedRef.current = id.seed;
       setVerified(true);
     } catch (e) {
       setError(e.message || 'Couldn\'t recognize the phrase');
@@ -57,12 +60,13 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
     setBusy(true);
     setError(null);
     try {
-      await api.deleteAccount();
+      await api.deleteAccount({ seed: seedRef.current, pubkeyHex: currentPubkeyHex });
     } catch (e) {
       setBusy(false);
       setError(tp("Server: {0}", [e.message || t('deletion failed')]));
       return;
     }
+    seedRef.current = null;
     // Wipe ALL local state regardless of where we go next.
     try { vault.lockNow(); } catch { /* ignore */ }
     try { vault.clearLockout(); } catch { /* ignore */ }

@@ -50,6 +50,11 @@ export function hexToBytes(hex) {
   if (typeof hex !== 'string' || hex.length % 2 !== 0) {
     throw new Error('hex must be even-length string');
   }
+  // parseInt('zz', 16) = NaN → у Uint8Array стає 0: битий ключ мовчки
+  // перетворювався б на інший. Відкидаємо явно.
+  if (!/^[0-9a-fA-F]*$/.test(hex)) {
+    throw new Error('hex contains non-hex characters');
+  }
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) {
     out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
@@ -137,6 +142,33 @@ export function signEnvelope({ seed, fromHex, toHex, ts, ttl, blobB64 }) {
     ttl,
   });
   return sign(seed, msg);
+}
+
+/** 64 hex-символи = 32-байтний публічний ключ Ed25519. */
+export function isPubkeyHex(v) {
+  return typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+}
+
+/**
+ * Перевірка підпису DM-конверта на боці ОДЕРЖУВАЧА — дзеркало
+ * relay crypto.verify_envelope_signature (ті самі SIGNED_FIELDS).
+ *
+ * Без неї релей міг узяти МІЙ вихідний конверт до Боба, переписати
+ * from=Боб і віддати мені назад: спільний DH-ключ однаковий в обидва
+ * боки, тож він розшифровувався і показувався як «від Боба». Підпис
+ * зроблено МОЇМ ключем — перевірка проти from=Боб його відкидає.
+ */
+export function verifyEnvelope({ fromHex, toHex, ts, ttl, blobB64, sigHex }) {
+  try {
+    if (!isPubkeyHex(fromHex) || typeof sigHex !== 'string' || !/^[0-9a-f]{128}$/.test(sigHex)) {
+      return false;
+    }
+    if (!Number.isInteger(ts) || !Number.isInteger(ttl)) return false;
+    const msg = canonicalJson({ blob: blobB64, from: fromHex, to: toHex, ts, ttl });
+    return ed25519.verify(hexToBytes(sigHex), msg, hexToBytes(fromHex));
+  } catch {
+    return false;
+  }
 }
 
 // ────────────────────────────────────────────────────────────

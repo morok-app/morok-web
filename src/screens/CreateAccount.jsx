@@ -27,6 +27,8 @@ export default function CreateAccount({ onNavigate, onSeedReady }) {
   }
 
   function copyClicked() {
+    // Фраза не має жити в буфері (і в історії буфера Windows) вічно.
+    setTimeout(() => { navigator.clipboard.writeText('').catch(() => {}); }, 60_000);
     navigator.clipboard.writeText(identity.mnemonic).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);

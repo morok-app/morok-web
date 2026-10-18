@@ -12,15 +12,19 @@ function openMutedDB() {
     let req;
     try { req = indexedDB.open(MUTED_DB, 1); }
     catch { resolve(null); return; }
+    // Базу створює ЛИШЕ застосунок. Якщо її немає (свіжа інсталяція або
+    // після вайпу) — не відтворюємо її тут: порожня база, що «воскресла»
+    // після duress-вайпу, сама по собі видавала б слід. Скасовуємо
+    // створення і вважаємо, що заглушених чатів немає.
+    let created = false;
     req.onupgradeneeded = () => {
-      try {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(MUTED_STORE)) {
-          db.createObjectStore(MUTED_STORE, { keyPath: 'key' });
-        }
-      } catch { /* swallow */ }
+      created = true;
+      try { req.transaction.abort(); } catch { /* swallow */ }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      if (created) { try { req.result.close(); indexedDB.deleteDatabase(MUTED_DB); } catch { /* ignore */ } resolve(null); return; }
+      resolve(req.result);
+    };
     req.onerror = () => resolve(null);
   });
 }

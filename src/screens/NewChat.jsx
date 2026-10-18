@@ -7,6 +7,21 @@ import { parseAddress } from '../lib/addr.js';
 import { formatPeerName } from '../lib/display.js';
 import { t, tp } from '../lib/i18n.js';
 
+// Відповідь lookup приходить від релею — можливо, чужого федеративного.
+// Ключ — лише 64 hex; home_relay — лише голий хост або https-origin
+// (інакше sealed-конверти й delivery-токен пішли б на підставний хост).
+function safeLookup(user) {
+  const pk = typeof user?.pubkey_hex === 'string' && /^[0-9a-f]{64}$/.test(user.pubkey_hex) ? user.pubkey_hex : null;
+  if (!pk) { const e = new Error('not found'); e.status = 404; throw e; }
+  const hr = user?.home_relay;
+  const hrOk = typeof hr === 'string' && (/^[a-z0-9.-]+(:\d{1,5})?$/i.test(hr) || api.isSafeRelayUrl(hr));
+  return {
+    pubkey_hex: pk,
+    username: typeof user?.username === 'string' && /^[a-z0-9_]{1,32}$/i.test(user.username) ? user.username : null,
+    home_relay: hrOk ? hr : null,
+  };
+}
+
 export default function NewChat({ onNavigate, routeArg }) {
   const me = store.loadProfile();
   const [value, setValue] = useState('');
@@ -81,11 +96,7 @@ export default function NewChat({ onNavigate, routeArg }) {
     if (!parsed.relay || parsed.relay === me.home_relay) {
       try {
         const user = await api.lookupUsername(parsed.username);
-        const contact = contacts.upsert({
-          pubkey_hex: user.pubkey_hex,
-          username: user.username,
-          home_relay: user.home_relay,
-        });
+        const contact = contacts.upsert(safeLookup(user));
         if (contact.pubkey_hex === me.pubkey_hex) {
           setError('That\'s you.');
           setBusy(false);
@@ -110,11 +121,7 @@ export default function NewChat({ onNavigate, routeArg }) {
     if (parsed.relay && parsed.relay !== me.home_relay) {
       try {
         const user = await api.lookupUsername(parsed.username, parsed.relay);
-        const contact = contacts.upsert({
-          pubkey_hex: user.pubkey_hex,
-          username: user.username,
-          home_relay: user.home_relay,
-        });
+        const contact = contacts.upsert(safeLookup(user));
         if (contact.pubkey_hex === me.pubkey_hex) {
           setError('That\'s you.');
           setBusy(false);

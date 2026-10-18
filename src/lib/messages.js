@@ -21,9 +21,13 @@ import * as api from './api.js';
 import * as sealedTokens from './sealed_tokens.js';
 import * as crypto from './crypto.js';
 import * as convs from './conversations.js';
+import * as replay from './replay.js';
+import { sanitizeIncomingUsername } from './display.js';
 import { compressImage } from './images.js';
 import { blobToBase64 } from './voice.js';
 import { t, tp } from './i18n.js';
+
+const ZERO_SIG = '0'.repeat(128);
 
 // Kinds that are purely protocol signalling — never shown to the user
 // and never stored in conversation history. Everything else (raw text,
@@ -41,8 +45,10 @@ async function peerHomeRelayBase(peerPubkeyHex) {
     const row = contactsMod.getByPubkey(peerPubkeyHex);
     const hr = row?.home_relay;
     if (!hr) return null;
-    if (/^https?:\/\//.test(hr)) return hr.replace(/\/+$/, '');
-    return `https://${hr}`;
+    const base = /^https?:\/\//.test(hr) ? hr.trim().replace(/\/+$/, '') : `https://${String(hr).trim()}`;
+    // home_relay записаний з lookup, тобто від релею — перевіряємо формат:
+    // тільки https://host[:port] (або http .onion), без шляхів і логінів.
+    return api.isSafeRelayUrl(base) ? base : null;
   } catch {
     return null;
   }
@@ -593,7 +599,12 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     // блобі НЕ довіряємо. Особу беремо ТІЛЬКИ із серверних метаданих конверта
     // (mail_from перевірено сервером = аліас реально належить відправнику).
     // Зовнішній лист: блоб будував релей → блобу можна довіряти.
-    if (envMeta.mail_origin === 'internal') {
+    // Fail-closed: довіряємо блобу ЛИШЕ коли релей явно позначив лист як
+    // зовнішній. Будь-що інше (поле відсутнє, невідоме значення) —
+    // трактуємо як внутрішній, тобто НЕ віримо from/spf з блоба.
+    if (envMeta.mail_origin !== 'external') {
+      email.out = false;
+      delete email.ext_status;
       email.spf = 'internal';
       email.internal = true;
       if (envMeta.mail_from) {
@@ -706,9 +717,16 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
 
   // ── DM envelope ─────────────────────────────────────────
   const { peer, isDmsTrigger } = resolveIncomingPeer(envMeta);
+  // Особа відправника звичайного DM — ЛИШЕ підписаний `from`. Інші поля
+  // (sender_pubkey_hex, from_pubkey) релей може дописати як завгодно.
+  if (!crypto.isPubkeyHex(envMeta.from) || !crypto.isPubkeyHex(peer) ||
+      (!isDmsTrigger && peer !== envMeta.from)) {
+    console.warn('DM envelope with invalid sender, dropped');
+    return null;
+  }
   // Для заповіту `from_username` — це нік РЕЛЕЮ (а точніше його немає),
   // а не автора. Беремо null, щоб нижче не чіпати збережений нік автора.
-  const senderUsername = isDmsTrigger ? null : (envMeta.from_username || null);
+  const senderUsername = isDmsTrigger ? null : sanitizeIncomingUsername(envMeta.from_username);
   if (!peer) {
     console.warn('Envelope without sender field:', envMeta);
     return null;
@@ -738,6 +756,48 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     return null;
   }
   const blobB64 = crypto.bytesToBase64(blobBytes);
+
+  // ── Автентичність і свіжість конверта ───────────────────
+  // 1) підпис `from` над {from,to,ts,ttl,blob} — релей не може видати мій
+  //    же конверт за чужий (віддзеркалення) чи підмінити адресата;
+  // 2) to — це я;
+  // 3) не протух за підписаним ts+ttl (повтор старого конверта);
+  // 4) той самий підпис ще не оброблявся (повтор під новим envelope_id).
+  //
+  // Виняток — анонімна скринька (burner): відправник одноразовий, релей
+  // ставить нульовий підпис-заглушку і нік «🔥burner». Такі листи
+  // приймаємо без підпису, але: (а) вони ніколи не виконуються як службові
+  // кадри (див. isBurner нижче); (б) ефемерний ключ не може збігатися з
+  // контактом чи наявною розмовою — інакше релей видав би мій же лист до
+  // Боба за «анонімку» в чаті з Бобом.
+  const isBurner = !isDmsTrigger && envMeta.sig === ZERO_SIG &&
+    typeof senderUsername === 'string' && senderUsername.startsWith('🔥burner');
+  if (envMeta.to !== myPubkeyHex) {
+    console.warn('DM envelope for another recipient, dropped');
+    return null;
+  }
+  if (isBurner) {
+    const c = await import('./contacts.js');
+    const known = convs.getConversation ? convs.getConversation(peer) : null;
+    if (c.isInContacts(peer) || (known && !String(known.peer_username || '').startsWith('🔥burner'))) {
+      console.warn('burner envelope from a known peer, dropped');
+      return null;
+    }
+  } else {
+    if (!crypto.verifyEnvelope({
+      fromHex: envMeta.from, toHex: envMeta.to, ts: envMeta.ts, ttl: envMeta.ttl,
+      blobB64, sigHex: envMeta.sig,
+    })) {
+      console.warn('DM envelope signature invalid, dropped');
+      return null;
+    }
+    if (replay.seen(envMeta.sig)) return null;
+    replay.remember(envMeta.sig);
+  }
+  if (!replay.isFresh(envMeta.ts, envMeta.ttl)) {
+    console.warn('DM envelope outside its lifetime, dropped');
+    return null;
+  }
 
   let plaintext;
   try {
@@ -788,12 +848,18 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   // Заповіт НІКОЛИ не інтерпретуємо як службовий кадр. Текст пише
   // людина; якщо вона напише щось схоже на JSON з полем kind, воно не
   // має виконуватись як group_key чи sealed_token.
-  const control = isDmsTrigger ? null : tryParseControl(plaintext);
+  // Анонімці (burner) теж не довіряємо службові кадри: інакше будь-хто з
+  // посиланням на скриньку міг би підкинути group_key / sealed_token.
+  const control = (isDmsTrigger || isBurner) ? null : tryParseControl(plaintext);
   if (control) {
     if (control.kind === 'group_key') {
       try {
         const groupsMod = await import('./groups.js');
-        await groupsMod.processIncomingGroupKey({ payload: control });
+        const res = await groupsMod.processIncomingGroupKey({ payload: control, senderPubkeyHex: peer });
+        if (res?.__retry) {
+          replay.forget(envMeta.sig); // конверт прийде знову — не відкидати як повтор
+          return { __retry: true, envelope_id: envelopeId };
+        }
       } catch (e) {
         console.warn('group_key processing failed:', e);
       }

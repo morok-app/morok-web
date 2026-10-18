@@ -503,8 +503,10 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
             {e.attachments.map((att, i) => (
               <a
                 key={i}
-                href={`data:${att.content_type || 'application/octet-stream'};base64,${att.b64}`}
-                download={att.filename || `attachment-${i}`}
+                // octet-stream: браузер лише завантажує файл, а не відкриває
+                // його за типом, який обрав відправник.
+                href={`data:application/octet-stream;base64,${att.b64}`}
+                download={safeAttName(att.filename, i)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10,
                   background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 12,
@@ -515,7 +517,8 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                 </svg>
                 <span style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {att.filename || `attachment-${i}`}
+                  {safeAttName(att.filename, i)}
+                  {RISKY_EXT.test(safeAttName(att.filename, i)) && ' ⚠ виконуваний файл — не відкривайте, якщо не чекали'}
                 </span>
               </a>
             ))}
@@ -524,6 +527,18 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
       </div>
     </div>
   );
+}
+
+// Ім'я вкладення задає ВІДПРАВНИК: прибираємо невидимі/bidi-символи
+// (U+202E робить «gpj.exe» схожим на «exe.jpg»), шляхи і обрізаємо довжину.
+const RISKY_EXT = /\.(exe|scr|bat|cmd|com|pif|msi|msp|ps1|vbs|vbe|js|jse|wsf|hta|lnk|jar|reg|cpl|apk|dll)$/i;
+function safeAttName(name, i) {
+  const clean = String(name || '')
+    .replace(/[\u0000-\u001F\u007F-\u009F\u061C\u200B-\u200F\u2028-\u202E\u2060-\u206F\uFEFF]/g, '')
+    .replace(/[\\/]/g, '_')
+    .trim()
+    .slice(0, 120);
+  return clean || `attachment-${i}`;
 }
 
 // HTML-лист: пісочниця без скриптів, авто-висота по вмісту, типографіка всередині.
@@ -549,6 +564,7 @@ function EmailHtml({ html }) {
 
   const doc = `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
+<meta name="referrer" content="no-referrer">
 <base target="_blank">
 <style>
   html,body{margin:0;padding:0;background:#fff}

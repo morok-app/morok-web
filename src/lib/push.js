@@ -72,8 +72,22 @@ async function fetchVapidKey() {
 async function registerSW() {
   // If already registered for our scope, reuse — don't re-register every call
   const existing = await navigator.serviceWorker.getRegistration(SW_SCOPE);
-  if (existing) return existing;
-  return await navigator.serviceWorker.register(SW_PATH, { scope: SW_SCOPE });
+  const reg = existing || await navigator.serviceWorker.register(SW_PATH, { scope: SW_SCOPE });
+  // Після вайпу (SW знято) нова реєстрація ще не активна, а
+  // serviceWorker.ready міг уже зарезолвитись на стару — subscribe() тоді
+  // падав би «no active Service Worker». Чекаємо активації явно.
+  if (!reg.active) {
+    const sw = reg.installing || reg.waiting;
+    if (sw) {
+      await new Promise((resolve) => {
+        const done = () => { if (sw.state === 'activated') resolve(); };
+        sw.addEventListener('statechange', done);
+        setTimeout(resolve, 10000);
+        done();
+      });
+    }
+  }
+  return reg;
 }
 
 export async function getCurrentSubscription() {

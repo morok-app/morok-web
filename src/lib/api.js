@@ -11,6 +11,34 @@ import { t, tp } from './i18n.js';
 const STORAGE_KEY_RELAY = 'morok.relay_url.v1';
 
 /**
+ * Адреса релею, якій можна довіряти як базі для запитів: лише https://,
+ * http:// для .onion (там шифрує сам Tor) або localhost (розробка).
+ * Ніяких шляхів, логінів, фрагментів — тільки схема + хост + порт.
+ */
+export function isSafeRelayUrl(url) {
+  const u = String(url || '').trim().replace(/\/+$/, '');
+  if (/^https:\/\/[a-z0-9.-]+(:\d{1,5})?$/i.test(u)) return true;
+  if (/^http:\/\/[a-z2-7]{56}\.onion(:\d{1,5})?$/i.test(u)) return true;
+  if (/^http:\/\/(localhost|127\.0\.0\.1|tauri\.localhost)(:\d{1,5})?$/i.test(u)) return true;
+  return false;
+}
+
+/**
+ * Безпечний сегмент шляху для id з мережі (group_id, envelope_id, токени,
+ * pubkey). Без цього `group_id: "../me#"` від чужого DM перетворював
+ * DELETE /groups/{id}/members/... на DELETE /api/v1/me — видалення акаунта.
+ */
+export function seg(value) {
+  const v = String(value ?? '');
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(v)) {
+    const err = new Error('Некоректний ідентифікатор');
+    err.code = 'bad_id';
+    throw err;
+  }
+  return encodeURIComponent(v);
+}
+
+/**
  * Determine which relay this client should talk to.
  *
  * Browser: same-origin (web is served from relay1.morok.app or
@@ -39,8 +67,8 @@ function detectDefaultRelay() {
   if (isNative) {
     try {
       const stored = localStorage.getItem(STORAGE_KEY_RELAY);
-      if (stored && /^https?:\/\//.test(stored)) {
-        return stored.replace(/\/+$/, '');
+      if (stored && isSafeRelayUrl(stored)) {
+        return stored.trim().replace(/\/+$/, '');
       }
     } catch { /* fall through */ }
     return 'https://relay1.morok.app';
@@ -61,7 +89,8 @@ export function getRelayUrl() { return _relayUrl; }
  * the browser's address bar already encodes the relay.
  */
 export function setRelayUrl(url) {
-  const clean = url.replace(/\/+$/, '');
+  const clean = String(url || '').trim().replace(/\/+$/, '');
+  if (!isSafeRelayUrl(clean)) throw new Error('Небезпечна адреса релею (потрібен https://)');
   _relayUrl = clean;
   // БУВ БАГ: перевірявся лише Capacitor, тому у Tauri (Windows) вибір
   // релея читався на старті, але НЕ зберігався — після перезапуску
@@ -132,6 +161,16 @@ export function getSessionToken() { return _sessionToken; }
 const REQUEST_TIMEOUT_MS = 8000;
 
 async function http(method, path, { body, auth, timeoutMs } = {}) {
+  // Остання лінія оборони від підміни шляху: ніяких '..', '.', '#',
+  // закодованих крапок/слешів у частині до '?'. Усі виклики й так ідуть
+  // через seg(), це — на випадок, якщо десь забули.
+  const pathOnly = String(path).split('?')[0];
+  if (pathOnly.includes('#') || /%2e|%2f|%5c|\\/i.test(pathOnly) ||
+      pathOnly.split('/').some((p) => p === '.' || p === '..')) {
+    const err = new Error('Некоректний шлях запиту');
+    err.code = 'bad_path';
+    throw err;
+  }
   const headers = { 'Content-Type': 'application/json' };
   if (auth && _sessionToken) {
     headers['Authorization'] = `Bearer ${_sessionToken}`;
@@ -301,8 +340,38 @@ export async function releaseUsername() {
  * Trusting the active session alone would let a thief with an
  * unlocked device wipe the account.
  */
-export async function deleteAccount() {
-  return http('DELETE', '/api/v1/me', { auth: true });
+export async function deleteAccount({ seed, pubkeyHex } = {}) {
+  // Крипто-підтвердження (SensitiveActionProof на релеї): підпис ключем
+  // акаунта саме над «видалити ЦЕЙ акаунт на ЦЬОМУ релеї ЗАРАЗ». Коли
+  // всі клієнти шлють proof, релей зможе зробити його обов'язковим — і
+  // вкрадений токен більше не зможе стерти акаунт.
+  let body;
+  if (seed && pubkeyHex) {
+    try {
+      const h = await http('GET', '/health');
+      const relayName = h?.relay_name;
+      if (relayName) {
+        const nonceBytes = new Uint8Array(16);
+        globalThis.crypto.getRandomValues(nonceBytes);
+        const nonce = Array.from(nonceBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        const timestamp = Math.floor(Date.now() / 1000);
+        const msg = canonicalJson({
+          morok_sensitive_action: 'v1',
+          action: 'account_delete',
+          relay: relayName,
+          timestamp,
+          nonce,
+          target: pubkeyHex,
+        });
+        body = {
+          action_signature_hex: sign(seed, msg),
+          action_nonce: nonce,
+          action_timestamp: timestamp,
+        };
+      }
+    } catch { /* без proof — legacy-шлях релею */ }
+  }
+  return http('DELETE', '/api/v1/me', { auth: true, body });
 }
 
 /**
@@ -334,7 +403,7 @@ export async function sendEnvelope(envelope) {
 }
 
 export async function listInbox(limit = 50) {
-  return http('GET', `/api/v1/messages?limit=${limit}`, { auth: true });
+  return http('GET', `/api/v1/messages?limit=${Math.max(1, Math.min(500, Number(limit) || 100))}`, { auth: true });
 }
 
 /**
@@ -355,7 +424,7 @@ export async function fetchBlob(envelopeId) {
   const timer = setTimeout(() => ctrl.abort(), 30000);
   let resp;
   try {
-    resp = await fetch(`${_relayUrl}/api/v1/messages/${envelopeId}`, {
+    resp = await fetch(`${_relayUrl}/api/v1/messages/${seg(envelopeId)}`, {
       headers: { 'Authorization': `Bearer ${_sessionToken}` },
       signal: ctrl.signal,
     });
@@ -375,12 +444,27 @@ export async function fetchBlob(envelopeId) {
     if (resp.status >= 500) err.code = 'network';
     throw err;
   }
+  // Стеля розміру: релей може віддати що завгодно, а весь blob далі
+  // йде в пам'ять і base64 — гігантська відповідь валила б вкладку.
+  const declared = Number(resp.headers?.get?.('content-length') || 0);
+  if (declared > MAX_BLOB_BYTES) {
+    const err = new Error('Завеликий конверт');
+    err.status = 413;
+    throw err;
+  }
   const buf = await resp.arrayBuffer();
+  if (buf.byteLength > MAX_BLOB_BYTES) {
+    const err = new Error('Завеликий конверт');
+    err.status = 413;
+    throw err;
+  }
   return new Uint8Array(buf);
 }
 
+const MAX_BLOB_BYTES = 32 * 1024 * 1024;
+
 export async function ackEnvelope(envelopeId) {
-  return http('DELETE', `/api/v1/messages/${envelopeId}`, { auth: true });
+  return http('DELETE', `/api/v1/messages/${seg(envelopeId)}`, { auth: true });
 }
 
 /**
@@ -437,7 +521,11 @@ export async function revokeInboxToken(body) {
  * "https://relay2.morok.app" (з lookup одержувача).
  */
 export async function sendSealedEnvelope(relayBase, body) {
-  const base = String(relayBase || '').replace(/\/+$/, '');
+  const base = String(relayBase || '').trim().replace(/\/+$/, '');
+  // home_relay приходить із lookup (тобто від релею) — без перевірки
+  // підставний релей міг би направити sealed-конверти, delivery-токен і
+  // нашу IP на будь-який хост.
+  if (!isSafeRelayUrl(base)) throw new Error('Некоректна адреса релею одержувача');
   const res = await fetch(`${base}/api/v1/messages/sealed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -455,9 +543,10 @@ export async function sendSealedEnvelope(relayBase, body) {
 
 /** Видалення sealed-конверта пред'явленням delete-ключа (без auth). */
 export async function deleteSealedEnvelope(relayBase, envelopeId, deleteKeyHex) {
-  const base = String(relayBase || '').replace(/\/+$/, '');
+  const base = String(relayBase || '').trim().replace(/\/+$/, '');
+  if (!isSafeRelayUrl(base)) throw new Error('Некоректна адреса релею');
   const res = await fetch(
-    `${base}/api/v1/messages/sealed/${envelopeId}/delete`,
+    `${base}/api/v1/messages/sealed/${seg(envelopeId)}/delete`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -498,7 +587,7 @@ export async function deleteDMMessage(envelopeId, recipientPubkeyHex, seed) {
     ts,
   });
   const signature_hex = sign(seed, message);
-  return http('POST', `/api/v1/messages/${envelopeId}/delete-for-recipient`, {
+  return http('POST', `/api/v1/messages/${seg(envelopeId)}/delete-for-recipient`, {
     body: {
       recipient_pubkey_hex: recipientPubkeyHex,
       signature_hex,
@@ -529,7 +618,7 @@ export async function deleteGroupMessage(groupId, envelopeId, seed) {
     ts,
   });
   const signature_hex = sign(seed, message);
-  return http('POST', `/api/v1/groups/${groupId}/messages/${envelopeId}/delete`, {
+  return http('POST', `/api/v1/groups/${seg(groupId)}/messages/${seg(envelopeId)}/delete`, {
     body: { signature_hex, ts },
     auth: true,
   });
@@ -637,7 +726,7 @@ export async function listMyGroups() {
 }
 
 export async function getGroupInfo(groupId) {
-  return http('GET', `/api/v1/groups/${groupId}`, { auth: true });
+  return http('GET', `/api/v1/groups/${seg(groupId)}`, { auth: true });
 }
 
 export async function deleteGroup(groupId, seed = null) {
@@ -647,7 +736,7 @@ export async function deleteGroup(groupId, seed = null) {
   // релеї віддалених членів, де підпис ПЕРЕВІРЯЄТЬСЯ незалежно (проти
   // підробки скомпрометованим хостом). Миттєве зникнення на всіх релеях.
   if (!seed) {
-    return http('DELETE', `/api/v1/groups/${groupId}`, { auth: true });
+    return http('DELETE', `/api/v1/groups/${seg(groupId)}`, { auth: true });
   }
   const ts = Math.floor(Date.now() / 1000);
   // Payload мусить збігатися з релейним _verify_delete_sig для group_gone:
@@ -659,18 +748,18 @@ export async function deleteGroup(groupId, seed = null) {
   });
   const gone_signature_hex = sign(seed, message);
   const qs = `?gone_signature_hex=${gone_signature_hex}&gone_ts=${ts}`;
-  return http('DELETE', `/api/v1/groups/${groupId}${qs}`, { auth: true });
+  return http('DELETE', `/api/v1/groups/${seg(groupId)}${qs}`, { auth: true });
 }
 
 export async function addGroupMember(groupId, pubkeyHex) {
-  return http('POST', `/api/v1/groups/${groupId}/members`, {
+  return http('POST', `/api/v1/groups/${seg(groupId)}/members`, {
     body: { pubkey_hex: pubkeyHex },
     auth: true,
   });
 }
 
 export async function removeGroupMember(groupId, pubkeyHex) {
-  return http('DELETE', `/api/v1/groups/${groupId}/members/${pubkeyHex}`, { auth: true });
+  return http('DELETE', `/api/v1/groups/${seg(groupId)}/members/${seg(pubkeyHex)}`, { auth: true });
 }
 
 /**
@@ -678,7 +767,7 @@ export async function removeGroupMember(groupId, pubkeyHex) {
  * envelope = { from, to (=group_id), ts, ttl, blob, sig }
  */
 export async function sendGroupMessage(groupId, envelope) {
-  return http('POST', `/api/v1/groups/${groupId}/messages`, {
+  return http('POST', `/api/v1/groups/${seg(groupId)}/messages`, {
     body: envelope,
     auth: true,
   });
@@ -689,18 +778,18 @@ export async function sendGroupMessage(groupId, envelope) {
 // ────────────────────────────────────────────────────────────
 
 export async function createInviteToken(groupId, ttlSeconds) {
-  return http('POST', `/api/v1/groups/${groupId}/invites`, {
+  return http('POST', `/api/v1/groups/${seg(groupId)}/invites`, {
     body: ttlSeconds ? { ttl_seconds: ttlSeconds } : {},
     auth: true,
   });
 }
 
 export async function listInviteTokens(groupId) {
-  return http('GET', `/api/v1/groups/${groupId}/invites`, { auth: true });
+  return http('GET', `/api/v1/groups/${seg(groupId)}/invites`, { auth: true });
 }
 
 export async function revokeInviteToken(groupId, token) {
-  return http('DELETE', `/api/v1/groups/${groupId}/invites/${token}`, { auth: true });
+  return http('DELETE', `/api/v1/groups/${seg(groupId)}/invites/${seg(token)}`, { auth: true });
 }
 
 export async function joinGroupViaToken(token) {
@@ -750,7 +839,7 @@ export async function listMyDMS() {
  * Get details of one DMS.
  */
 export async function getDMS(dmsId) {
-  return http('GET', `/api/v1/dms/${dmsId}`, { auth: true });
+  return http('GET', `/api/v1/dms/${seg(dmsId)}`, { auth: true });
 }
 
 /**
@@ -758,14 +847,14 @@ export async function getDMS(dmsId) {
  * Only valid for ARMED switches; CANCELLED/TRIGGERED → 409.
  */
 export async function checkInDMS(dmsId) {
-  return http('POST', `/api/v1/dms/${dmsId}/check-in`, { auth: true });
+  return http('POST', `/api/v1/dms/${seg(dmsId)}/check-in`, { auth: true });
 }
 
 /**
  * Cancel a DMS. Idempotent.
  */
 export async function cancelDMS(dmsId) {
-  return http('DELETE', `/api/v1/dms/${dmsId}`, { auth: true });
+  return http('DELETE', `/api/v1/dms/${seg(dmsId)}`, { auth: true });
 }
 // ────────────────────────────────────────────────────────────
 // Burner inbox (Day 7)

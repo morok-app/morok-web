@@ -42,6 +42,29 @@ function parseRecipient(input) {
   return { kind: 'internal', local: v };
 }
 
+const MAIL_PINS_KEY = 'morok.mail_pins.v1';
+
+/** true = можна слати (ключ новий або збігся, або людина підтвердила зміну). */
+function checkMailKeyPin(alias, pubkeyHex) {
+  let pins = {};
+  try { pins = JSON.parse(localStorage.getItem(MAIL_PINS_KEY) || '{}') || {}; } catch { pins = {}; }
+  const known = pins[alias];
+  const save = () => {
+    pins[alias] = pubkeyHex;
+    try { localStorage.setItem(MAIL_PINS_KEY, JSON.stringify(pins)); } catch { /* ignore */ }
+  };
+  if (!known) { save(); return true; }
+  if (known === pubkeyHex) return true;
+  // eslint-disable-next-line no-alert
+  const ok = window.confirm(
+    `The relay returned a DIFFERENT encryption key for ${alias}@morok.email than before.\n\n` +
+    'This happens if the person re-created their account — but a key substitution by the relay would look the same. ' +
+    'If unsure, check with the person through another channel.\n\nTrust the new key and send?',
+  );
+  if (ok) save();
+  return ok;
+}
+
 export default function MailCompose({ onNavigate, myPrimaryAddress }) {
   const _draft = typeof window !== 'undefined' ? window.__morokMailDraft : null;
   if (typeof window !== 'undefined') window.__morokMailDraft = null;
@@ -219,6 +242,19 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
         res = await api.mailResolve(parsed.local);
       } catch (e) {
         setStatus({ type: 'err', msg: tp("Address {0}@{1} not found or not accepting mail", [parsed.local, MAIL_DOMAIN]) });
+        setBusy(false); return;
+      }
+
+      // ── Закріплення ключа отримувача (TOFU) ──
+      // pubkey видає релей (mailResolve). Без перевірки підставний релей
+      // віддав би свій ключ і читав «E2EE»-листи. Запам'ятовуємо ключ на
+      // першому листі; якщо він змінився — питаємо людину.
+      if (typeof res?.pubkey_hex !== 'string' || !/^[0-9a-f]{64}$/.test(res.pubkey_hex)) {
+        setStatus({ type: 'err', msg: 'Relay returned an invalid recipient key' });
+        setBusy(false); return;
+      }
+      if (!checkMailKeyPin(parsed.local.toLowerCase(), res.pubkey_hex)) {
+        setStatus({ type: 'err', msg: 'Sending cancelled: the recipient key has changed' });
         setBusy(false); return;
       }
 

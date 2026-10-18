@@ -258,10 +258,15 @@ export default function Settings({ onNavigate }) {
     try {
       const pin = prompt('Enter the PIN again to remove protection:');
       if (!pin || pin.length !== 6) { setBusy(false); return; }
+      const lock = vault.getLockoutStatus();
+      if (lock.locked) { showToast(tp("Too many attempts. Wait {0}s.", [lock.remaining_s]), 'warn'); setBusy(false); return; }
       let mnemonicBytes;
       try {
         mnemonicBytes = decryptWithSecret(identity.mnemonic_b64, pin);
       } catch {
+        // невдалі спроби тут теж рахуються в блокування (інакше це був би
+        // безлімітний перебір PIN у розблокованому браузері)
+        vault.recordWrongPin();
         showToast(t('Wrong PIN'), 'warn');
         setBusy(false);
         return;
@@ -344,12 +349,11 @@ export default function Settings({ onNavigate }) {
     }
   }
 
-  function emergencyLogoutClicked() {
-    try {
-      store.wipeAll();
-      vault.lockNow();
-    } catch (e) { console.warn('wipe failed:', e); }
-    window.location.href = '/web/#welcome';
+  async function emergencyLogoutClicked() {
+    try { vault.lockNow(); } catch { /* ignore */ }
+    // чекаємо (≤1.5 с) зняття push-підписки до перезавантаження
+    try { await store.wipeAllAsync(); } catch (e) { console.warn('wipe failed:', e); }
+    window.location.href = `${window.location.pathname}#welcome`;
     window.location.reload();
   }
 

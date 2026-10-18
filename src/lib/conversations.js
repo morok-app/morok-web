@@ -147,9 +147,17 @@ export function appendMessage(peerPubkey, message) {
       updated_at: 0,
     };
   }
+  // Стеля життя рахується від «зараз», а не лише від ts конверта: ts і
+  // expires_at приходять від релею, і ts = 2^40 робив повідомлення
+  // вічним на пристрої (обхід зникаючих повідомлень).
+  const nowS = Math.floor(Date.now() / 1000);
+  const hardCap = nowS + HARD_CEILING_SECONDS;
   if (message.ts && message.ttl) {
-    const ceiling = message.ts + Math.min(message.ttl, HARD_CEILING_SECONDS);
-    message.expires_at = Math.min(message.expires_at || ceiling, ceiling);
+    const tsEff = Math.min(Number(message.ts) || nowS, nowS + 600);
+    const ceiling = Math.min(tsEff + Math.min(Number(message.ttl) || 0, HARD_CEILING_SECONDS), hardCap);
+    message.expires_at = Math.min(Number(message.expires_at) || ceiling, ceiling);
+  } else if (message.expires_at) {
+    message.expires_at = Math.min(Number(message.expires_at) || hardCap, hardCap);
   }
   // Дедуп: id вхідних детермінований (`recv-<envelope_id>`), тож якщо WS
   // обірвався між отриманням і ack, catchup віддасть той самий конверт

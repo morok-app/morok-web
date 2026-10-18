@@ -45,6 +45,14 @@
 import * as api from './api.js';
 import * as crypto from './crypto.js';
 import * as gstore from './group_storage.js';
+import * as replay from './replay.js';
+import { sanitizeIncomingUsername } from './display.js';
+
+/** group_id від релею — канонічний UUID. Будь-що інше відкидаємо. */
+export function isGroupId(v) {
+  return typeof v === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
+}
 import * as msgs from './messages.js';
 import { compressImage } from './images.js';
 import { blobToBase64 } from './voice.js';
@@ -187,15 +195,61 @@ export async function sendGroupKeyRequestDM({
  * Called from messages.js when a DM with kind=group_key arrives.
  * Stores the key locally and fetches group metadata.
  */
-export async function processIncomingGroupKey({ payload }) {
-  if (!payload?.group_id || !payload?.key_b64) {
-    console.warn('group_key DM missing fields:', payload);
+export async function processIncomingGroupKey({ payload, senderPubkeyHex }) {
+  if (!payload?.group_id || typeof payload?.key_b64 !== 'string') {
+    console.warn('group_key DM missing fields');
     return;
   }
+  // Формат id: інакше "../me#" ставав частиною шляху API (див. api.seg).
+  if (!isGroupId(payload.group_id)) {
+    console.warn('group_key with malformed group_id, ignored');
+    return;
+  }
+  // Ключ — рівно 32 байти.
+  let keyLen = 0;
+  try { keyLen = crypto.base64ToBytes(payload.key_b64).length; } catch { /* bad b64 */ }
+  if (keyLen !== 32) {
+    console.warn('group_key with malformed key, ignored');
+    return;
+  }
+
+  // ── Хто має право видати ключ ──
+  // Раніше будь-хто (навіть анонімний burner) міг DM-ом ПЕРЕЗАПИСАТИ ключ
+  // наявної групи — і далі твої повідомлення в ній шифрувались ключем
+  // нападника. Тепер:
+  //   • ключ уже є → приймаємо лише той самий (повтор), інший ігноруємо;
+  //   • ключа ще нема → відправник має бути учасником цієї групи на релеї.
+  const existing = gstore.getGroup(payload.group_id);
+  if (existing?.group_key_b64) {
+    if (existing.group_key_b64 !== payload.key_b64) {
+      console.warn('group_key for a group we already have a key for — ignored');
+    }
+    return;
+  }
+
+  let info;
+  try {
+    info = await api.getGroupInfo(payload.group_id);
+  } catch (e) {
+    // Мережа / 5xx / 404 (снапшот федеративної групи ще не доїхав до
+    // нашого релею — він іде окремою чергою) → НЕ губимо ключ: просимо
+    // не ack-ати конверт, наступний catch-up спробує ще раз (до TTL).
+    console.warn('group_key: cannot verify yet, will retry:', e?.message);
+    if (e?.code === 'network' || e?.status === 404 || (e?.status >= 500)) {
+      return { __retry: true };
+    }
+    return;
+  }
+  if (!info || info.group_id !== payload.group_id ||
+      !Array.isArray(info.members) ||
+      !info.members.some((m) => m?.pubkey_hex === senderPubkeyHex)) {
+    console.warn('group_key from a non-member, ignored');
+    return;
+  }
+
   gstore.storeGroupKey(payload.group_id, payload.key_b64, payload.name || null);
 
   try {
-    const info = await api.getGroupInfo(payload.group_id);
     gstore.upsertGroup({
       group_id: info.group_id,
       name: payload.name || null,
@@ -545,10 +599,10 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
   const envelopeId = envMeta.envelope_id;
   const groupId = envMeta.group_id;
   const senderPubkey = envMeta.from;
-  const senderUsername = envMeta.from_username || null;
+  const senderUsername = sanitizeIncomingUsername(envMeta.from_username);
 
-  if (!groupId || !senderPubkey) {
-    console.warn('group envelope without group_id or sender:', envMeta);
+  if (!isGroupId(groupId) || !crypto.isPubkeyHex(senderPubkey)) {
+    console.warn('group envelope with malformed group_id or sender, dropped');
     return null;
   }
 
@@ -571,6 +625,25 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     return null;
   }
   const blobB64 = crypto.bytesToBase64(blobBytes);
+
+  // ── Автор повідомлення ──
+  // Груповий ключ спільний, тож шифротекст сам по собі не каже, ХТО писав.
+  // Але кожен конверт підписаний ключем автора над {from,to=group_id,
+  // ts,ttl,blob} (релей це перевіряє при прийомі). Перевіряємо й тут —
+  // інакше релей міг приписати будь-яке повідомлення будь-якому учаснику.
+  if (envMeta.to !== groupId || !crypto.verifyEnvelope({
+    fromHex: senderPubkey, toHex: groupId, ts: envMeta.ts, ttl: envMeta.ttl,
+    blobB64, sigHex: envMeta.sig,
+  })) {
+    console.warn('group envelope signature invalid, dropped');
+    return null;
+  }
+  if (!replay.isFresh(envMeta.ts, envMeta.ttl)) {
+    console.warn('group envelope outside its lifetime, dropped');
+    return null;
+  }
+  if (replay.seen(envMeta.sig)) return null;
+  replay.remember(envMeta.sig);
 
   let plaintext;
   try {
@@ -597,7 +670,7 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
 
   const payload = parseGroupPayload(plaintext);
   if (!payload) {
-    console.warn('group payload not JSON / no kind:', plaintext.slice(0, 100));
+    console.warn('group payload not JSON / no kind');
     return null;
   }
 
@@ -815,6 +888,13 @@ export async function validateGroupsAgainstRelay() {
   const groups = gstore.listGroups ? gstore.listGroups() : [];
   let removedAny = false;
   await Promise.allSettled(groups.map(async (g) => {
+    // Залишки підкинутих раніше «груп» з некоректним id (до фіксу
+    // api.seg) — прибираємо одразу, без запитів до релею.
+    if (!isGroupId(g.group_id)) {
+      gstore.removeGroup(g.group_id);
+      removedAny = true;
+      return;
+    }
     try {
       await api.getGroupInfo(g.group_id);
     } catch (e) {

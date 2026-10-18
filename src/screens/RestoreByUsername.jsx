@@ -80,7 +80,7 @@ export default function RestoreByUsername({ onNavigate }) {
       vault.markUnlocked(seed);
 
       // Reload so App.jsx's boot picks up the fresh state cleanly
-      window.location.href = '/web/#chats';
+      window.location.href = `${window.location.pathname}#chats`;
       window.location.reload();
     } catch (e) {
       console.error(e);

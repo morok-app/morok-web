@@ -89,6 +89,10 @@ export default function App() {
   // перезапускати вже живе зʼєднання (див. коментар у startInbox).
   const inboxOwnerRef = useRef(null);
   const [pendingSeed, setPendingSeed] = useState(null);
+  // Примусовий ре-рендер після розблокування «на місці»: якщо PIN-екран
+  // показано замість поточного маршруту (#chats), navigate('chats') не
+  // змінює hash → без цього екран PIN лишався б на місці.
+  const [, setUnlockTick] = useState(0);
 
   useEffect(() => {
     let lastHash = window.location.hash || '#splash';
@@ -152,6 +156,80 @@ export default function App() {
     inboxRef.current?.stop();
     inboxOwnerRef.current = null;
   }, []);
+
+  // ── Сесія PIN і автоблокування ──
+  // 1) Активне користування (клавіші, кліки, переходи) продовжує сесію —
+  //    інакше людина, що годину лише читає, раптом бачила б PIN.
+  // 2) Застосунок не на екрані довше за AUTOLOCK_MS → забуваємо seed,
+  //    гасимо inbox, показуємо PIN. «Не на екрані» = вкладка схована,
+  //    вікно без фокусу (Tauri ховає в трей), або Capacitor у фоні.
+  useEffect(() => {
+    const AUTOLOCK_MS = 5 * 60 * 1000;
+    let awayAt = 0;
+    let lastRefresh = 0;
+    function touch() {
+      const now = Date.now();
+      if (now - lastRefresh < 30000) return;
+      lastRefresh = now;
+      if (vault.getUnlockedSeed()) vault.refreshSession();
+    }
+    function away() { if (!awayAt) awayAt = Date.now(); }
+    // Клік у вбудований лист (iframe) теж знімає фокус з вікна — це не
+    // «відійшов», тож такий blur ігноруємо.
+    function onBlur() {
+      setTimeout(() => {
+        if (document.activeElement?.tagName === 'IFRAME') return;
+        away();
+      }, 0);
+    }
+    function back() {
+      if (!awayAt) return;
+      const gone = Date.now() - awayAt;
+      awayAt = 0;
+      const id = store.loadIdentity();
+      if (!id?.encrypted || gone < AUTOLOCK_MS) { touch(); return; }
+      try { vault.lockNow(); } catch { /* ignore */ }
+      inboxRef.current?.stop();
+      inboxRef.current = null;
+      inboxOwnerRef.current = null;
+      navigate('pin-unlock');
+      setUnlockTick((n) => n + 1);
+    }
+    function onVis() { if (document.visibilityState === 'hidden') away(); else back(); }
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', back);
+    window.addEventListener('keydown', touch, true);
+    window.addEventListener('pointerdown', touch, true);
+    window.addEventListener('hashchange', touch);
+    let capHandle = null;
+    if (window.Capacitor?.isNativePlatform?.()) {
+      import('@capacitor/app').then(({ App: CapApp }) => CapApp.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) back(); else away();
+      })).then((h) => { capHandle = h; }).catch(() => {});
+    }
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', back);
+      window.removeEventListener('keydown', touch, true);
+      window.removeEventListener('pointerdown', touch, true);
+      window.removeEventListener('hashchange', touch);
+      try { capHandle?.remove?.(); } catch { /* ignore */ }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Сесія PIN спливла, поки застосунок відкритий → inbox не має далі
+  // розшифровувати й сповіщати «за замком».
+  useEffect(() => {
+    const id = store.loadIdentity();
+    if (id?.encrypted && !vault.getUnlockedSeed() && inboxRef.current) {
+      inboxRef.current.stop();
+      inboxRef.current = null;
+      inboxOwnerRef.current = null;
+    }
+  });
 
   // Глобальний тактильний відгук на тапи (no-op у вебі).
   useEffect(() => { installTapHaptics(); }, []);
@@ -486,6 +564,7 @@ export default function App() {
   function onPinSetExisting() { navigate('settings'); }
 
   function onPinUnlocked(seedBytes) {
+    setUnlockTick((n) => n + 1);
     const id = store.loadIdentity();
     loginAndRoute(seedBytes, id.pubkey_hex).catch((e) => {
       setBootError(e.message);
@@ -539,7 +618,25 @@ export default function App() {
     }
   }
 
+  function isLocked() {
+    const id = store.loadIdentity();
+    return !!(id?.encrypted && !vault.getUnlockedSeed() &&
+      route !== 'splash' && route !== 'burner-send');
+  }
+
   function renderScreen() {
+    // ── Замок PIN ──
+    // Раніше PIN-екран був лише ОДНИМ із маршрутів: достатньо було
+    // вписати в адресний рядок #chats / #chat/<pubkey> / #mail, і екран
+    // показував історію (вона лежить у сховищі браузера й читається без
+    // seed). Тепер: акаунт із PIN і він не розблокований → будь-який
+    // маршрут, окрім анонімної скриньки, показує розблокування. Це
+    // стосується й #create/#login — інакше на заблокованому комп'ютері
+    // можна було б перезаписати акаунт новим.
+    if (isLocked()) {
+      savePendingIfDeepLink(window.location.hash);
+      return <PinUnlock onUnlocked={onPinUnlocked} onForgotPin={onForgotPin} />;
+    }
     const _prof = store.loadProfile();
     const mailPrimaryAddress = _prof?.username ? `${_prof.username}@morok.email` : 'Morok';
   switch (route) {
@@ -621,6 +718,9 @@ export default function App() {
         navDir={navDir}
         navigate={navigate}
         renderScreen={renderScreen}
+        // Заблоковано → одноекранний режим: інакше на десктопі ліва панель
+        // зі списком чатів лишалась видимою поруч з екраном PIN.
+        locked={isLocked()}
       />
     </>
   );
@@ -723,7 +823,7 @@ function useIsDesktop() {
   return isDesktop;
 }
 
-function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, renderScreen }) {
+function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, renderScreen, locked }) {
   const isDesktop = useIsDesktop();
   useTabTitle(route, routeArg);
 
@@ -758,7 +858,7 @@ function DesktopAwareLayout({ route, routeArg, screenKey, navDir, navigate, rend
   }, [isDesktop, isChat, screenKey]);
 
   // Телефон АБО auth-флоу → класичний одноекранний режим зі slide.
-  if (!isDesktop || AUTH_ROUTES.has(route)) {
+  if (!isDesktop || AUTH_ROUTES.has(route) || locked) {
     return (
       <ScreenTransition routeKey={screenKey} direction={navDir}>
         {renderScreen()}

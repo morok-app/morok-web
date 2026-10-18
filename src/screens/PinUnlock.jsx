@@ -51,9 +51,12 @@ export default function PinUnlock({ onUnlocked, onForgotPin }) {
         // Duress: другий PIN → повний тихий вайп → вигляд свіжого застосунку.
         // Перевіряємо ДО лічильника невдалих спроб: duress — не «помилка».
         if (vault.checkDuressPin(digits)) {
-          try { store.wipeAll(); } catch { /* wipe понад усе */ }
           try { vault.lockNow(); } catch { /* ignore */ }
-          window.location.replace(window.location.pathname);
+          // Чекаємо (≤1.5 с) зняття push-підписки — інакше перезавантаження
+          // обірве її, і сповіщення видаватимуть, що акаунт існує.
+          store.wipeAllAsync().catch(() => {}).finally(() => {
+            window.location.replace(window.location.pathname);
+          });
           return;
         }
         const status = vault.recordWrongPin();

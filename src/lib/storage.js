@@ -145,4 +145,35 @@ export function wipeAll() {
       indexedDB.deleteDatabase('morok_mail');
     }
   } catch { /* ignore */ }
+  // Відкладений маршрут, прапорці підказок тощо.
+  try { if (typeof sessionStorage !== 'undefined') sessionStorage.clear(); } catch { /* ignore */ }
+  // Push-підписка браузера й service worker: інакше після duress-вайпу
+  // сповіщення «нове повідомлення від @x» приходили б і далі, видаючи,
+  // що акаунт існує. Асинхронно, без очікування — екран міняється одразу.
+  _swCleanup = cleanupServiceWorkers();
+}
+
+let _swCleanup = Promise.resolve();
+
+function cleanupServiceWorkers() {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker?.getRegistrations) return Promise.resolve();
+    return navigator.serviceWorker.getRegistrations().then((regs) => Promise.all(regs.map(async (r) => {
+      try {
+        const sub = await r.pushManager?.getSubscription?.();
+        if (sub) await sub.unsubscribe();
+      } catch { /* ignore */ }
+      try { await r.unregister(); } catch { /* ignore */ }
+    }))).catch(() => {});
+  } catch { return Promise.resolve(); }
+}
+
+/**
+ * Те саме, що wipeAll(), але чекає (до timeoutMs), поки знімуться push-
+ * підписка й service worker. Викликати перед перезавантаженням сторінки —
+ * інакше перехід обриває асинхронне прибирання, і пуші приходять далі.
+ */
+export async function wipeAllAsync(timeoutMs = 1500) {
+  wipeAll();
+  await Promise.race([_swCleanup, new Promise((r) => setTimeout(r, timeoutMs))]);
 }
