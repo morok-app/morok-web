@@ -85,6 +85,22 @@ export default function Settings({ onNavigate }) {
     showToast(next === 0 ? t('Disappear-after-reading disabled') : tp("Disappears {0} after reading", [READBURN_LABEL[next]]), 'ok');
   }
 
+  // Автоблокування: скільки застосунок може бути схованим (згорнутим,
+  // у треї, на іншій вкладці), перш ніж знову попросити PIN.
+  const [autolock, setAutolock] = useState(() => String(store.getPreference('autolock', '15')));
+  const AUTOLOCK_ORDER = ['15', '30', 'off', 'instant', '1', '5'];
+  const AUTOLOCK_LABEL = {
+    off: t('Off'), instant: 'Одразу / Immediately',
+    1: '1 хв / min', 5: '5 хв / min', 15: '15 хв / min', 30: '30 хв / min',
+  };
+  function cycleAutolock() {
+    const i = AUTOLOCK_ORDER.indexOf(autolock);
+    const next = AUTOLOCK_ORDER[(i + 1) % AUTOLOCK_ORDER.length];
+    store.setPreference('autolock', next);
+    setAutolock(next);
+    showToast(next === 'off' ? 'Auto-lock: off' : `Auto-lock: ${AUTOLOCK_LABEL[next]}`, 'ok');
+  }
+
   function toggleContactsOnly() {
     const next = !contactsOnly;
     store.setPreference('contacts_only_mode', next);
@@ -507,6 +523,14 @@ export default function Settings({ onNavigate }) {
             valueColor={readBurn === 0 ? '#A8A8B0' : '#4ADE80'}
             onClick={cycleReadBurn}
           />
+          {(store.loadIdentity()?.encrypted) && (
+            <LinRow
+              label="Автоблокування / Auto-lock"
+              value={AUTOLOCK_LABEL[autolock] || AUTOLOCK_LABEL['15']}
+              valueColor={autolock === 'off' ? '#A8A8B0' : '#4ADE80'}
+              onClick={cycleAutolock}
+            />
+          )}
         </div>
 
         {/* Group 2: App */}

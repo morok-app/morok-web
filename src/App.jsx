@@ -160,11 +160,18 @@ export default function App() {
   // ── Сесія PIN і автоблокування ──
   // 1) Активне користування (клавіші, кліки, переходи) продовжує сесію —
   //    інакше людина, що годину лише читає, раптом бачила б PIN.
-  // 2) Застосунок не на екрані довше за AUTOLOCK_MS → забуваємо seed,
-  //    гасимо inbox, показуємо PIN. «Не на екрані» = вкладка схована,
-  //    вікно без фокусу (Tauri ховає в трей), або Capacitor у фоні.
+  // 2) Застосунок СХОВАНИЙ довше за налаштований час (Налаштування →
+  //    Автоблокування, за замовчуванням 15 хв) → забуваємо seed, гасимо
+  //    inbox, показуємо PIN. «Схований» = вкладка неактивна / вікно
+  //    згорнуте, Capacitor у фоні, а в Tauri ще й вікно без фокусу
+  //    (закриття ховає його в трей, а WebView2 не завжди повідомляє про
+  //    це через visibilitychange). Просто «фокус в іншому вікні» у
+  //    браузері НЕ рахується — Morok часто тримають відкритим збоку.
   useEffect(() => {
-    const AUTOLOCK_MS = 5 * 60 * 1000;
+    const THRESHOLD_MS = { instant: 0, 1: 60e3, 5: 300e3, 15: 900e3, 30: 1800e3 };
+    const isTauri = !!(window.__TAURI__ || window.__TAURI_INTERNALS__ ||
+      /^tauri:/.test(window.location?.protocol || '') ||
+      (window.location?.protocol === 'http:' && window.location?.hostname === 'tauri.localhost'));
     let awayAt = 0;
     let lastRefresh = 0;
     function touch() {
@@ -174,20 +181,15 @@ export default function App() {
       if (vault.getUnlockedSeed()) vault.refreshSession();
     }
     function away() { if (!awayAt) awayAt = Date.now(); }
-    // Клік у вбудований лист (iframe) теж знімає фокус з вікна — це не
-    // «відійшов», тож такий blur ігноруємо.
-    function onBlur() {
-      setTimeout(() => {
-        if (document.activeElement?.tagName === 'IFRAME') return;
-        away();
-      }, 0);
-    }
     function back() {
       if (!awayAt) return;
       const gone = Date.now() - awayAt;
       awayAt = 0;
       const id = store.loadIdentity();
-      if (!id?.encrypted || gone < AUTOLOCK_MS) { touch(); return; }
+      const pref = String(store.getPreference('autolock', '15'));
+      const limit = THRESHOLD_MS[pref] ?? THRESHOLD_MS[15];
+      if (!id?.encrypted || pref === 'off' || gone < limit) { touch(); return; }
+      if (!vault.getUnlockedSeed()) return; // уже заблоковано
       try { vault.lockNow(); } catch { /* ignore */ }
       inboxRef.current?.stop();
       inboxRef.current = null;
@@ -196,9 +198,15 @@ export default function App() {
       setUnlockTick((n) => n + 1);
     }
     function onVis() { if (document.visibilityState === 'hidden') away(); else back(); }
+    // Tauri: blur = вікно сховали в трей або перемкнулись (iframe листа — ні).
+    function onBlur() {
+      setTimeout(() => { if (document.activeElement?.tagName !== 'IFRAME') away(); }, 0);
+    }
     document.addEventListener('visibilitychange', onVis);
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('focus', back);
+    if (isTauri) {
+      window.addEventListener('blur', onBlur);
+      window.addEventListener('focus', back);
+    }
     window.addEventListener('keydown', touch, true);
     window.addEventListener('pointerdown', touch, true);
     window.addEventListener('hashchange', touch);
@@ -210,8 +218,10 @@ export default function App() {
     }
     return () => {
       document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', back);
+      if (isTauri) {
+        window.removeEventListener('blur', onBlur);
+        window.removeEventListener('focus', back);
+      }
       window.removeEventListener('keydown', touch, true);
       window.removeEventListener('pointerdown', touch, true);
       window.removeEventListener('hashchange', touch);
@@ -710,7 +720,8 @@ export default function App() {
 
   return (
     <>
-      <ConnBanner state={connState} />
+      {/* на екрані PIN з'єднання розірване навмисно — плашка лише лякала б */}
+      {!isLocked() && route !== 'pin-unlock' && <ConnBanner state={connState} />}
       <DesktopAwareLayout
         route={route}
         routeArg={routeArg}
