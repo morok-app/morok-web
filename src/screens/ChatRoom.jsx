@@ -11,6 +11,8 @@ import { formatBytes } from '../lib/images.js';
 import { Recorder, isSupported as voiceIsSupported, formatDuration, MAX_DURATION_MS } from '../lib/voice.js';
 import * as muted from '../lib/muted.js';
 import { t, tp } from '../lib/i18n.js';
+import { buildReplyTo } from '../lib/reply.js';
+import { ReplyBar, ReplyQuote, scrollToMessage } from '../components/Reply.jsx';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
@@ -59,6 +61,11 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   const [showTtlMenu, setShowTtlMenu] = useState(false);
   const [ttlSeconds, setTtlSeconds] = useState(24 * 3600);
   const [actionMessage, setActionMessage] = useState(null);
+  const [replyMsg, setReplyMsg] = useState(null);   // на що відповідаємо
+  const [flashId, setFlashId] = useState(null);     // підсвітка оригіналу після кліку по цитаті
+  const flashTimer = useRef(null);
+  const composerRef = useRef(null);
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // ── Мультивиділення повідомлень ──
   const [selectMode, setSelectMode] = useState(false);
@@ -399,15 +406,20 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       return;
     }
     setSending(true);
+    const replyTo = replyMsg
+      ? buildReplyTo(replyMsg)
+      : null;
     try {
       await msgs.sendDM({
         seed, myPubkeyHex,
         peerPubkeyHex: peerPubkey,
         plaintext: draft.trim(),
         ttlSeconds,
+        replyTo,
       });
       vault.refreshSession();
       setDraft('');
+      setReplyMsg(null);
       setConv(convs.getConversation(peerPubkey));
     } catch (e) {
       alert(tp("Sending failed: {0}", [e.message]));
@@ -628,6 +640,33 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   // Compute peer color
   const peerHue = parseInt(conv.peer_pubkey.slice(0, 6), 16) % 360;
 
+  // ── Відповідь на повідомлення ──
+  const byEnvelope = new Map();
+  for (const x of messages) if (x.envelope_id) byEnvelope.set(x.envelope_id, x);
+  const canReply = (x) => !!x?.envelope_id && x.status !== 'undecryptable' && !isBurner;
+  // Автор цитати — з МОЄЇ копії оригіналу, не з того, що прислали.
+  const authorOf = (orig) => (orig ? (orig.direction === 'out' ? t('You') : displayTitle) : null);
+  function startReply(x) {
+    if (!canReply(x)) return;
+    // смужка відповіді з'їдає трохи висоти — якщо були внизу, лишаємось унизу
+    const el = scrollerRef.current;
+    const nearBottom = !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    setReplyMsg(x);
+    setTimeout(() => {
+      if (nearBottom && el) el.scrollTop = el.scrollHeight;
+      composerRef.current?.focus();
+    }, 30);
+  }
+  function jumpToOriginal(envelopeId) {
+    const orig = byEnvelope.get(envelopeId);
+    if (!orig) return;
+    scrollToMessage(scrollerRef.current, orig.id);
+    setFlashId(null);
+    clearTimeout(flashTimer.current);
+    setTimeout(() => setFlashId(orig.id), 20);
+    flashTimer.current = setTimeout(() => setFlashId(null), 1700);
+  }
+
   return (
     <div
       className="screen"
@@ -769,7 +808,13 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           return (
             <div
               key={m.id}
-              className={`msg-row${justGrew && idx === messages.length - 1 ? ' msg-appear' : ''}`}
+              data-mid={m.id}
+              onDoubleClick={() => {
+                if (selectMode) return;
+                try { window.getSelection()?.removeAllRanges(); } catch { /* ignore */ }
+                startReply(m);
+              }}
+              className={`msg-row${justGrew && idx === messages.length - 1 ? ' msg-appear' : ''}${flashId === m.id ? ' msg-flash' : ''}`}
               onMouseDown={() => { if (!selectMode) startLongPress(m); }}
               onMouseUp={cancelLongPress}
               onMouseLeave={cancelLongPress}
@@ -843,6 +888,16 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                   overflow: 'hidden',
                 }}
               >
+                {m.reply_to && m.status !== 'undecryptable' && (
+                  <div style={{ padding: (m.image || m.voice) ? '2px 2px 0' : 0 }}>
+                    <ReplyQuote
+                      original={byEnvelope.get(m.reply_to.id)}
+                      authorLabel={authorOf(byEnvelope.get(m.reply_to.id))}
+                      out={isOut}
+                      onClick={() => jumpToOriginal(m.reply_to.id)}
+                    />
+                  </div>
+                )}
                 {m.status === 'undecryptable' ? (
                   <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
                     ⚠ {m.error || 'couldn\'t decrypt'}
@@ -1119,6 +1174,21 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                   : t('📷 Image'))
               : `"${actionMessage.text?.slice(0, 80) || ''}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
+          {canReply(actionMessage) && (
+            <div
+              onClick={() => { const x = actionMessage; setActionMessage(null); startReply(x); }}
+              style={{
+                padding: '14px 20px', cursor: 'pointer',
+                color: '#F5F5F7', fontSize: 14, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
+              </svg>
+              {t('Reply')}
+            </div>
+          )}
           <div
             onClick={enterSelectMode}
             style={{
@@ -1284,11 +1354,17 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
           </button>
         </div>
       ) : (
+        <div style={{ borderTop: '1px solid #1E1E27', background: '#0A0A0B' }}>
+        {replyMsg && (
+          <ReplyBar
+            authorLabel={replyMsg.direction === 'out' ? t('yourself') : displayTitle}
+            original={replyMsg}
+            onClose={() => setReplyMsg(null)}
+          />
+        )}
         <div style={{
           padding: '10px 12px 14px',
           display: 'flex', gap: 8, alignItems: 'flex-end',
-          borderTop: '1px solid #1E1E27',
-          background: '#0A0A0B',
         }}>
           <button
             onClick={() => setShowTtlMenu(true)}
@@ -1350,9 +1426,17 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             style={{ display: 'none' }}
           />
           <textarea
+            ref={composerRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === 'Escape' && replyMsg && !e.nativeEvent.isComposing) {
+                // Esc спершу скасовує відповідь, а не закриває чат
+                e.preventDefault();
+                e.stopPropagation();
+                setReplyMsg(null);
+                return;
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendClicked();
@@ -1417,6 +1501,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               </svg>
             </button>
           )}
+        </div>
         </div>
       )}
 

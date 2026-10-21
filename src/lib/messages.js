@@ -23,6 +23,7 @@ import * as crypto from './crypto.js';
 import * as convs from './conversations.js';
 import * as replay from './replay.js';
 import { sanitizeIncomingUsername } from './display.js';
+import { sanitizeReplyTo } from './reply.js';
 import { compressImage } from './images.js';
 import { blobToBase64 } from './voice.js';
 import { t, tp } from './i18n.js';
@@ -94,7 +95,9 @@ async function trySealedSend({ seed, myPubkeyHex, peerPubkeyHex, payload, ts, tt
   }
 }
 
-export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds }) {
+export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds, replyTo = null }) {
+  // Цитата їде лише в sealed-конверті (див. lib/reply.js).
+  const reply = replyTo ? sanitizeReplyTo(replyTo) : null;
   const ts = Math.floor(Date.now() / 1000);
   const blob = crypto.encryptForPeer({
     seed,
@@ -140,13 +143,14 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
     expires_at: ts + ttlSeconds,
     status: 'sending',
   };
+  if (reply) localMsg.reply_to = reply;
   convs.appendMessage(peerPubkeyHex, localMsg);
 
   // ── Спроба SEALED (анонімно до релея) ──
   // Доставка важливіша за анонімність: null -> тихий fallback на v1.
   const sealedRes = await trySealedSend({
     seed, myPubkeyHex, peerPubkeyHex,
-    payload: { kind: 'text', text: plaintext },
+    payload: reply ? { kind: 'text', text: plaintext, reply_to: reply } : { kind: 'text', text: plaintext },
     ts, ttlSeconds,
   });
   if (sealedRes) {
@@ -162,6 +166,8 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
   }
 
   // ── Звичайний v1 (як було) ──
+  // Цитата у v1 не доходить (голий текст) — прибираємо її і в себе, щоб
+  // обидві сторони бачили одне й те саме.
   try {
     const ack = await api.sendEnvelope({
       from: myPubkeyHex,
@@ -175,8 +181,9 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
       envelope_id: ack.envelope_id,
       status: 'sent',
       expires_at: ack.expires_at || (ts + ttlSeconds),
+      ...(reply ? { reply_to: null } : {}),
     });
-    return { ...localMsg, envelope_id: ack.envelope_id, status: 'sent' };
+    return { ...localMsg, envelope_id: ack.envelope_id, status: 'sent', reply_to: null };
   } catch (e) {
     convs.updateMessage(peerPubkeyHex, localMsg.id, {
       status: 'failed',
@@ -709,6 +716,8 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     } else {
       // text (default)
       msg.text = typeof sealedPayload.text === 'string' ? sealedPayload.text : '';
+      const r = sanitizeReplyTo(sealedPayload.reply_to);
+      if (r) msg.reply_to = r;
     }
 
     convs.appendMessage(sealedPeer, msg);

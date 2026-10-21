@@ -47,6 +47,7 @@ import * as crypto from './crypto.js';
 import * as gstore from './group_storage.js';
 import * as replay from './replay.js';
 import { sanitizeIncomingUsername } from './display.js';
+import { sanitizeReplyTo } from './reply.js';
 
 /** group_id від релею — канонічний UUID. Будь-що інше відкидаємо. */
 export function isGroupId(v) {
@@ -314,15 +315,16 @@ export async function processIncomingGroupKeyRequest({
 
 export async function sendGroupMessage({
   groupId, text, ttlSeconds = 86400,
-  seed, myPubkeyHex,
+  seed, myPubkeyHex, replyTo = null,
 }) {
+  const reply = replyTo ? sanitizeReplyTo(replyTo) : null;
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
     throw new Error(t('No group key'));
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
-  const payload = wrapGroupPayload('group_msg', { text });
+  const payload = wrapGroupPayload('group_msg', reply ? { text, reply_to: reply } : { text });
   const blobB64 = crypto.encryptStringWithKey(groupKey, payload);
 
   const ts = nowSeconds();
@@ -345,6 +347,7 @@ export async function sendGroupMessage({
     expires_at: ts + ttlSeconds,
     status: 'sending',
   };
+  if (reply) localMsg.reply_to = reply;
   gstore.appendMessage(groupId, localMsg);
 
   try {
@@ -681,12 +684,14 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
       direction: 'in',
       sender_pubkey: senderPubkey,
       sender_username: senderUsername,
-      text: payload.text || '',
+      text: typeof payload.text === 'string' ? payload.text : '',
       ts: envMeta.ts || nowSeconds(),
       ttl: envMeta.ttl,
       expires_at: envMeta.expires_at,
       status: 'received',
     };
+    const reply = sanitizeReplyTo(payload.reply_to);
+    if (reply) msg.reply_to = reply;
     gstore.appendMessage(groupId, msg);
     return msg;
   }

@@ -10,6 +10,8 @@ import { formatBytes } from '../lib/images.js';
 import { Recorder, isSupported as voiceIsSupported, formatDuration, MAX_DURATION_MS } from '../lib/voice.js';
 import * as muted from '../lib/muted.js';
 import { t, tp } from '../lib/i18n.js';
+import { buildReplyTo } from '../lib/reply.js';
+import { ReplyBar, ReplyQuote, scrollToMessage } from '../components/Reply.jsx';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
@@ -58,6 +60,11 @@ export default function GroupChat({ groupId, onNavigate }) {
   const [sending, setSending] = useState(false);
   const [showTtlMenu, setShowTtlMenu] = useState(false);
   const [actionMessage, setActionMessage] = useState(null);
+  const [replyMsg, setReplyMsg] = useState(null);   // на що відповідаємо
+  const [flashId, setFlashId] = useState(null);     // підсвітка оригіналу після кліку по цитаті
+  const flashTimer = useRef(null);
+  const composerRef = useRef(null);
+  useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // ── Мультивиділення повідомлень ──
   const [selectMode, setSelectMode] = useState(false);
@@ -367,14 +374,19 @@ export default function GroupChat({ groupId, onNavigate }) {
     if (!seed) { alert('Session expired.'); return; }
     if (!myPubkeyHex) { alert('My pubkey not found.'); return; }
     setSending(true);
+    const replyTo = replyMsg
+      ? buildReplyTo(replyMsg)
+      : null;
     try {
       await groups.sendGroupMessage({
         groupId, text: draft.trim(),
         ttlSeconds,
         seed, myPubkeyHex,
+        replyTo,
       });
       vault.refreshSession();
       setDraft('');
+      setReplyMsg(null);
       setGroup(gstore.getGroup(groupId));
     } catch (e) {
       if (groups.isGroupGoneError(e)) {
@@ -578,6 +590,43 @@ export default function GroupChat({ groupId, onNavigate }) {
   const noKey = !group.group_key_b64;
   const memberCount = group.member_count || (group.members?.length ?? 0);
 
+  // ── Відповідь на повідомлення ──
+  const byEnvelope = new Map();
+  for (const x of messages) if (x.envelope_id) byEnvelope.set(x.envelope_id, x);
+  const canReply = (x) => !!x?.envelope_id && x.status !== 'undecryptable' && !noKey;
+  // pubkey → нік (учасники + ті, хто вже писав) — один прохід на рендер
+  const names = new Map();
+  for (const x of messages) if (x.sender_pubkey && x.sender_username) names.set(x.sender_pubkey, x.sender_username);
+  for (const mem of (group.members || [])) if (mem?.pubkey_hex && mem.username) names.set(mem.pubkey_hex, mem.username);
+  function nameFor(pk) {
+    if (!pk) return '?';
+    if (pk === myPubkeyHex) return t('You');
+    const n = names.get(pk);
+    return n ? `@${n}` : `${pk.slice(0, 8)}…`;
+  }
+  // Автор цитати — з МОЄЇ копії оригіналу, не з того, що прислали.
+  const authorOf = (orig) => (orig ? (orig.direction === 'out' ? t('You') : nameFor(orig.sender_pubkey)) : null);
+  function startReply(x) {
+    if (!canReply(x)) return;
+    // смужка відповіді з'їдає трохи висоти — якщо були внизу, лишаємось унизу
+    const el = scrollerRef.current;
+    const nearBottom = !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+    setReplyMsg(x);
+    setTimeout(() => {
+      if (nearBottom && el) el.scrollTop = el.scrollHeight;
+      composerRef.current?.focus();
+    }, 30);
+  }
+  function jumpToOriginal(envelopeId) {
+    const orig = byEnvelope.get(envelopeId);
+    if (!orig) return;
+    scrollToMessage(scrollerRef.current, orig.id);
+    setFlashId(null);
+    clearTimeout(flashTimer.current);
+    setTimeout(() => setFlashId(orig.id), 20);
+    flashTimer.current = setTimeout(() => setFlashId(null), 1700);
+  }
+
   return (
     <div
       className="screen"
@@ -718,7 +767,13 @@ export default function GroupChat({ groupId, onNavigate }) {
           return (
             <div
               key={m.id}
-              className="msg-row"
+              data-mid={m.id}
+              onDoubleClick={() => {
+                if (selectMode) return;
+                try { window.getSelection()?.removeAllRanges(); } catch { /* ignore */ }
+                startReply(m);
+              }}
+              className={`msg-row${flashId === m.id ? ' msg-flash' : ''}`}
               onMouseDown={() => { if (!selectMode) startLongPress(m); }}
               onMouseUp={cancelLongPress}
               onMouseLeave={cancelLongPress}
@@ -789,6 +844,16 @@ export default function GroupChat({ groupId, onNavigate }) {
                   overflow: 'hidden',
                 }}
               >
+                {m.reply_to && m.status !== 'undecryptable' && (
+                  <div style={{ padding: (m.image || m.voice) ? '2px 2px 0' : 0 }}>
+                    <ReplyQuote
+                      original={byEnvelope.get(m.reply_to.id)}
+                      authorLabel={authorOf(byEnvelope.get(m.reply_to.id))}
+                      out={isOut}
+                      onClick={() => jumpToOriginal(m.reply_to.id)}
+                    />
+                  </div>
+                )}
                 {m.status === 'undecryptable' ? (
                   <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
                     ⚠ {m.error || 'couldn\'t decrypt'}
@@ -1068,6 +1133,21 @@ export default function GroupChat({ groupId, onNavigate }) {
                   : t('📷 Image'))
               : `"${actionMessage.text?.slice(0, 80) || ''}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
+          {canReply(actionMessage) && (
+            <div
+              onClick={() => { const x = actionMessage; setActionMessage(null); startReply(x); }}
+              style={{
+                padding: '14px 20px', cursor: 'pointer',
+                color: '#F5F5F7', fontSize: 14, fontWeight: 500,
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
+              </svg>
+              {t('Reply')}
+            </div>
+          )}
           <div
             onClick={enterSelectMode}
             style={{
@@ -1209,11 +1289,17 @@ export default function GroupChat({ groupId, onNavigate }) {
             </button>
           </div>
         ) : (
+        <div style={{ borderTop: '1px solid #1E1E27', background: '#0A0A0B' }}>
+        {replyMsg && (
+          <ReplyBar
+            authorLabel={replyMsg.direction === 'out' ? t('yourself') : nameFor(replyMsg.sender_pubkey)}
+            original={replyMsg}
+            onClose={() => setReplyMsg(null)}
+          />
+        )}
         <div style={{
           padding: '10px 12px 14px',
           display: 'flex', gap: 8, alignItems: 'flex-end',
-          borderTop: '1px solid #1E1E27',
-          background: '#0A0A0B',
         }}>
           <button
             onClick={() => setShowTtlMenu(true)}
@@ -1275,9 +1361,16 @@ export default function GroupChat({ groupId, onNavigate }) {
             style={{ display: 'none' }}
           />
           <textarea
+            ref={composerRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === 'Escape' && replyMsg && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                e.stopPropagation();
+                setReplyMsg(null);
+                return;
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendClicked();
@@ -1342,6 +1435,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               </svg>
             </button>
           )}
+        </div>
         </div>
         )
       )}
