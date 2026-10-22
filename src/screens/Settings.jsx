@@ -339,6 +339,8 @@ export default function Settings({ onNavigate }) {
         encryptedSeedB64: encryptedBlob,
         kdfSaltB64: saltB64,
         kdfParams: { alg: 'pbkdf2', hash: 'sha256', iter: 200000 },
+        seed,
+        pubkeyHex: identity?.pubkey_hex,
       });
       showToast(t('Backup created.'), 'ok');
       setServerBackup({ exists: true });
@@ -354,7 +356,7 @@ export default function Settings({ onNavigate }) {
     if (!confirm(t('Delete the backup? Recovery will only be possible with the 24 words.'))) return;
     setBusy(true);
     try {
-      await api.deleteMyBackup();
+      await api.deleteMyBackup({ seed: vault.getUnlockedSeed(), pubkeyHex: identity?.pubkey_hex });
       showToast('Backup deleted.');
       setServerBackup({ exists: false });
       store.saveBackupHas({ has: false, updatedAt: 0 });

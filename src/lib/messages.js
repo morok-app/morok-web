@@ -558,7 +558,7 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
   if (envMeta.group_id) {
     const groupsMod = await import('./groups.js');
     return await groupsMod.processIncomingGroupEnvelope({
-      envMeta, myPubkeyHex,
+      envMeta, myPubkeyHex, seed,
     });
   }
 

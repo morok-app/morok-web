@@ -333,6 +333,46 @@ export async function releaseUsername() {
 }
 
 /**
+ * Крипто-підтвердження незворотної дії (SensitiveActionProof на релеї):
+ * підпис ключем акаунта над «зробити САМЕ ЦЮ дію з САМЕ ЦИМ об'єктом на
+ * ЦЬОМУ релеї ЗАРАЗ». Без нього вкрадений токен сесії міг би стерти
+ * акаунт чи скасувати «мертву руку». Для account_delete і бекапу релей
+ * вимагає підпис обов'язково.
+ *
+ * Час беремо з /health релею (server_time), якщо він є: годинник
+ * телефона може відставати більше, ніж на вікно свіжості (5 хв).
+ * Повертає поля для тіла запиту або undefined (нема seed / релей
+ * недоступний) — тоді запит піде без підпису, і релей сам вирішить.
+ */
+export async function sensitiveActionProof({ seed, action, target }) {
+  if (!seed || !action || !target) return undefined;
+  try {
+    const h = await http('GET', '/health');
+    const relayName = h?.relay_name;
+    if (!relayName) return undefined;
+    const nonceBytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(nonceBytes);
+    const nonce = Array.from(nonceBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    const timestamp = Number.isInteger(h?.server_time) ? h.server_time : Math.floor(Date.now() / 1000);
+    const msg = canonicalJson({
+      morok_sensitive_action: 'v1',
+      action,
+      relay: relayName,
+      timestamp,
+      nonce,
+      target: String(target),
+    });
+    return {
+      action_signature_hex: sign(seed, msg),
+      action_nonce: nonce,
+      action_timestamp: timestamp,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Permanently delete the current account on the relay.
  *
  * The caller MUST verify the mnemonic locally before calling this —
@@ -341,36 +381,9 @@ export async function releaseUsername() {
  * unlocked device wipe the account.
  */
 export async function deleteAccount({ seed, pubkeyHex } = {}) {
-  // Крипто-підтвердження (SensitiveActionProof на релеї): підпис ключем
-  // акаунта саме над «видалити ЦЕЙ акаунт на ЦЬОМУ релеї ЗАРАЗ». Коли
-  // всі клієнти шлють proof, релей зможе зробити його обов'язковим — і
-  // вкрадений токен більше не зможе стерти акаунт.
-  let body;
-  if (seed && pubkeyHex) {
-    try {
-      const h = await http('GET', '/health');
-      const relayName = h?.relay_name;
-      if (relayName) {
-        const nonceBytes = new Uint8Array(16);
-        globalThis.crypto.getRandomValues(nonceBytes);
-        const nonce = Array.from(nonceBytes, (b) => b.toString(16).padStart(2, '0')).join('');
-        const timestamp = Math.floor(Date.now() / 1000);
-        const msg = canonicalJson({
-          morok_sensitive_action: 'v1',
-          action: 'account_delete',
-          relay: relayName,
-          timestamp,
-          nonce,
-          target: pubkeyHex,
-        });
-        body = {
-          action_signature_hex: sign(seed, msg),
-          action_nonce: nonce,
-          action_timestamp: timestamp,
-        };
-      }
-    } catch { /* без proof — legacy-шлях релею */ }
-  }
+  const body = pubkeyHex
+    ? await sensitiveActionProof({ seed, action: 'account_delete', target: pubkeyHex })
+    : undefined;
   return http('DELETE', '/api/v1/me', { auth: true, body });
 }
 
@@ -665,9 +678,12 @@ export function openInboxSocket(onMessage, onOpen, onClose, onError) {
 // Encrypted backup
 // ────────────────────────────────────────────────────────────
 
-export async function uploadBackup({ encryptedSeedB64, kdfSaltB64, kdfParams }) {
+export async function uploadBackup({ encryptedSeedB64, kdfSaltB64, kdfParams, seed, pubkeyHex }) {
+  // релей вимагає підпис (backup_replace) — без seed/pubkeyHex отримаєте 401
+  const proof = await sensitiveActionProof({ seed, action: 'backup_replace', target: pubkeyHex });
   return http('POST', '/api/v1/backup', {
     body: {
+      ...(proof || {}),
       encrypted_seed_b64: encryptedSeedB64,
       kdf_salt_b64: kdfSaltB64,
       kdf_params: kdfParams || { alg: 'pbkdf2', hash: 'sha256', iter: 200000 },
@@ -681,8 +697,9 @@ export async function getMyBackup() {
   return http('GET', '/api/v1/backup', { auth: true });
 }
 
-export async function deleteMyBackup() {
-  return http('DELETE', '/api/v1/backup', { auth: true });
+export async function deleteMyBackup({ seed, pubkeyHex } = {}) {
+  const body = await sensitiveActionProof({ seed, action: 'backup_delete', target: pubkeyHex });
+  return http('DELETE', '/api/v1/backup', { auth: true, body });
 }
 
 export async function restoreBackupByUsername(username) {
@@ -853,8 +870,11 @@ export async function checkInDMS(dmsId) {
 /**
  * Cancel a DMS. Idempotent.
  */
-export async function cancelDMS(dmsId) {
-  return http('DELETE', `/api/v1/dms/${seg(dmsId)}`, { auth: true });
+export async function cancelDMS(dmsId, { seed } = {}) {
+  // dms_cancel релей поки не вимагає (старі клієнти), але приймає й
+  // перевіряє підпис — шлемо його, щоб потім увімкнути обов'язковість.
+  const body = await sensitiveActionProof({ seed, action: 'dms_cancel', target: dmsId });
+  return http('DELETE', `/api/v1/dms/${seg(dmsId)}`, { auth: true, body });
 }
 // ────────────────────────────────────────────────────────────
 // Burner inbox (Day 7)

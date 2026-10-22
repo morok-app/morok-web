@@ -38,13 +38,19 @@
  * ЧЕСНО ПРО МЕЖІ: учасники зі старими версіями застосунку й далі віддають
  * ключ за старим правилом, поки не оновляться. Для легасі-груп адміна
  * закріплюємо з того, що каже релей у момент першого знайомства (TOFU).
- * Видалений учасник зберігає старий ключ (перевипуск ключа — окрема задача).
+ * ПЕРЕВИПУСК КЛЮЧА. Коли адмін прибирає учасника, він генерує НОВИЙ ключ
+ * групи, підписує стан з kh нового ключа (seq+1) і розсилає ключ решті
+ * особистими E2EE-повідомленнями. Учасники приймають інший ключ лише зі
+ * станом, підписаним закріпленим адміном, з новішим seq. Старі ключі
+ * лишаються для розшифрування того, що вже в дорозі; нові повідомлення
+ * видалений прочитати не може.
  *
  * Дзеркало: morok-rn/lib/group_sec.js — має збігатися.
  */
 
 import { ed25519 } from '@noble/curves/ed25519';
 import { sha256 } from '@noble/hashes/sha256';
+import { hmac } from '@noble/hashes/hmac';
 import { bytesToHex, hexToBytes, base64ToBytes, utf8 } from './crypto.js';
 
 const PK_RE = /^[0-9a-f]{64}$/;
@@ -150,7 +156,8 @@ export function newState({ groupId, adminPk, groupKeyB64, vouched = [] }) {
 
 /**
  * Наступний стан після дії адміна.
- *   update = { add?: [pk], remove?: [pk], invite?: {pk, exp}, revoke?: [pk] }
+ *   update = { add?: [pk], remove?: [pk], invite?: {pk, exp}, revoke?: [pk],
+ *              kh?: sha256(НОВОГО ключа) — перевипуск ключа групи }
  */
 export function nextState(cur, update) {
   const s = normState(cur);
@@ -167,7 +174,8 @@ export function nextState(cur, update) {
     const rv = new Set(update.revoke.map((x) => String(x).toLowerCase()));
     invites = invites.filter((i) => !rv.has(i.pk));
   }
-  return normState({ ...s, seq: s.seq + 1, vouched, invites });
+  const kh = typeof update.kh === 'string' && /^[0-9a-f]{64}$/.test(update.kh) ? update.kh : s.kh;
+  return normState({ ...s, seq: s.seq + 1, kh, vouched, invites });
 }
 
 // ── Запрошення ─────────────────────────────────────────────
@@ -178,6 +186,39 @@ export function makeInvite() {
 }
 
 export function isHex64(s) { return typeof s === 'string' && PK_RE.test(s); }
+
+// ── Доказ володіння ключем групи (для тих, хто пропустив перевипуск) ──
+// HMAC(старий ключ групи, {g, from, to}) — прив'язаний до мене й до
+// одержувача, тож переслати чужий доказ не вийде. Перевіряє лише адмін,
+// який знає, кого він видаляв (removed_local), — інакше видалений учасник
+// (що теж знає старий ключ) повернувся б так само.
+function keyProofBytes({ g, from, to }) {
+  return utf8(JSON.stringify({ morok_key_proof: 'v1', g, from, to }));
+}
+
+export function makeKeyProof({ groupKeyB64, groupId, fromPk, toPk }) {
+  try {
+    const mac = hmac(sha256, base64ToBytes(groupKeyB64), keyProofBytes({
+      g: groupId, from: String(fromPk).toLowerCase(), to: String(toPk).toLowerCase(),
+    }));
+    return { kh: keyHash(groupKeyB64), mac: bytesToHex(mac) };
+  } catch { return null; }
+}
+
+/** true, якщо доказ зроблено одним із ключів `keysB64` для пари from→to. */
+export function verifyKeyProof(proof, { keysB64, groupId, fromPk, toPk }) {
+  if (!proof || typeof proof.mac !== 'string' || !/^[0-9a-f]{64}$/.test(proof.mac)) return false;
+  for (const k of keysB64 || []) {
+    const mine = makeKeyProof({ groupKeyB64: k, groupId, fromPk, toPk });
+    if (!mine) continue;
+    if (proof.kh && proof.kh !== mine.kh) continue;
+    // порівняння сталого часу
+    let d = 0;
+    for (let i = 0; i < 64; i++) d |= mine.mac.charCodeAt(i) ^ proof.mac.charCodeAt(i);
+    if (d === 0) return true;
+  }
+  return false;
+}
 
 function proofBytes({ g, from, to, ts }) {
   return utf8(JSON.stringify({ morok_invite: 'v1', g, from, to, ts }));

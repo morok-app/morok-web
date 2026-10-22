@@ -105,7 +105,10 @@ export function upsertGroup({
     max_members: max_members ?? existing.max_members,
     member_count: member_count ?? existing.member_count,
     members: members ?? existing.members ?? [],
-    group_key_b64: group_key_b64 ?? existing.group_key_b64 ?? null,
+    // Наявний ключ тут НЕ міняється — лише rotateGroupKey (перевипуск,
+    // підписаний адміном). Інакше застарілий upsert після await міг би
+    // повернути старий ключ поверх нового.
+    group_key_b64: existing.group_key_b64 || group_key_b64 || null,
     messages: existing.messages || [],
     updated_at: existing.updated_at || Math.floor(Date.now() / 1000),
   };
@@ -131,6 +134,60 @@ export function storeGroupKey(groupId, groupKeyB64, name) {
   };
   save(state);
   return state[groupId];
+}
+
+// ── Перевипуск ключа ────────────────────────────────────────
+// Попередні ключі тримаємо, щоб розшифрувати те, що вже було в дорозі
+// (і повідомлення учасників, які ще не отримали новий ключ). Не довше
+// за максимальне життя повідомлення.
+const MAX_OLD_KEYS = 8;
+
+function pruneOldKeys(list, now) {
+  return (Array.isArray(list) ? list : [])
+    .filter((x) => typeof x?.k === 'string' && Number.isInteger(x?.at) && now - x.at < HARD_CEILING_SECONDS)
+    .slice(0, MAX_OLD_KEYS);
+}
+
+/** Новий поточний ключ; попередній іде в old_keys. */
+export function rotateGroupKey(groupId, newKeyB64) {
+  const state = load();
+  const g = state[groupId];
+  if (!g || !newKeyB64 || g.group_key_b64 === newKeyB64) return;
+  const now = Math.floor(Date.now() / 1000);
+  const old = (g.old_keys || []).filter((x) => x?.k !== newKeyB64);
+  if (g.group_key_b64) old.unshift({ k: g.group_key_b64, at: now });
+  g.old_keys = pruneOldKeys(old, now);
+  g.group_key_b64 = newKeyB64;
+  save(state);
+}
+
+/** Ключ, що прийшов «запізно» (старіший за поточний), — лише для розшифрування. */
+export function addOldGroupKey(groupId, keyB64) {
+  const state = load();
+  const g = state[groupId];
+  if (!g || !keyB64 || g.group_key_b64 === keyB64) return;
+  if ((g.old_keys || []).some((x) => x?.k === keyB64)) return;
+  const now = Math.floor(Date.now() / 1000);
+  g.old_keys = pruneOldKeys([...(g.old_keys || []), { k: keyB64, at: now }], now);
+  save(state);
+}
+
+/** Чи знаю я цей ключ (поточний або попередній). */
+export function hasGroupKey(groupId, keyB64) {
+  const g = getGroup(groupId);
+  return !!g && (g.group_key_b64 === keyB64 || (g.old_keys || []).some((x) => x?.k === keyB64));
+}
+
+/**
+ * Усі ключі для розшифрування: поточний першим.
+ * maxAgeS — лише ті старі, що вийшли з ужитку не раніше, ніж maxAgeS тому.
+ */
+export function getGroupKeys(groupId, { maxAgeS = null } = {}) {
+  const g = getGroup(groupId);
+  if (!g) return [];
+  const now = Math.floor(Date.now() / 1000);
+  const old = pruneOldKeys(g.old_keys, now).filter((x) => maxAgeS === null || now - x.at <= maxAgeS);
+  return [g.group_key_b64, ...old.map((x) => x.k)].filter(Boolean);
 }
 
 /** Стан захисту групи (див. group_sec.js). null — група «легасі». */

@@ -27,6 +27,9 @@
 
 import * as api from './api.js';
 import * as crypto from './crypto.js';
+import { getUnlockedSeed } from './vault.js';
+import { loadIdentity } from './storage.js';
+import { hexToBytes } from './crypto.js';
 import { t, tp } from './i18n.js';
 
 /**
@@ -100,7 +103,14 @@ export async function checkIn(dmsId) {
  * Cancel. Returns { dms_id, cancelled }.
  */
 export async function cancel(dmsId) {
-  return await api.cancelDMS(dmsId);
+  // підпис ключем акаунта — щоб вкрадений токен не міг скасувати заповіт
+  let seed = getUnlockedSeed();
+  if (!seed) {
+    // акаунт без PIN: seed лежить відкрито
+    const id = loadIdentity();
+    if (id && id.encrypted !== true && /^[0-9a-f]{64}$/.test(id.seed_hex || '')) seed = hexToBytes(id.seed_hex);
+  }
+  return await api.cancelDMS(dmsId, { seed });
 }
 
 /**

@@ -190,7 +190,7 @@ export async function sendGroupKeyDM({
  * who already has the key).
  */
 export async function sendGroupKeyRequestDM({
-  seed, myPubkeyHex, peerPubkeyHex, groupId, inviteSeedHex = null,
+  seed, myPubkeyHex, peerPubkeyHex, groupId, inviteSeedHex = null, keyProofB64 = null,
 }) {
   // Доказ запрошення, прив'язаний до мене І до цього одержувача (див.
   // group_sec.js): копію, що дісталась підставному учаснику, не можна
@@ -198,9 +198,13 @@ export async function sendGroupKeyRequestDM({
   const invite_proof = gsec.isHex64(inviteSeedHex)
     ? gsec.makeInviteProof({ inviteSeedHex, groupId, fromPk: myPubkeyHex, toPk: peerPubkeyHex })
     : null;
+  const key_proof = keyProofB64
+    ? gsec.makeKeyProof({ groupKeyB64: keyProofB64, groupId, fromPk: myPubkeyHex, toPk: peerPubkeyHex })
+    : null;
   const payload = wrapGroupPayload('group_key_request', {
     group_id: groupId,
     ...(invite_proof ? { invite_proof } : {}),
+    ...(key_proof ? { key_proof } : {}),
   });
   await msgs.sendDM({
     seed, myPubkeyHex, peerPubkeyHex,
@@ -240,17 +244,39 @@ export async function processIncomingGroupKey({ payload, senderPubkeyHex }) {
   const existing = gstore.getGroup(payload.group_id);
   if (!existing && _joinsInProgress > 0) return { __retry: true };
   if (existing?.group_key_b64) {
-    if (existing.group_key_b64 !== payload.key_b64) {
-      console.warn('group_key for a group we already have a key for — ignored');
+    const pin = existing.admin_pin || null;
+    const curSeq = existing.sec?.state?.seq || 0;
+    if (existing.group_key_b64 === payload.key_b64) {
+      // Той самий ключ, але, можливо, новіший підписаний стан — беремо його
+      // (так стан доходить і до тих, хто пропустив розсилку).
+      const st = pin && payload.sec
+        ? gsec.verifySigned(payload.sec, { groupId: payload.group_id, groupKeyB64: existing.group_key_b64, adminPin: pin })
+        : null;
+      if (st && st.seq > curSeq) applyNewerState(payload.group_id, st, payload.sec.sig);
       return;
     }
-    // Той самий ключ, але, можливо, новіший підписаний стан — беремо його
-    // (так стан доходить і до тих, хто пропустив розсилку).
-    const pin = existing.admin_pin || null;
+    // ІНШИЙ ключ — це може бути лише перевипуск: стан, підписаний
+    // закріпленим адміном і прив'язаний (kh) саме до цього нового ключа.
+    // Переслати його може будь-хто — важить підпис адміна.
     const st = pin && payload.sec
-      ? gsec.verifySigned(payload.sec, { groupId: payload.group_id, groupKeyB64: existing.group_key_b64, adminPin: pin })
+      ? gsec.verifySigned(payload.sec, { groupId: payload.group_id, groupKeyB64: payload.key_b64, adminPin: pin })
       : null;
-    if (st && st.seq > (existing.sec?.state?.seq || 0)) gstore.setGroupSec(payload.group_id, { state: st, sig: String(payload.sec.sig).toLowerCase() });
+    if (!st) {
+      console.warn('group_key: different key without a rekey signed by the group admin — ignored');
+      return;
+    }
+    // Спершу seq, потім «чи знаю ключ»: ключ, що колись потрапив у старі,
+    // має стати поточним, якщо його стан новіший.
+    if (st.seq > curSeq) {
+      gstore.rotateGroupKey(payload.group_id, payload.key_b64);
+      applyNewerState(payload.group_id, st, payload.sec.sig, { rotated: true });
+      gstore.setGroupField(payload.group_id, 'key_req_at', 0);
+      reprocessDeferred(payload.group_id);
+    } else if (!gstore.hasGroupKey(payload.group_id, payload.key_b64)) {
+      // проміжний ключ, що прийшов пізніше за новіший, — лише для розшифрування
+      gstore.addOldGroupKey(payload.group_id, payload.key_b64);
+      reprocessDeferred(payload.group_id);
+    }
     return;
   }
 
@@ -349,18 +375,38 @@ export async function processIncomingGroupKeyRequest({
   const signed = gstore.getGroupSec(payload.group_id);
   const localVouched = gstore.getGroupField(payload.group_id, 'vouched_local') || [];
   if (signed) {
-    const why = gsec.requestAllowed({
+    let why = gsec.requestAllowed({
       state: signed.state, localVouched, requesterPk: senderPubkeyHex,
       myPk: myPubkeyHex, groupId: payload.group_id, proof: payload.invite_proof,
     });
-    if (!why) {
+    // видалений не повертається за старим запрошенням (повернути може лише
+    // адмін явно — тоді він знову в підписаному стані, тобто 'vouched')
+    if (why === 'invite' && removedSet(payload.group_id).has(senderPubkeyHex)) why = null;
+    let viaKey = false;
+    if (!why && signed.state.admin === myPubkeyHex && payload.key_proof
+        && !removedSet(payload.group_id).has(senderPubkeyHex)
+        && gsec.verifyKeyProof(payload.key_proof, {
+          // лише поточний ключ і ті, що вийшли з ужитку недавно: «колись мав
+          // ключ» не має назавжди означати «довірений»
+          keysB64: gstore.getGroupKeys(payload.group_id, { maxAgeS: KEY_PROOF_MAX_AGE_S }), groupId: payload.group_id,
+          fromPk: senderPubkeyHex, toPk: myPubkeyHex,
+        })) {
+      // Я адмін, а запитувач довів, що мав ключ групи (пропустив
+      // перевипуск: був офлайн, «мовчазний» учасник, або його допустив інший
+      // учасник). Тих, кого я видаляв, не повертаю.
+      viaKey = true;
+      // стан міняємо одразу, а розсилку всім — пакетом раз на кілька хвилин
+      // (ключ-DM запитувачу й так несе актуальний стан)
+      await broadcastSecUpdate({ groupId: payload.group_id, update: { add: [senderPubkeyHex] }, seed, myPubkeyHex, deferBroadcast: true }).catch(() => {});
+    }
+    if (!why && !viaKey) {
       console.warn('group_key_request not vouched by admin, ignoring:', senderPubkeyHex.slice(0, 8));
       return;
     }
     if (why === 'invite') {
       if (signed.state.admin === myPubkeyHex) {
         // я адмін — вношу в підписаний стан, щоб і видалення потім діяло для всіх
-        await broadcastSecUpdate({ groupId: payload.group_id, update: { add: [senderPubkeyHex] }, seed, myPubkeyHex }).catch(() => {});
+        await broadcastSecUpdate({ groupId: payload.group_id, update: { add: [senderPubkeyHex] }, seed, myPubkeyHex, deferBroadcast: true }).catch(() => {});
       } else if (!localVouched.includes(senderPubkeyHex)) {
         gstore.setGroupField(payload.group_id, 'vouched_local', [...localVouched, senderPubkeyHex].slice(-1000));
       }
@@ -388,7 +434,7 @@ export async function processIncomingGroupKeyRequest({
       seed, myPubkeyHex,
       peerPubkeyHex: senderPubkeyHex,
       groupId: payload.group_id,
-      groupKeyB64: group.group_key_b64,
+      groupKeyB64: gstore.getGroupKey(payload.group_id) || group.group_key_b64,
       name: group.name || '',
     });
     console.info('Sent group_key in reply to request from', senderPubkeyHex.slice(0, 8));
@@ -686,7 +732,11 @@ async function sendGroupReaction__impl({
   }
 }
 
-export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
+let _lastMe = null;
+let _epoch = 0;          // росте при зміні акаунта: фонові задачі попереднього зупиняються
+const KEY_PROOF_MAX_AGE_S = 14 * 86400;
+export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed = null, epoch = null }) {
+  if (epoch === null && myPubkeyHex) _lastMe = myPubkeyHex;
   const envelopeId = envMeta.envelope_id;
   const groupId = envMeta.group_id;
   const senderPubkey = envMeta.from;
@@ -698,7 +748,10 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
   }
 
   if (gstore.hasEnvelope(groupId, envelopeId)) return null;
-  if (senderPubkey === myPubkeyHex) return null;
+  // Власні конверти (з іншого мого пристрою) не показуємо — але службовий
+  // стан групи з них беремо: інакше другий пристрій адміна жив би зі
+  // старим станом і розгалужував його (див. нижче, group_sec).
+  const fromMe = senderPubkey === myPubkeyHex;
 
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
@@ -717,6 +770,7 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     return null;
   }
   const blobB64 = crypto.bytesToBase64(blobBytes);
+  if (epoch !== null && epoch !== _epoch) return null;   // фонова повторна обробка, акаунт уже інший
 
   // ── Автор повідомлення ──
   // Груповий ключ спільний, тож шифротекст сам по собі не каже, ХТО писав.
@@ -735,14 +789,35 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     return null;
   }
   if (replay.seen(envMeta.sig)) return null;
-  replay.remember(envMeta.sig);
 
-  let plaintext;
-  try {
-    const groupKey = crypto.base64ToBytes(group.group_key_b64);
-    plaintext = crypto.decryptStringWithKey(groupKey, blobB64);
-  } catch (e) {
-    console.warn('Group decrypt failed:', e);
+  // Поточний ключ, потім попередні (після перевипуску в дорозі ще можуть
+  // бути повідомлення під старим ключем).
+  let plaintext = null;
+  let keyIdx = -1;
+  const keys = gstore.getGroupKeys(groupId);
+  for (let i = 0; i < keys.length; i++) {
+    try { plaintext = crypto.decryptStringWithKey(crypto.base64ToBytes(keys[i]), blobB64); keyIdx = i; break; } catch { /* next key */ }
+  }
+  // Старий ключ знає й видалений учасник — від нього під старим ключем не приймаємо.
+  if (plaintext !== null && keyIdx > 0 && removedSet(groupId).has(senderPubkey)) {
+    console.warn('group message under a retired key from a removed member — dropped');
+    replay.remember(envMeta.sig);
+    return null;
+  }
+  if (plaintext === null) {
+    // Жоден ключ не підійшов. Найімовірніше, адмін перевипустив ключ, а
+    // мій примірник ще не дійшов. Якщо автор — відомий учасник і конверт
+    // свіжий, просимо ключ і НЕ ack-аємо: конверт повториться, коли ключ
+    // прийде (до 24 год).
+    const age = nowSeconds() - (Number(envMeta.ts) || 0);
+    if (fromMe) return null;
+    if (isTrustedSender(group, senderPubkey) && age < 86400) {
+      rememberDeferred(groupId, envMeta);
+      requestFreshKey({ groupId, seed, myPubkeyHex }).catch(() => {});
+      return { __retry: true, envelope_id: envelopeId };
+    }
+    replay.remember(envMeta.sig);
+    console.warn('Group decrypt failed with all known keys');
     const stub = {
       id: `recv-${envelopeId.slice(0, 16)}`,
       envelope_id: envelopeId,
@@ -759,8 +834,10 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     gstore.appendMessage(groupId, stub);
     return stub;
   }
+  replay.remember(envMeta.sig);
 
   const payload = parseGroupPayload(plaintext);
+  if (fromMe && payload?.kind !== 'group_sec') return null;
   if (!payload) {
     console.warn('group payload not JSON / no kind');
     return null;
@@ -778,7 +855,7 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     const st = gsec.verifySigned(payload.signed, { groupId, groupKeyB64: group.group_key_b64, adminPin: pin });
     const cur = gstore.getGroupSec(groupId);
     if (st && (!cur || st.seq > (cur.state?.seq || 0))) {
-      gstore.setGroupSec(groupId, { state: st, sig: String(payload.signed.sig).toLowerCase() });
+      applyNewerState(groupId, st, payload.signed.sig);
     }
     return null;
   }
@@ -1004,16 +1081,43 @@ async function sendGroupControl({ groupId, payloadObj, seed, myPubkeyHex, ttlSec
 }
 
 /** Я адмін: новий підписаний стан → у себе → розіслати учасникам. */
-export async function broadcastSecUpdate({ groupId, update, seed, myPubkeyHex }) {
-  const cur = gstore.getGroupSec(groupId);
-  if (!cur || cur.state?.admin !== myPubkeyHex || !seed) throw new Error('not_admin');
-  const next = gsec.nextState(cur.state, update);
-  if (!next) throw new Error('bad_update');
-  const signed = gsec.signState(next, seed);
-  gstore.setGroupSec(groupId, signed);
+export async function broadcastSecUpdate({ groupId, update, seed, myPubkeyHex, deferBroadcast = false }) {
+  // read-modify-write стану — під замком групи: паралельні зміни (запрошення
+  // + видалення) інакше дали б два різні стани з однаковим seq.
+  const signed = await withAdminLock(groupId, async () => {
+    const cur = gstore.getGroupSec(groupId);
+    if (!cur || cur.state?.admin !== myPubkeyHex || !seed) throw new Error('not_admin');
+    const next = gsec.nextState(cur.state, update);
+    if (!next) throw new Error('bad_update');
+    const out = gsec.signState(next, seed);
+    gstore.setGroupSec(groupId, out);
+    if (Array.isArray(update.add) && update.add.length) {
+      const back = new Set(update.add.map((x) => String(x).toLowerCase()));
+      gstore.setGroupField(groupId, 'removed', [...removedSet(groupId)].filter((pk) => !back.has(pk)));
+    }
+    return out;
+  });
+  if (deferBroadcast) { scheduleSecBroadcast(groupId, seed, myPubkeyHex); return signed; }
   await sendGroupControl({ groupId, payloadObj: { kind: 'group_sec', data: { signed } }, seed, myPubkeyHex });
   gstore.setGroupField(groupId, 'sec_bcast', nowSeconds());
   return signed;
+}
+
+const SEC_BCAST_DEBOUNCE_MS = 3 * 60 * 1000;
+const _secTimers = new Map();
+/** Одна розсилка АКТУАЛЬНОГО стану на групу раз на кілька хвилин. */
+function scheduleSecBroadcast(groupId, seed, myPubkeyHex) {
+  if (_secTimers.has(groupId)) return;
+  const epoch = _epoch;
+  _secTimers.set(groupId, setTimeout(() => {
+    _secTimers.delete(groupId);
+    if (epoch !== _epoch) return;                 // акаунт уже інший
+    const cur = gstore.getGroupSec(groupId);
+    if (!cur || cur.state?.admin !== myPubkeyHex) return;
+    inflight.track(() => sendGroupControl({ groupId, payloadObj: { kind: 'group_sec', data: { signed: cur } }, seed, myPubkeyHex }))
+      .then(() => gstore.setGroupField(groupId, 'sec_bcast', nowSeconds()))
+      .catch(() => {});
+  }, SEC_BCAST_DEBOUNCE_MS));
 }
 
 const REBROADCAST_S = 12 * 3600;
@@ -1047,6 +1151,12 @@ export async function ensureProtected({ groupId, seed, myPubkeyHex }) {
       gstore.setGroupField(groupId, 'sec_bcast', nowSeconds());
       return true;
     }
+    const pending = gstore.getGroupField(groupId, 'pending_rekey');
+    if (cur.state?.admin === myPubkeyHex && Array.isArray(pending) && pending.length) {
+      // видалення, після якого перевипуск не встиг (застосунок закрили / збій)
+      await rekeyGroup({ groupId, remove: pending, seed, myPubkeyHex });
+      return true;
+    }
     if (cur.state?.admin === myPubkeyHex && nowSeconds() - (group.sec_bcast || 0) > REBROADCAST_S) {
       await sendGroupControl({ groupId, payloadObj: { kind: 'group_sec', data: { signed: cur } }, seed, myPubkeyHex });
       gstore.setGroupField(groupId, 'sec_bcast', nowSeconds());
@@ -1071,15 +1181,240 @@ export async function createInvite({ groupId, seed, myPubkeyHex }) {
   return { ...info, secret: inv.seedHex, admin: myPubkeyHex };
 }
 
-/** Я адмін і прибрав учасника → прибираю його з довірених у всіх. */
+/**
+ * Я адмін і прибрав учасника → перевипускаю ключ групи (видалений більше
+ * не прочитає нових повідомлень) і прибираю його з довірених у всіх.
+ * Повертає { group, rekeyed }.
+ */
 export async function removeMember({ groupId, pubkeyHex, seed, myPubkeyHex }) {
-  await api.removeGroupMember(groupId, pubkeyHex);
-  if (gstore.getGroupSec(groupId)?.state?.admin === myPubkeyHex && seed) {
-    await broadcastSecUpdate({ groupId, update: { remove: [pubkeyHex] }, seed, myPubkeyHex }).catch(() => {});
-  }
+  const pk = String(pubkeyHex).toLowerCase();
+  await api.removeGroupMember(groupId, pk);
   const local = gstore.getGroupField(groupId, 'vouched_local') || [];
-  if (local.includes(pubkeyHex)) gstore.setGroupField(groupId, 'vouched_local', local.filter((x) => x !== pubkeyHex));
-  return refreshGroup(groupId);
+  if (local.includes(pk)) gstore.setGroupField(groupId, 'vouched_local', local.filter((x) => x !== pk));
+  addRemoved(groupId, [pk]);
+  let rekeyed = false;
+  if (seed) {
+    // легасі-група, де я творець, — спершу захищаємо (інакше нема чим підписати перевипуск)
+    if (!gstore.getGroupSec(groupId)) await ensureProtected({ groupId, seed, myPubkeyHex });
+    if (gstore.getGroupSec(groupId)?.state?.admin === myPubkeyHex) {
+      // позначка на випадок, якщо застосунок закриють до кінця перевипуску
+      const pend = gstore.getGroupField(groupId, 'pending_rekey') || [];
+      gstore.setGroupField(groupId, 'pending_rekey', [...new Set([...pend, pk])]);
+      try {
+        await rekeyGroup({ groupId, remove: [pk], seed, myPubkeyHex });
+        rekeyed = true;
+      } catch (e) {
+        console.warn('rekey failed, will retry when the group is opened:', e?.message);
+        await broadcastSecUpdate({ groupId, update: { remove: [pk] }, seed, myPubkeyHex }).catch(() => {});
+      }
+    }
+  }
+  const group = await refreshGroup(groupId).catch(() => gstore.getGroup(groupId));
+  return { group, rekeyed };
+}
+
+const REKEY_BURST = 25;          // скільки ключів шлемо одразу
+const REKEY_PACE_MS = 2000;      // далі — 30/хв: разом із першою пачкою вкладаємось у ліміт релею (60/хв)
+
+/**
+ * Перевипуск ключа групи (я адмін). Новий ключ + стан із kh нового ключа
+ * (seq+1), підписаний мною → у себе → кожному учаснику окремим E2EE-DM.
+ *
+ * Кому шлемо: лише тим, кого довірено в ПІДПИСАНОМУ стані (і хто ще є в
+ * групі за релеєм). «Писав у групу» тут не рахується: старий ключ знає й
+ * видалений. Хто не отримав (був офлайн довше за життя DM, «мовчазний»
+ * учасник, допущений іншим учасником), попросить ключ сам і доведе, що мав
+ * попередній, — див. requestFreshKey і processIncomingGroupKeyRequest.
+ * Відкриті запрошення анулюються: секрет із посилання міг бути й у видаленого.
+ */
+export async function rekeyGroup({ groupId, remove = [], seed, myPubkeyHex }) {
+  if (!seed) throw new Error('not_admin');
+  let relayMembers = null;
+  try {
+    const info = await api.getGroupInfo(groupId);
+    if (Array.isArray(info?.members)) relayMembers = info.members.map((m) => m?.pubkey_hex);
+  } catch { /* беремо локальний список */ }
+
+  const out = await withAdminLock(groupId, async () => {
+    const group = gstore.getGroup(groupId);
+    const cur = group?.sec;           // перечитуємо ПІСЛЯ await — під замком
+    if (!group?.group_key_b64 || !cur || cur.state?.admin !== myPubkeyHex) throw new Error('not_admin');
+    const relay = new Set(relayMembers || (group.members || []).map((m) => m?.pubkey_hex));
+    const removed = new Set([...remove.map((x) => String(x).toLowerCase()), ...removedSet(groupId)]);
+    const recipients = (cur.state.vouched || []).filter((pk) => crypto.isPubkeyHex(pk)
+      && pk !== myPubkeyHex && !removed.has(pk) && relay.has(pk));
+
+    const newKeyB64 = crypto.bytesToBase64(crypto.generateSymmetricKey());
+    const next = gsec.nextState(cur.state, {
+      remove: [...removed].filter((pk) => (cur.state.vouched || []).includes(pk)),
+      revoke: (cur.state.invites || []).map((i) => i.pk),
+      kh: gsec.keyHash(newKeyB64),
+    });
+    if (!next) throw new Error('bad_update');
+    const signed = gsec.signState(next, seed);
+    // Спершу в себе (ключ + стан), потім розсилка — щоб мої нові
+    // повідомлення вже йшли під новим ключем.
+    gstore.rotateGroupKey(groupId, newKeyB64);
+    gstore.setGroupSec(groupId, signed);
+    gstore.setGroupField(groupId, 'sec_bcast', nowSeconds());
+    gstore.setGroupField(groupId, 'vouched_local', []);
+    return { newKeyB64, recipients, name: group.name || '' };
+  });
+  {
+    const done = new Set(remove.map((x) => String(x).toLowerCase()));
+    const left = (gstore.getGroupField(groupId, 'pending_rekey') || []).filter((pk) => !done.has(pk));
+    gstore.setGroupField(groupId, 'pending_rekey', left.length ? left : null);
+  }
+
+  const send = (pk) => sendGroupKeyDM({ seed, myPubkeyHex, peerPubkeyHex: pk, groupId, groupKeyB64: out.newKeyB64, name: out.name });
+  // мені самому — для інших моїх пристроїв (веб/телефон того ж акаунта)
+  const all = [myPubkeyHex, ...out.recipients];
+  const first = all.slice(0, REKEY_BURST);
+  const rest = all.slice(REKEY_BURST);
+  const res = await Promise.allSettled(first.map(send));
+  if (rest.length) {
+    // великі групи: решту — у фоні, з паузами (ліміт релею на відправку)
+    const epoch = _epoch;
+    (async () => {
+      for (const pk of rest) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, REKEY_PACE_MS));
+        if (epoch !== _epoch) return;            // акаунт перемкнули — зупиняємось
+        // eslint-disable-next-line no-await-in-loop
+        await inflight.track(() => send(pk)).catch(() => {});
+      }
+    })();
+  }
+  return { sent: res.slice(1).filter((r) => r.status === 'fulfilled').length, total: out.recipients.length };
+}
+
+// ── Службове: замок адміна, видалені, нові стани, відкладені конверти ──
+
+const _adminLocks = new Map();
+/** Послідовне виконання змін стану однієї групи (у межах цього пристрою). */
+function withAdminLock(groupId, fn) {
+  const prev = _adminLocks.get(groupId) || Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.catch(() => {});
+  _adminLocks.set(groupId, tail);
+  tail.then(() => { if (_adminLocks.get(groupId) === tail) _adminLocks.delete(groupId); });
+  return run;
+}
+
+/** Кого прибрано з групи: моїми діями (адмін) або видно зі змін підписаного стану. */
+function removedSet(groupId) {
+  return new Set(gstore.getGroupField(groupId, 'removed') || []);
+}
+function addRemoved(groupId, pks) {
+  if (!pks.length) return;
+  const cur = gstore.getGroupField(groupId, 'removed') || [];
+  gstore.setGroupField(groupId, 'removed', [...new Set([...cur, ...pks])].slice(-1000));
+}
+
+/**
+ * Прийняти новіший підписаний стан: зберегти, запам'ятати, кого з нього
+ * прибрали, і прибрати їх із моїх локальних допусків. При перевипуску ключа
+ * локальні допуски скидаються зовсім: хто легітимний, доведе адміну, що мав
+ * попередній ключ, і потрапить у підписаний стан.
+ */
+function applyNewerState(groupId, st, sig, { rotated = false } = {}) {
+  const prev = gstore.getGroupSec(groupId)?.state;
+  gstore.setGroupSec(groupId, { state: st, sig: String(sig).toLowerCase() });
+  if (prev && Array.isArray(prev.vouched)) {
+    const now = new Set(st.vouched || []);
+    const gone = prev.vouched.filter((pk) => !now.has(pk));
+    addRemoved(groupId, gone);
+    if (gone.length) {
+      const local = gstore.getGroupField(groupId, 'vouched_local') || [];
+      gstore.setGroupField(groupId, 'vouched_local', local.filter((pk) => !gone.includes(pk)));
+    }
+  }
+  // повернутий адміном (знову довірений) — більше не «видалений»
+  const back = (st.vouched || []).filter((pk) => removedSet(groupId).has(pk));
+  if (back.length) gstore.setGroupField(groupId, 'removed', [...removedSet(groupId)].filter((pk) => !back.includes(pk)));
+  if (rotated) gstore.setGroupField(groupId, 'vouched_local', []);
+  notifyGroupUpdated(groupId);
+}
+
+/** Відправник, заради якого варто чекати ключ (а не дрібниця від будь-кого зі списку релею). */
+function isTrustedSender(group, pk) {
+  if (!crypto.isPubkeyHex(pk)) return false;
+  if (group.admin_pin === pk) return true;
+  if (group.sec?.state) return (group.sec.state.vouched || []).includes(pk);
+  return (group.members || []).some((m) => m?.pubkey_hex === pk);
+}
+
+// Конверти, відкладені до приходу ключа (лише в пам'яті). Коли ключ
+// приходить, обробляємо їх одразу — не чекаючи наступного перепідключення.
+const _deferred = new Map();   // groupId → Map(envelope_id → envMeta)
+function rememberDeferred(groupId, envMeta) {
+  let m = _deferred.get(groupId);
+  if (!m) { m = new Map(); _deferred.set(groupId, m); }
+  m.set(envMeta.envelope_id, envMeta);
+  while (m.size > 200) m.delete(m.keys().next().value);
+}
+function reprocessDeferred(groupId) {
+  const m = _deferred.get(groupId);
+  if (!m || !m.size) return;
+  _deferred.delete(groupId);
+  const epoch = _epoch;
+  const me = _lastMe;
+  // inflight: перемикання акаунта дочекається цього циклу (інакше запис
+  // міг би потрапити в сховище іншого акаунта)
+  inflight.track(async () => {
+    for (const env of m.values()) {
+      if (epoch !== _epoch) return;
+      // eslint-disable-next-line no-await-in-loop
+      await processIncomingGroupEnvelope({ envMeta: env, myPubkeyHex: me, epoch }).catch(() => {});
+    }
+    if (epoch === _epoch) notifyGroupUpdated(groupId);
+  }).catch(() => {});
+}
+
+const _groupListeners = new Set();
+/** Підписка на «група змінилась поза звичайним потоком повідомлень». */
+export function subscribeGroupUpdates(fn) { _groupListeners.add(fn); return () => _groupListeners.delete(fn); }
+function notifyGroupUpdated(groupId) {
+  for (const fn of _groupListeners) { try { fn(groupId); } catch { /* ignore */ } }
+  try {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('morok-group-update', { detail: { groupId } }));
+    }
+  } catch { /* ignore */ }
+}
+
+const KEY_REQ_INTERVAL_S = 30 * 60;
+const _keyReqInFlight = new Set();
+
+/**
+ * Мені бракує актуального ключа групи (прийшло від довіреного те, що жоден
+ * мій ключ не розшифровує). Просимо адміна й кількох довірених учасників —
+ * не частіше ніж раз на 30 хв для групи. Адміну додаємо доказ, що я мав
+ * попередній ключ (якщо я ще не в підписаному стані). Відповідь
+ * приймається лише з підписаним адміном перевипуском.
+ */
+export async function requestFreshKey({ groupId, seed, myPubkeyHex }) {
+  if (!seed || !myPubkeyHex || _keyReqInFlight.has(groupId)) return false;
+  const group = gstore.getGroup(groupId);
+  if (!group) return false;
+  if (nowSeconds() - (group.key_req_at || 0) < KEY_REQ_INTERVAL_S) return false;
+  _keyReqInFlight.add(groupId);
+  try {
+    gstore.setGroupField(groupId, 'key_req_at', nowSeconds());
+    const relay = new Set((group.members || []).map((m) => m?.pubkey_hex));
+    const pin = group.admin_pin;
+    const vouched = (group.sec?.state?.vouched || []).filter((pk) => pk !== pin && pk !== myPubkeyHex && relay.has(pk));
+    // випадкові 4 довірені, щоб не навантажувати завжди тих самих
+    for (let i = vouched.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [vouched[i], vouched[j]] = [vouched[j], vouched[i]]; }
+    const targets = [...new Set([pin, ...vouched.slice(0, 4)])].filter((pk) => crypto.isPubkeyHex(pk) && pk !== myPubkeyHex);
+    await Promise.allSettled(targets.map((pk) => sendGroupKeyRequestDM({
+      seed, myPubkeyHex, peerPubkeyHex: pk, groupId,
+      keyProofB64: pk === pin ? group.group_key_b64 : null,
+    })));
+    return targets.length > 0;
+  } finally {
+    _keyReqInFlight.delete(groupId);
+  }
 }
 
 /**
@@ -1101,7 +1436,16 @@ export function isGroupGoneError(e) {
  */
 let _lastValidateTs = 0;
 /** Скинути тротлінг перевірки груп (після зміни акаунта на пристрої). */
-export function resetValidateThrottle() { _lastValidateTs = 0; }
+export function resetValidateThrottle() {
+  _lastValidateTs = 0;
+  _epoch += 1;
+  for (const t of _secTimers.values()) clearTimeout(t);
+  _secTimers.clear();
+  // стан у пам'яті, прив'язаний до попереднього акаунта
+  _deferred.clear();
+  _keyReqInFlight.clear();
+  _lastMe = null;
+}
 const VALIDATE_INTERVAL_MS = 20 * 1000;
 
 export async function validateGroupsAgainstRelay() {

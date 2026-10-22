@@ -103,12 +103,12 @@ export default function GroupInfo({ groupId, onNavigate }) {
 
   async function removeMember(pubkeyHex) {
     if (!isAdmin) return;
-    if (!confirm(t('Remove this member from the group?'))) return;
+    if (!confirm(t('Remove this member from the group? The group key will be renewed, so they won\'t read new messages. Old invite links will stop working. Members on old Morok versions won\'t see new messages until they update.'))) return;
     setBusy(true);
     try {
-      await groups.removeMember({ groupId, pubkeyHex, seed: getSeedBytes(), myPubkeyHex });
+      const r = await groups.removeMember({ groupId, pubkeyHex, seed: getSeedBytes(), myPubkeyHex });
       setGroup(gstore.getGroup(groupId));
-      setMessage(t('Deleted'));
+      setMessage(r?.rekeyed ? t('Removed. Group key renewed.') : t('Removed. The group key will be renewed when you open the group.'));
     } catch (e) {
       setMessage('Error: ' + e.message);
     } finally {
