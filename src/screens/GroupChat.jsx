@@ -153,6 +153,12 @@ export default function GroupChat({ groupId, onNavigate }) {
     gstore.markGroupRead(groupId);
   }, [groupId]);
 
+  // Моя група зі старої версії → тихо переводимо в захищений режим
+  // (див. lib/group_sec.js).
+  useEffect(() => {
+    groups.ensureProtected({ groupId, seed: getSeedBytes(), myPubkeyHex }).catch(() => {});
+  }, [groupId, myPubkeyHex]);
+
   // Burn-after-read: поки є повідомлення з активним таймером — оновлюємо
   // щосекунди, щоб зникали на очах (як у DM).
   useEffect(() => {

@@ -48,8 +48,10 @@ export default function GroupInfo({ groupId, onNavigate }) {
     setBusy(true);
     setMessage(null);
     try {
-      const info = await api.createInviteToken(groupId, null);
-      const link = `${shareOrigin()}/web/#join?t=${info.token}`;
+      const info = await groups.createInvite({ groupId, seed: getSeedBytes(), myPubkeyHex });
+      // s — секрет запрошення для учасників захищеної групи (у #фрагменті,
+      // на релей не потрапляє)
+      const link = `${shareOrigin()}/web/#join?t=${info.token}${info.secret ? `&s=${info.secret}&a=${info.admin}` : ''}`;
       setActiveInvite({ ...info, link });
       try {
         await navigator.clipboard.writeText(link);
@@ -104,8 +106,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
     if (!confirm(t('Remove this member from the group?'))) return;
     setBusy(true);
     try {
-      await api.removeGroupMember(groupId, pubkeyHex);
-      await groups.refreshGroup(groupId);
+      await groups.removeMember({ groupId, pubkeyHex, seed: getSeedBytes(), myPubkeyHex });
       setGroup(gstore.getGroup(groupId));
       setMessage(t('Deleted'));
     } catch (e) {

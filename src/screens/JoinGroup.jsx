@@ -18,10 +18,13 @@ export default function JoinGroup({ routeArg, onNavigate }) {
   const [error, setError] = useState(null);
   const [joined, setJoined] = useState(null);
 
-  const token = (() => {
-    if (!routeArg) return null;
-    const m = String(routeArg).match(/^t=([A-Za-z0-9_-]{20,40})$/);
-    return m ? m[1] : null;
+  // t — токен релею; s — ключ запрошення, a — ключ адміна захищеної групи
+  // (див. group_sec.js). s і a живуть лише в #фрагменті й на релей не йдуть.
+  const { token, inviteSeedHex, adminPk } = (() => {
+    const none = { token: null, inviteSeedHex: null, adminPk: null };
+    if (!routeArg) return none;
+    const m = String(routeArg).match(/^t=([A-Za-z0-9_-]{20,40})(?:&s=([0-9a-f]{64})&a=([0-9a-f]{64}))?$/);
+    return m ? { token: m[1], inviteSeedHex: m[2] || null, adminPk: m[3] || null } : none;
   })();
 
   if (!token) {
@@ -71,6 +74,8 @@ export default function JoinGroup({ routeArg, onNavigate }) {
 
       const result = await groups.joinViaToken({
         token,
+        inviteSeedHex,
+        adminPk,
         seed,
         myPubkeyHex,
       });

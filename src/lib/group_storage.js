@@ -97,6 +97,9 @@ export function upsertGroup({
     group_id,
     name: name ?? existing.name ?? null,
     creator_pubkey_hex: creator_pubkey_hex ?? existing.creator_pubkey_hex,
+    // Адмін групи закріплюється з ПЕРШОГО відомого нам творця (TOFU) і далі
+    // не змінюється від того, що релей скаже пізніше (див. group_sec.js).
+    admin_pin: existing.admin_pin || existing.creator_pubkey_hex || creator_pubkey_hex || null,
     is_channel: is_channel ?? existing.is_channel ?? false,
     default_ttl_seconds: default_ttl_seconds ?? existing.default_ttl_seconds ?? 86400,
     max_members: max_members ?? existing.max_members,
@@ -128,6 +131,34 @@ export function storeGroupKey(groupId, groupKeyB64, name) {
   };
   save(state);
   return state[groupId];
+}
+
+/** Стан захисту групи (див. group_sec.js). null — група «легасі». */
+export function getGroupSec(groupId) {
+  return getGroup(groupId)?.sec || null;
+}
+
+export function setGroupSec(groupId, sec) {
+  setGroupField(groupId, 'sec', sec || null);
+}
+
+/**
+ * Службові поля захисту групи (див. group_sec.js):
+ *   admin_pin     — закріплений адмін
+ *   vouched_local — кого я сам допустив за перевіреним запрошенням
+ *   join_admin    — адмін із посилання, за яким я щойно приєднався
+ *   sec_bcast     — коли я (адмін) востаннє розсилав стан
+ */
+export function getGroupField(groupId, key) {
+  const g = getGroup(groupId);
+  return g ? (g[key] ?? null) : null;
+}
+
+export function setGroupField(groupId, key, value) {
+  const state = load();
+  if (!state[groupId]) return;
+  state[groupId][key] = value;
+  save(state);
 }
 
 export function getGroupKey(groupId) {

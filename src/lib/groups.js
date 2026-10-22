@@ -48,6 +48,8 @@ import * as gstore from './group_storage.js';
 import * as replay from './replay.js';
 import { sanitizeIncomingUsername } from './display.js';
 import { sanitizeReplyTo } from './reply.js';
+import * as gsec from './group_sec.js';
+import * as inflight from './inflight.js';
 
 /** group_id від релею — канонічний UUID. Будь-що інше відкидаємо. */
 export function isGroupId(v) {
@@ -83,7 +85,7 @@ function parseGroupPayload(plaintext) {
 // Create group
 // ────────────────────────────────────────────────────────────
 
-export async function createGroup({
+async function createGroup__impl({
   name,
   members = [],
   defaultTtlSeconds = 86400,
@@ -110,6 +112,12 @@ export async function createGroup({
     members: groupInfo.members,
     group_key_b64: groupKeyB64,
   });
+  // Захищена група з першого дня: адмін — я, довірені — ті, кого додаю.
+  gstore.setGroupField(groupInfo.group_id, 'admin_pin', myPubkeyHex);
+  gstore.setGroupSec(groupInfo.group_id, gsec.signState(gsec.newState({
+    groupId: groupInfo.group_id, adminPk: myPubkeyHex, groupKeyB64,
+    vouched: members.map((m) => m.pubkey_hex),
+  }), seed));
 
   let addedCount = 0;
   let failedCount = 0;
@@ -163,10 +171,12 @@ export async function sendGroupKeyDM({
   seed, myPubkeyHex, peerPubkeyHex,
   groupId, groupKeyB64, name,
 }) {
+  const sec = gstore.getGroupSec(groupId);
   const payload = wrapGroupPayload('group_key', {
     group_id: groupId,
     key_b64: groupKeyB64,
     name,
+    ...(sec ? { sec } : {}),
   });
   await msgs.sendDM({
     seed, myPubkeyHex, peerPubkeyHex,
@@ -180,10 +190,17 @@ export async function sendGroupKeyDM({
  * who already has the key).
  */
 export async function sendGroupKeyRequestDM({
-  seed, myPubkeyHex, peerPubkeyHex, groupId,
+  seed, myPubkeyHex, peerPubkeyHex, groupId, inviteSeedHex = null,
 }) {
+  // Доказ запрошення, прив'язаний до мене І до цього одержувача (див.
+  // group_sec.js): копію, що дісталась підставному учаснику, не можна
+  // показати чесному. Сам ключ запрошення з посилання нікуди не йде.
+  const invite_proof = gsec.isHex64(inviteSeedHex)
+    ? gsec.makeInviteProof({ inviteSeedHex, groupId, fromPk: myPubkeyHex, toPk: peerPubkeyHex })
+    : null;
   const payload = wrapGroupPayload('group_key_request', {
     group_id: groupId,
+    ...(invite_proof ? { invite_proof } : {}),
   });
   await msgs.sendDM({
     seed, myPubkeyHex, peerPubkeyHex,
@@ -221,10 +238,19 @@ export async function processIncomingGroupKey({ payload, senderPubkeyHex }) {
   //   • ключ уже є → приймаємо лише той самий (повтор), інший ігноруємо;
   //   • ключа ще нема → відправник має бути учасником цієї групи на релеї.
   const existing = gstore.getGroup(payload.group_id);
+  if (!existing && _joinsInProgress > 0) return { __retry: true };
   if (existing?.group_key_b64) {
     if (existing.group_key_b64 !== payload.key_b64) {
       console.warn('group_key for a group we already have a key for — ignored');
+      return;
     }
+    // Той самий ключ, але, можливо, новіший підписаний стан — беремо його
+    // (так стан доходить і до тих, хто пропустив розсилку).
+    const pin = existing.admin_pin || null;
+    const st = pin && payload.sec
+      ? gsec.verifySigned(payload.sec, { groupId: payload.group_id, groupKeyB64: existing.group_key_b64, adminPin: pin })
+      : null;
+    if (st && st.seq > (existing.sec?.state?.seq || 0)) gstore.setGroupSec(payload.group_id, { state: st, sig: String(payload.sec.sig).toLowerCase() });
     return;
   }
 
@@ -248,7 +274,30 @@ export async function processIncomingGroupKey({ payload, senderPubkeyHex }) {
     return;
   }
 
+  // ── Захищена група ──
+  // Я приєднався за посиланням із ключем адміна → приймаю ключ групи ЛИШЕ
+  // разом зі станом, підписаним саме цим адміном і прив'язаним (kh) саме до
+  // цього ключа. Підставний «учасник» від релею не може ні того, ні іншого.
+  const joinAdmin = gstore.getGroupField(payload.group_id, 'join_admin');
+  const verified = payload.sec
+    ? gsec.verifySigned(payload.sec, { groupId: payload.group_id, groupKeyB64: payload.key_b64, adminPin: joinAdmin })
+    : null;
+  if (joinAdmin && !verified) {
+    console.warn('group_key without a state signed by the inviting admin — ignored');
+    return;
+  }
+
   gstore.storeGroupKey(payload.group_id, payload.key_b64, payload.name || null);
+  const pinned = gstore.getGroupField(payload.group_id, 'admin_pin');
+  if (verified && (joinAdmin || ((!pinned || pinned === verified.admin)
+      && (verified.admin === senderPubkeyHex || verified.admin === info.creator_pubkey_hex)))) {
+    gstore.setGroupField(payload.group_id, 'admin_pin', verified.admin);
+    gstore.setGroupSec(payload.group_id, { state: verified, sig: String(payload.sec.sig).toLowerCase() });
+  } else if (!gstore.getGroupField(payload.group_id, 'admin_pin') && crypto.isPubkeyHex(info.creator_pubkey_hex)) {
+    // легасі: закріплюємо творця, якого називає релей зараз (TOFU)
+    gstore.setGroupField(payload.group_id, 'admin_pin', info.creator_pubkey_hex);
+  }
+  gstore.setGroupField(payload.group_id, 'join_admin', null);
 
   try {
     gstore.upsertGroup({
@@ -295,6 +344,45 @@ export async function processIncomingGroupKeyRequest({
     return;
   }
 
+  // Захищена група: списку релею недостатньо — запитувача має довірити
+  // адмін (vouched) або він має показати секрет виданого адміном запрошення.
+  const signed = gstore.getGroupSec(payload.group_id);
+  const localVouched = gstore.getGroupField(payload.group_id, 'vouched_local') || [];
+  if (signed) {
+    const why = gsec.requestAllowed({
+      state: signed.state, localVouched, requesterPk: senderPubkeyHex,
+      myPk: myPubkeyHex, groupId: payload.group_id, proof: payload.invite_proof,
+    });
+    if (!why) {
+      console.warn('group_key_request not vouched by admin, ignoring:', senderPubkeyHex.slice(0, 8));
+      return;
+    }
+    if (why === 'invite') {
+      if (signed.state.admin === myPubkeyHex) {
+        // я адмін — вношу в підписаний стан, щоб і видалення потім діяло для всіх
+        await broadcastSecUpdate({ groupId: payload.group_id, update: { add: [senderPubkeyHex] }, seed, myPubkeyHex }).catch(() => {});
+      } else if (!localVouched.includes(senderPubkeyHex)) {
+        gstore.setGroupField(payload.group_id, 'vouched_local', [...localVouched, senderPubkeyHex].slice(-1000));
+      }
+    }
+  } else {
+    // Підписаного стану в мене немає (легасі-група або я пропустив розсилку
+    // адміна — релей міг її просто не доставити). Списку релею не віримо:
+    // ключ лише закріпленому адміну/творцю, тим, хто вже писав у групу
+    // (повідомлення, підписані й розшифровані ключем групи, — отже ключ у
+    // них і так є), і тим, кого я сам раніше допустив.
+    let pin = group.admin_pin || null;
+    if (!pin && crypto.isPubkeyHex(group.creator_pubkey_hex)) {
+      pin = group.creator_pubkey_hex;
+      gstore.setGroupField(payload.group_id, 'admin_pin', pin);
+    }
+    const wrote = (group.messages || []).some((m) => m.direction === 'in' && m.sender_pubkey === senderPubkeyHex && m.status !== 'undecryptable');
+    if (senderPubkeyHex !== pin && !wrote && !localVouched.includes(senderPubkeyHex)) {
+      console.warn('group_key_request in a group without signed state from an unproven member, ignoring:', senderPubkeyHex.slice(0, 8));
+      return;
+    }
+  }
+
   try {
     await sendGroupKeyDM({
       seed, myPubkeyHex,
@@ -313,7 +401,7 @@ export async function processIncomingGroupKeyRequest({
 // Send group message
 // ────────────────────────────────────────────────────────────
 
-export async function sendGroupMessage({
+async function sendGroupMessage__impl({
   groupId, text, ttlSeconds = 86400,
   seed, myPubkeyHex, replyTo = null,
 }) {
@@ -378,7 +466,7 @@ export async function sendGroupMessage({
 // Process incoming group envelope
 // ────────────────────────────────────────────────────────────
 
-export async function sendGroupImage({
+async function sendGroupImage__impl({
   groupId, file, caption = '',
   ttlSeconds = 86400,
   seed, myPubkeyHex,
@@ -455,7 +543,7 @@ export async function sendGroupImage({
  * {kind:'voice', ...} JSON inside the group payload, encrypts with
  * the group key and broadcasts via the group endpoint.
  */
-export async function sendGroupVoice({
+async function sendGroupVoice__impl({
   groupId, audioBlob, mimeType, durationMs,
   ttlSeconds = 86400,
   seed, myPubkeyHex,
@@ -539,7 +627,7 @@ export async function sendGroupVoice({
  * stored as a regular history entry on the sender side; the target
  * message's reactions get updated optimistically before send.
  */
-export async function sendGroupReaction({
+async function sendGroupReaction__impl({
   groupId, targetEnvelopeId, emoji, op = 'add',
   ttlSeconds = 86400,
   seed, myPubkeyHex,
@@ -623,7 +711,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
     blobBytes = await api.fetchBlob(envelopeId);
   } catch (e) {
     console.warn('fetchBlob failed for group envelope', envelopeId, e);
-    // Той самий контракт, що й у messages.processIncoming.
+    // Той самий контракт, що й у messages.processIncoming: мережевий збій
+    // → не ack-ати, конверт лишається в черзі до наступної спроби.
     if (e?.code === 'network') return { __retry: true, envelope_id: envelopeId };
     return null;
   }
@@ -674,6 +763,23 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
   const payload = parseGroupPayload(plaintext);
   if (!payload) {
     console.warn('group payload not JSON / no kind');
+    return null;
+  }
+
+  // ── Стан захисту групи (див. group_sec.js) — службове, не повідомлення ──
+  if (payload.kind === 'group_sec') {
+    // Повний стан, підписаний адміном і прив'язаний до ключа групи.
+    // Переслати його може будь-хто — важить лише підпис і новіший seq.
+    let pin = gstore.getGroupField(groupId, 'admin_pin');
+    if (!pin && crypto.isPubkeyHex(group.creator_pubkey_hex)) {
+      pin = group.creator_pubkey_hex;   // легасі: TOFU на творця від релею
+      gstore.setGroupField(groupId, 'admin_pin', pin);
+    }
+    const st = gsec.verifySigned(payload.signed, { groupId, groupKeyB64: group.group_key_b64, adminPin: pin });
+    const cur = gstore.getGroupSec(groupId);
+    if (st && (!cur || st.seq > (cur.state?.seq || 0))) {
+      gstore.setGroupSec(groupId, { state: st, sig: String(payload.signed.sig).toLowerCase() });
+    }
     return null;
   }
 
@@ -769,15 +875,27 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex }) {
  * UI sees: tap link → wait 1-2 seconds → group with name appears.
  * No further action needed from the joining user or from the admin.
  */
-export async function joinViaToken({ token, seed, myPubkeyHex }) {
-  const result = await api.joinGroupViaToken(token);
+let _joinsInProgress = 0;
 
-  // Mark a pending stub locally
-  gstore.upsertGroup({
-    group_id: result.group_id,
-    name: null,
-    member_count: result.member_count,
-  });
+async function joinViaToken__impl({ token, inviteSeedHex = null, adminPk = null, seed, myPubkeyHex }) {
+  // Поки приєднання в процесі, ключі для ще невідомих груп відкладаємо
+  // (processIncomingGroupKey → __retry): інакше ключ від підставного
+  // «учасника» встиг би прийти раніше, ніж ми запам'ятаємо адміна з посилання.
+  _joinsInProgress += 1;
+  let result;
+  try {
+    result = await api.joinGroupViaToken(token);
+    // Заглушка групи + адмін із посилання — СИНХРОННО, одразу після
+    // відповіді релею, без жодного await між ними.
+    gstore.upsertGroup({
+      group_id: result.group_id,
+      name: null,
+      member_count: result.member_count,
+    });
+    if (gsec.isHex64(adminPk)) gstore.setGroupField(result.group_id, 'join_admin', adminPk.toLowerCase());
+  } finally {
+    _joinsInProgress -= 1;
+  }
 
   // Now fetch the member list and DM key request to all other members.
   // This works whether the admin is online or not — any member with the
@@ -805,6 +923,7 @@ export async function joinViaToken({ token, seed, myPubkeyHex }) {
           seed, myPubkeyHex,
           peerPubkeyHex: m.pubkey_hex,
           groupId: result.group_id,
+          inviteSeedHex,
         });
       } catch (e) {
         console.warn('group_key_request DM to', m.pubkey_hex.slice(0, 8), 'failed:', e?.message);
@@ -853,6 +972,11 @@ export async function addMemberAndSendKey({
     throw new Error(t('No group key'));
   }
   await api.addGroupMember(groupId, newPubkeyHex);
+  // Я адмін захищеної групи → довіряю новому учаснику й кажу про це всім
+  // (до відправки ключа — щоб у його копії стану він уже був довіреним).
+  if (gstore.getGroupSec(groupId)?.state?.admin === myPubkeyHex) {
+    await broadcastSecUpdate({ groupId, update: { add: [newPubkeyHex] }, seed, myPubkeyHex }).catch(() => {});
+  }
   await sendGroupKeyDM({
     seed, myPubkeyHex,
     peerPubkeyHex: newPubkeyHex,
@@ -864,6 +988,99 @@ export async function addMemberAndSendKey({
 }
 
 export { parseGroupPayload };
+
+/**
+ * Службовий груповий конверт (не з'являється в чаті). Зашифрований ключем
+ * групи й підписаний мною — релей не може ні прочитати, ні підробити.
+ */
+async function sendGroupControl({ groupId, payloadObj, seed, myPubkeyHex, ttlSeconds = 86400 }) {
+  const group = gstore.getGroup(groupId);
+  if (!group?.group_key_b64) throw new Error(t('No group key'));
+  const groupKey = crypto.base64ToBytes(group.group_key_b64);
+  const blobB64 = crypto.encryptStringWithKey(groupKey, wrapGroupPayload(payloadObj.kind, payloadObj.data));
+  const ts = nowSeconds();
+  const sig = crypto.signEnvelope({ seed, fromHex: myPubkeyHex, toHex: groupId, ts, ttl: ttlSeconds, blobB64 });
+  return api.sendGroupMessage(groupId, { from: myPubkeyHex, to: groupId, ts, ttl: ttlSeconds, blob: blobB64, sig });
+}
+
+/** Я адмін: новий підписаний стан → у себе → розіслати учасникам. */
+export async function broadcastSecUpdate({ groupId, update, seed, myPubkeyHex }) {
+  const cur = gstore.getGroupSec(groupId);
+  if (!cur || cur.state?.admin !== myPubkeyHex || !seed) throw new Error('not_admin');
+  const next = gsec.nextState(cur.state, update);
+  if (!next) throw new Error('bad_update');
+  const signed = gsec.signState(next, seed);
+  gstore.setGroupSec(groupId, signed);
+  await sendGroupControl({ groupId, payloadObj: { kind: 'group_sec', data: { signed } }, seed, myPubkeyHex });
+  gstore.setGroupField(groupId, 'sec_bcast', nowSeconds());
+  return signed;
+}
+
+const REBROADCAST_S = 12 * 3600;
+
+/**
+ * Викликається при відкритті групи.
+ *   • Я творець легасі-групи → переводимо в захищений режим. Довірені — я і
+ *     ті, від кого в мене є повідомлення, підписані й розшифровані ключем
+ *     групи (тобто хто ТОЧНО має ключ). Список релею НЕ беремо: туди могли
+ *     дописати чужих.
+ *   • Я адмін захищеної групи → час від часу переповторюю стан, щоб його
+ *     отримали й ті, хто був офлайн довше за життя конверта.
+ */
+export async function ensureProtected({ groupId, seed, myPubkeyHex }) {
+  const group = gstore.getGroup(groupId);
+  if (!group?.group_key_b64 || !seed) return false;
+  const pin = group.admin_pin || group.creator_pubkey_hex;
+  if (pin !== myPubkeyHex) return false;
+  const cur = group.sec;
+  try {
+    if (!cur) {
+      const writers = (group.messages || [])
+        .filter((m) => m.direction === 'in' && m.status !== 'undecryptable' && m.sender_pubkey)
+        .map((m) => m.sender_pubkey);
+      const signed = gsec.signState(gsec.newState({
+        groupId, adminPk: myPubkeyHex, groupKeyB64: group.group_key_b64, vouched: writers,
+      }), seed);
+      gstore.setGroupField(groupId, 'admin_pin', myPubkeyHex);
+      gstore.setGroupSec(groupId, signed);
+      await sendGroupControl({ groupId, payloadObj: { kind: 'group_sec', data: { signed } }, seed, myPubkeyHex });
+      gstore.setGroupField(groupId, 'sec_bcast', nowSeconds());
+      return true;
+    }
+    if (cur.state?.admin === myPubkeyHex && nowSeconds() - (group.sec_bcast || 0) > REBROADCAST_S) {
+      await sendGroupControl({ groupId, payloadObj: { kind: 'group_sec', data: { signed: cur } }, seed, myPubkeyHex });
+      gstore.setGroupField(groupId, 'sec_bcast', nowSeconds());
+    }
+  } catch { return false; }
+  return true;
+}
+
+/**
+ * Запрошення в групу. Якщо я адмін захищеної групи — у посилання йдуть
+ * приватний ключ запрошення (s) і мій ключ (a), обидва в #фрагменті (релей їх
+ * не бачить), а публічний ключ запрошення — у підписаний стан для учасників.
+ */
+export async function createInvite({ groupId, seed, myPubkeyHex }) {
+  const info = await api.createInviteToken(groupId, null);
+  const cur = gstore.getGroupSec(groupId);
+  if (!cur || cur.state?.admin !== myPubkeyHex || !seed) return { ...info, secret: null, admin: null };
+  const inv = gsec.makeInvite();
+  const relExp = Number.isInteger(info?.expires_at) ? info.expires_at : 0;
+  const exp = relExp > nowSeconds() ? relExp : nowSeconds() + gsec.DEFAULT_INVITE_TTL_S;
+  await broadcastSecUpdate({ groupId, update: { invite: { pk: inv.pk, exp } }, seed, myPubkeyHex });
+  return { ...info, secret: inv.seedHex, admin: myPubkeyHex };
+}
+
+/** Я адмін і прибрав учасника → прибираю його з довірених у всіх. */
+export async function removeMember({ groupId, pubkeyHex, seed, myPubkeyHex }) {
+  await api.removeGroupMember(groupId, pubkeyHex);
+  if (gstore.getGroupSec(groupId)?.state?.admin === myPubkeyHex && seed) {
+    await broadcastSecUpdate({ groupId, update: { remove: [pubkeyHex] }, seed, myPubkeyHex }).catch(() => {});
+  }
+  const local = gstore.getGroupField(groupId, 'vouched_local') || [];
+  if (local.includes(pubkeyHex)) gstore.setGroupField(groupId, 'vouched_local', local.filter((x) => x !== pubkeyHex));
+  return refreshGroup(groupId);
+}
 
 /**
  * Чи означає помилка від релея, що групи більше не існує (видалена
@@ -883,6 +1100,8 @@ export function isGroupGoneError(e) {
  * GET-ами при кожному рендері списку.
  */
 let _lastValidateTs = 0;
+/** Скинути тротлінг перевірки груп (після зміни акаунта на пристрої). */
+export function resetValidateThrottle() { _lastValidateTs = 0; }
 const VALIDATE_INTERVAL_MS = 20 * 1000;
 
 export async function validateGroupsAgainstRelay() {
@@ -913,3 +1132,10 @@ export async function validateGroupsAgainstRelay() {
   }));
   return removedAny;
 }
+
+export const sendGroupMessage = (...args) => inflight.track(() => sendGroupMessage__impl(...args));
+export const sendGroupImage = (...args) => inflight.track(() => sendGroupImage__impl(...args));
+export const sendGroupVoice = (...args) => inflight.track(() => sendGroupVoice__impl(...args));
+export const sendGroupReaction = (...args) => inflight.track(() => sendGroupReaction__impl(...args));
+export const createGroup = (...args) => inflight.track(() => createGroup__impl(...args));
+export const joinViaToken = (...args) => inflight.track(() => joinViaToken__impl(...args));
