@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import * as dms from '../lib/dms.js';
 import * as contacts from '../lib/contacts.js';
 import { formatPeerName } from '../lib/display.js';
-import { t } from '../lib/i18n.js';
+import { t, tp } from '../lib/i18n.js';
 
 function formatDate(unix) {
   if (!unix) return '—';
@@ -43,7 +43,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
   }
 
   async function cancelClicked() {
-    if (!confirm('Cancel this last message? This can\'t be undone — you\'ll have to create a new one.')) return;
+    if (!confirm(t('Cancel this last message? This can\'t be undone — you\'ll have to create a new one.'))) return;
     setBusy(true);
     try {
       await dms.cancel(dmsId);
@@ -164,12 +164,12 @@ export default function DMSDetail({ dmsId, onNavigate }) {
           )}
           {info.status === 'triggered' && (
             <div style={{ fontSize: 13, color: '#ABADB8' }}>
-              Triggered {formatDate(info.triggered_at)}
+              {tp('Triggered {0}', [formatDate(info.triggered_at)])}
             </div>
           )}
           {info.status === 'cancelled' && (
             <div style={{ fontSize: 13, color: '#ABADB8' }}>
-              Cancelled {formatDate(info.cancelled_at)}
+              {tp('Cancelled {0}', [formatDate(info.cancelled_at)])}
             </div>
           )}
         </div>
@@ -188,7 +188,7 @@ export default function DMSDetail({ dmsId, onNavigate }) {
               </span>
               {recipient?.delivered_at && (
                 <div style={{ fontSize: 12, color: '#4ADE80', marginTop: 4 }}>
-                  ✓ delivered {formatDate(recipient.delivered_at)}
+                  {tp('✓ delivered {0}', [formatDate(recipient.delivered_at)])}
                 </div>
               )}
             </>

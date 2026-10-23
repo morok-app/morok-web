@@ -593,7 +593,7 @@ export default function App() {
   }
 
   function onForgotPin() {
-    if (!confirm('Remove this account from the browser? You\'ll need the 24 words to sign in again.')) return;
+    if (!confirm(t('Remove this account from the browser? You\'ll need the 24 words to sign in again.'))) return;
     // Спершу гасимо inbox: акаунт зникає, тримати його сокет нема сенсу,
     // а власника скидаємо, щоб наступний вхід (іншим сідом) підняв
     // зʼєднання заново, а не вважав старе живим.
@@ -1001,7 +1001,7 @@ function QuickSwitcher({ navigate }) {
             else if (e.key === 'ArrowUp') { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
             else if (e.key === 'Enter' && hits[sel]) { e.preventDefault(); go(hits[sel]); }
           }}
-          placeholder="Jump to…  (↑↓ + Enter)"
+          placeholder={t('Jump to…  (↑↓ + Enter)')}
           style={{
             width: '100%', padding: '15px 18px', boxSizing: 'border-box',
             background: 'transparent', border: 'none', outline: 'none',

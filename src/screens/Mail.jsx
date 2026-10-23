@@ -217,7 +217,7 @@ export default function Mail({ onNavigate }) {
         {all !== null && list.length === 0 && (
           <div style={{ textAlign: 'center', padding: '64px 24px', color: MUTED }}>
             <div style={{ fontSize: 15, color: TEXT, marginBottom: 6 }}>
-              {tab === 'in' ? t('No incoming mail') : 'You haven\'t sent anything yet'}
+              {tab === 'in' ? t('No incoming mail') : t('You haven\'t sent anything yet')}
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.5 }}>
               {tab === 'in'
@@ -484,9 +484,9 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
                 try {
                   const r = await api.mailResolve(alias);
                   if (r?.pubkey_hex) onNavigate('newchat', `u=${r.pubkey_hex}`);
-                  else window.alert('Address not found');
+                  else window.alert(t('Address not found'));
                 } catch (err) {
-                  window.alert(err?.message || 'Couldn\'t open the chat');
+                  window.alert(err?.message || t('Couldn\'t open the chat'));
                 }
               }}
               style={actBtn(false)}
@@ -498,7 +498,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
         {Array.isArray(e.attachments) && e.attachments.length > 0 && (
           <div style={{ marginTop: 22 }}>
             <div style={{ fontSize: 13, color: MUTED, marginBottom: 8, fontWeight: 600 }}>
-              Attachments ({e.attachments.length})
+              {tp('Attachments ({0})', [e.attachments.length])}
             </div>
             {e.attachments.map((att, i) => (
               <a
@@ -518,7 +518,7 @@ function MailReader({ msg, onBack, onDelete, onNavigate, aliasMap = {}, onAliasP
                 </svg>
                 <span style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {safeAttName(att.filename, i)}
-                  {RISKY_EXT.test(safeAttName(att.filename, i)) && ' ⚠ виконуваний файл — не відкривайте, якщо не чекали'}
+                  {RISKY_EXT.test(safeAttName(att.filename, i)) && t(' ⚠ executable file — don\'t open it unless you expected it')}
                 </span>
               </a>
             ))}

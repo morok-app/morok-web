@@ -111,8 +111,9 @@ export function sanitizeFwd(f) {
  */
 export function forwardableOf(m) {
   if (!m || m.status === 'undecryptable' || m.status === 'sending' || m.dms_trigger) return null;
-  // «зникне після прочитання» — переслати = врятувати від зникнення; не можна
-  if (m.read_burn_at) return null;
+  // чуже «зникне після прочитання» — переслати = врятувати від зникнення; не можна
+  // (своє — можна: це мій текст)
+  if (m.direction !== 'out' && (m.read_burn_at || sanitizeBurn(m.burn))) return null;
   if (m.voice?.data_b64) {
     return { kind: 'voice', voice: { data_b64: m.voice.data_b64, mime: m.voice.mime || 'audio/webm', duration_ms: m.voice.duration_ms || 0 } };
   }
@@ -127,6 +128,20 @@ export function forwardableOf(m) {
 export function forwardTtl(m, defaultTtl = 86400, now = Math.floor(Date.now() / 1000)) {
   const left = Number.isFinite(m?.expires_at) ? m.expires_at - now : defaultTtl;
   return Math.max(300, Math.min(defaultTtl, left));
+}
+
+// ── Зникнення після прочитання ──
+
+/** Значення burn ззовні → секунди (5 с … 7 діб) або 0. */
+export function sanitizeBurn(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 5 && n <= 7 * 86400 ? n : 0;
+}
+
+/** Найменший додатний із таймерів (0 — жодного). */
+export function minBurn(...vals) {
+  const pos = vals.map(sanitizeBurn).filter((x) => x > 0);
+  return pos.length ? Math.min(...pos) : 0;
 }
 
 // ── Редагування ──────────────────────────────────────────

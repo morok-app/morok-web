@@ -4,7 +4,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import * as groups from '../lib/groups.js';
 import { hexToBytes } from '../lib/crypto.js';
-import { t } from '../lib/i18n.js';
+import { t, tp } from '../lib/i18n.js';
 
 function getSeedBytes() {
   const v = vault.getUnlockedSeed();
@@ -33,11 +33,11 @@ export default function NewGroup({ onNavigate }) {
     if (!name.trim() || busy) return;
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Session expired. Reload the page.');
+      alert(t('Session expired. Reload the page.'));
       return;
     }
     if (!me?.pubkey_hex) {
-      alert('My pubkey not found.');
+      alert(t('My pubkey not found.'));
       return;
     }
     setBusy(true);
@@ -143,7 +143,7 @@ export default function NewGroup({ onNavigate }) {
       }}>
         <span>{t('MEMBERS')}</span>
         <span style={{ color: '#A4A6B2', fontFamily: 'var(--mono, monospace)', letterSpacing: '0.02em' }}>
-          {selected.size} selected
+          {tp('{0} selected', [selected.size])}
         </span>
       </div>
 

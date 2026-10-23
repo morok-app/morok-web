@@ -2,7 +2,7 @@
  * Local conversation cache in localStorage.
  */
 
-import { applyEditTo } from './msgfx.js';
+import { applyEditTo, minBurn, sanitizeBurn } from './msgfx.js';
 
 const K = 'morok.conv.v1';
 const K_BURN = 'morok.read_burn.v1';            // глобальне налаштування (сек) або 'off'
@@ -255,8 +255,9 @@ export function markConversationRead(peerPubkey) {
   for (const m of conv.messages) {
     if (m.direction === 'in' && !m.read_at) {
       m.read_at = now;
-      // Запускаємо таймер зникнення від прочитання (лише вхідні, лише якщо увімкнено).
-      if (burn > 0 && !m.read_burn_at) m.read_burn_at = now + burn;
+      // Таймер від прочитання: мій або той, що попросив відправник (менший).
+      const b = minBurn(burn, m.burn);
+      if (b > 0 && !m.read_burn_at) m.read_burn_at = now + b;
       changed = true;
     }
   }
@@ -282,10 +283,32 @@ export function markOutgoingRead(peerPubkey, envelopeId, readAt = null) {
   if (m.read_at) return null;
   m.read_at = readAt || Math.floor(Date.now() / 1000);
   // Симетрія: коли співрозмовник прочитав — моя копія теж згоряє (no trace).
-  const burn = getReadBurnSeconds();
+  // Таймер — мій або той, що діяв у співрозмовника, коли я надсилав
+  // (позначка burn_peer на самому повідомленні).
+  const burn = minBurn(getReadBurnSeconds(), m.burn_peer);
   if (burn > 0 && !m.read_burn_at) m.read_burn_at = m.read_at + burn;
   save(state);
   return m;
+}
+
+/**
+ * Співрозмовник повідомив свій таймер «зникнення після прочитання»
+ * (поле burn у його повідомленнях / sealed_token). 0 — вимкнено.
+ */
+export function setPeerBurn(peerPubkey, seconds) {
+  const state = load();
+  const conv = state[peerPubkey];
+  if (!conv) return;
+  const b = sanitizeBurn(seconds);
+  if ((conv.peer_burn || 0) === b) return;
+  if (b) conv.peer_burn = b; else delete conv.peer_burn;
+  save(state);
+}
+
+/** Чинний таймер у розмові (мій або співрозмовника). */
+export function effectiveBurn(peerPubkey) {
+  const conv = load()[peerPubkey];
+  return minBurn(getReadBurnSeconds(), conv?.peer_burn);
 }
 
 export function countUnread(peerPubkey) {

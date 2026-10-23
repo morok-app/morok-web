@@ -1,4 +1,4 @@
-import { getLang, setLang } from '../lib/i18n.js';
+import { getLang, setLang, t } from '../lib/i18n.js';
 
 /**
  * Перемикач мови UA|EN — плаваючий пілл. Використовується на екранах
@@ -41,7 +41,7 @@ export default function LangSwitch({ inline = false }) {
           zIndex: 5,
         }),
       }}
-      aria-label="Language"
+      aria-label={t('Language')}
     >
       {opt('uk', 'УКР')}
       {opt('en', 'EN')}

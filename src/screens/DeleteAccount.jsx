@@ -139,7 +139,7 @@ export default function DeleteAccount({ onNavigate, currentPubkeyHex }) {
             <li>{t('Local chat and group history')}</li>
           </ul>
           <div style={{ fontSize: 12.5, color: '#ABADB8', marginTop: 12, lineHeight: 1.55 }}>
-            {t('Group chats will remain — others will see you as t("@unknown"). If you have the 24 words you can sign in again, but the history won\'t come back.')}
+            {t('Group chats will remain — others will see you as @unknown. If you have the 24 words you can sign in again, but the history won\'t come back.')}
           </div>
         </div>
 

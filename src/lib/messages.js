@@ -17,7 +17,8 @@
  * kind=group_key_request) and dispatch to the groups module silently.
  */
 
-import { sanitizeFwd, parseEdit, TEXT_MAX } from './msgfx.js';
+import { sanitizeFwd, parseEdit, TEXT_MAX, sanitizeBurn } from './msgfx.js';
+import { verifyAlarm } from './alarm_cert.js';
 import * as api from './api.js';
 import * as sealedTokens from './sealed_tokens.js';
 import * as crypto from './crypto.js';
@@ -34,6 +35,20 @@ const ZERO_SIG = '0'.repeat(128);
 // Kinds that are purely protocol signalling — never shown to the user
 // and never stored in conversation history. Everything else (raw text,
 // {kind:'image'}, future content kinds) is a real message.
+// мій таймер «зникнення після прочитання» — їде в повідомленнях, щоб
+// співрозмовник теж знищував їх після прочитання (симетрія)
+function burnField() {
+  const b = convs.getReadBurnSeconds();
+  return b > 0 ? { burn: b } : {};
+}
+
+// таймер співрозмовника НА МОМЕНТ надсилання: лише ці повідомлення згорять
+// у мене, коли він прочитає (не ті, що я надіслав до того, як він увімкнув)
+function peerBurnStamp(peerPubkeyHex) {
+  const b = sanitizeBurn(convs.getConversation(peerPubkeyHex)?.peer_burn);
+  return b ? { burn_peer: b } : {};
+}
+
 const WJ = '\u2060';   // див. sendDM: екранування тексту, схожого на службовий кадр
 const CONTROL_KINDS = new Set(['group_key', 'group_key_request', 'reaction', 'sealed_token', 'edit']);
 
@@ -145,6 +160,7 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
     peer_pubkey: peerPubkeyHex,
+    ...peerBurnStamp(peerPubkeyHex),
     text: plaintext,
     ts,
     ttl: ttlSeconds,
@@ -160,7 +176,7 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
   // Доставка важливіша за анонімність: null -> тихий fallback на v1.
   const sealedRes = await trySealedSend({
     seed, myPubkeyHex, peerPubkeyHex,
-    payload: { kind: 'text', text: plaintext, ...(reply ? { reply_to: reply } : {}), ...(fw ? { fwd: fw } : {}) },
+    payload: { kind: 'text', text: plaintext, ...(reply ? { reply_to: reply } : {}), ...(fw ? { fwd: fw } : {}), ...burnField() },
     ts, ttlSeconds,
   });
   if (sealedRes) {
@@ -234,6 +250,7 @@ export async function sendDMImage({
   const payload = JSON.stringify({
     kind: 'image',
     ...(fw ? { fwd: fw } : {}),
+    ...burnField(),
     data_b64: compressed.data_b64,
     mime: compressed.mime,
     w: compressed.w,
@@ -258,6 +275,7 @@ export async function sendDMImage({
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
     peer_pubkey: peerPubkeyHex,
+    ...peerBurnStamp(peerPubkeyHex),
     ...(fw ? { fwd: fw } : {}),
     text: caption || '',
     image: {
@@ -279,6 +297,7 @@ export async function sendDMImage({
     payload: {
       kind: 'image',
       ...(fw ? { fwd: fw } : {}),
+      ...burnField(),
       data_b64: compressed.data_b64,
       mime: compressed.mime,
       w: compressed.w,
@@ -365,6 +384,7 @@ export async function sendDMVoice({
   const payload = JSON.stringify({
     kind: 'voice',
     ...(fw ? { fwd: fw } : {}),
+    ...burnField(),
     data_b64,
     mime: mimeType || 'audio/webm',
     duration_ms: Math.max(0, Math.floor(durationMs || 0)),
@@ -387,6 +407,7 @@ export async function sendDMVoice({
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
     peer_pubkey: peerPubkeyHex,
+    ...peerBurnStamp(peerPubkeyHex),
     ...(fw ? { fwd: fw } : {}),
     text: '',
     voice: {
@@ -407,6 +428,7 @@ export async function sendDMVoice({
     payload: {
       kind: 'voice',
       ...(fw ? { fwd: fw } : {}),
+      ...burnField(),
       data_b64,
       mime: mimeType || 'audio/webm',
       duration_ms: Math.max(0, Math.floor(durationMs || 0)),
@@ -747,6 +769,39 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     const sealedKind = typeof sealedPayload.kind === 'string' ? sealedPayload.kind : 'text';
     const sealedTs = opened.ts || envMeta.timestamp || envMeta.ts || Math.floor(Date.now() / 1000);
 
+    // ── Тривожний сигнал (див. morok-rn/lib/alarm.js) ──
+    // Конверт підписаний тривожним ключем контакта, а сертифікат — його
+    // ОСНОВНИМ ключем. Перевірили → показуємо в чаті з основним акаунтом.
+    if (sealedKind === 'text' && sealedPayload.alarm) {
+      const al = verifyAlarm(sealedPayload.alarm, sealedPeer);
+      if (al) {
+        if (cMod.isBlocked(al.main)) return null;
+        if (convs.hasEnvelope(al.main, envelopeId)) return null;
+        // Старий сигнал, повторно підкинутий релеєм під новим envelope_id,
+        // не має виглядати свіжою тривогою: лише свіжі, кожен — один раз.
+        if (Math.abs(Math.floor(Date.now() / 1000) - Number(sealedTs)) > 86400) return null;
+        const rid = crypto.bytesToHex(crypto.sha256Bytes(crypto.utf8(`alarm|${sealedPeer}|${sealedTs}|${sealedPayload.text}`)));
+        if (replay.seen(rid)) return null;
+        replay.remember(rid);
+        const am = {
+          id: `recv-${envelopeId.slice(0, 16)}`,
+          envelope_id: envelopeId,
+          direction: 'in',
+          peer_pubkey: al.main,
+          text: typeof sealedPayload.text === 'string' ? sealedPayload.text.slice(0, 400) : '',
+          ts: sealedTs,
+          ttl: envMeta.ttl_seconds || envMeta.ttl,
+          expires_at: envMeta.expires_at,
+          status: 'received',
+          sealed: true,
+          alarm: true,
+          ...(al.test ? { alarm_test: true } : {}),
+        };
+        convs.appendMessage(al.main, am);
+        return am;
+      }
+    }
+
     // ── Реакція: не повідомлення, а зміна реакції на існуючому ──
     if (sealedKind === 'reaction') {
       const target = sealedPayload.target_envelope_id;
@@ -778,6 +833,9 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     };
     const sealedFwd = sanitizeFwd(sealedPayload.fwd);
     if (sealedFwd) msg.fwd = sealedFwd;
+    // таймер відправника: знищити після прочитання + запам'ятати його вибір
+    const sealedBurn = sanitizeBurn(sealedPayload.burn);
+    if (sealedBurn) msg.burn = sealedBurn;
 
     if (sealedKind === 'image') {
       msg.text = typeof sealedPayload.caption === 'string' ? sealedPayload.caption : '';
@@ -801,6 +859,7 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     }
 
     convs.appendMessage(sealedPeer, msg);
+    convs.setPeerBurn(sealedPeer, sealedBurn);
     return msg;
   }
 
@@ -974,6 +1033,7 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       if (typeof control.token === 'string' && /^[0-9a-f]{64}$/.test(control.token)) {
         sealedTokens.setPeerToken(peer, control.token);
       }
+      convs.setPeerBurn(peer, sanitizeBurn(control.burn));
       return null;
     }
     if (control.kind === 'reaction') {
@@ -1016,7 +1076,10 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       };
       const cf = sanitizeFwd(control.fwd);
       if (cf) msg.fwd = cf;
+      const cb = sanitizeBurn(control.burn);
+      if (cb) msg.burn = cb;
       convs.appendMessage(peer, msg);
+      convs.setPeerBurn(peer, cb);
       return msg;
     }
     if (control.kind === 'voice') {
@@ -1039,7 +1102,10 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       };
       const cf = sanitizeFwd(control.fwd);
       if (cf) msg.fwd = cf;
+      const cb = sanitizeBurn(control.burn);
+      if (cb) msg.burn = cb;
       convs.appendMessage(peer, msg);
+      convs.setPeerBurn(peer, cb);
       return msg;
     }
     // Unknown control kind → fall through to display as text
@@ -1095,7 +1161,7 @@ export async function maybeShareSealedToken({ seed, myPubkeyHex, peerPubkeyHex }
 
     await sendDM({
       seed, myPubkeyHex, peerPubkeyHex,
-      plaintext: JSON.stringify({ kind: 'sealed_token', token: myToken }),
+      plaintext: JSON.stringify({ kind: 'sealed_token', token: myToken, ...burnField() }),
       control: true,
       // Релей обмежує TTL конверта добою (le=86400). Токен оновлюється
       // при кожному відкритті чату, тож доба — більш ніж достатньо.

@@ -4,7 +4,7 @@ import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
 import { decryptWithSecret } from '../lib/vault.js';
 import { bytesToHex } from '../lib/crypto.js';
-import { t } from '../lib/i18n.js';
+import { t, tp } from '../lib/i18n.js';
 import LangSwitch from '../components/LangSwitch.jsx';
 
 /**
@@ -111,7 +111,7 @@ export default function RestoreByUsername({ onNavigate }) {
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.05em',
           }}>
-            STEP {step === 'username' ? '1' : '2'} OF 2
+            {tp('STEP {0} OF 2', [step === 'username' ? '1' : '2'])}
           </div>
         </div>
         <button
@@ -239,7 +239,7 @@ export default function RestoreByUsername({ onNavigate }) {
               fontFamily: 'var(--mono, monospace)',
               letterSpacing: '0.05em',
             }}>
-              PASSPHRASE
+              {t('PASSPHRASE')}
             </div>
             <input
               type="password"

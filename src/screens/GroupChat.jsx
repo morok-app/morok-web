@@ -123,7 +123,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     const toDelete = getSelectedMessages();
     if (!toDelete.length) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Session expired.'); return; }
+    if (!seed) { alert(t('Session expired.')); return; }
     exitSelectMode();
     let failed = 0;
     for (const m of toDelete) {
@@ -162,7 +162,7 @@ export default function GroupChat({ groupId, onNavigate }) {
         if (groups.isGroupGoneError(e)) {
           // Групу видалив адмін (або нас прибрали) — зносимо локально.
           gstore.removeGroup(groupId);
-          alert('This group has been deleted.');
+          alert(t('This group has been deleted.'));
           onNavigate('chats');
           return;
         }
@@ -353,7 +353,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     setActionMessage(null);
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Session expired.');
+      alert(t('Session expired.'));
       return;
     }
     try {
@@ -383,7 +383,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Session expired.');
+      alert(t('Session expired.'));
       return;
     }
 
@@ -399,8 +399,8 @@ export default function GroupChat({ groupId, onNavigate }) {
   async function sendClicked() {
     if (!draft.trim() || sending) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Session expired.'); return; }
-    if (!myPubkeyHex) { alert('My pubkey not found.'); return; }
+    if (!seed) { alert(t('Session expired.')); return; }
+    if (!myPubkeyHex) { alert(t('My pubkey not found.')); return; }
     if (editMsg) {
       const target = editMsg;
       const mySeq = editSeq.current;
@@ -440,7 +440,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     } catch (e) {
       if (groups.isGroupGoneError(e)) {
         gstore.removeGroup(groupId);
-        alert('This group has been deleted.');
+        alert(t('This group has been deleted.'));
         onNavigate('chats');
         return;
       }
@@ -458,12 +458,12 @@ export default function GroupChat({ groupId, onNavigate }) {
   async function sendImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('That\'s not an image.');
+      alert(t('That\'s not an image.'));
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Session expired.');
+      alert(t('Session expired.'));
       return;
     }
     setImageBusy(true);
@@ -506,12 +506,12 @@ export default function GroupChat({ groupId, onNavigate }) {
   async function startRecording() {
     if (recording || voiceBusy || sending || imageBusy) return;
     if (!voiceIsSupported()) {
-      alert('This browser doesn\'t support voice recording.');
+      alert(t('This browser doesn\'t support voice recording.'));
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Session expired. Reload the page.');
+      alert(t('Session expired. Reload the page.'));
       return;
     }
     const rec = new Recorder();
@@ -562,7 +562,7 @@ export default function GroupChat({ groupId, onNavigate }) {
       }
       const seed = getSeedBytes();
       if (!seed || !myPubkeyHex) {
-        alert('Session expired.');
+        alert(t('Session expired.'));
         setVoiceBusy(false);
         return;
       }
@@ -779,7 +779,7 @@ export default function GroupChat({ groupId, onNavigate }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>✕</button>
           <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#F5F5F7', fontFamily: 'JetBrains Mono, monospace' }}>
-            {selectedIds.size} selected
+            {tp('{0} selected', [selectedIds.size])}
           </div>
           <button onClick={batchDeleteForMe} disabled={!selectedIds.size} style={{
             padding: '8px 12px', borderRadius: 10,
@@ -922,14 +922,6 @@ export default function GroupChat({ groupId, onNavigate }) {
                 position: 'relative',
               }}
             >
-              {!selectMode && (
-                <button
-                  className={`msg-hover-btn${isOut ? ' out' : ' in'}`}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setActionMessage(m); }}
-                  title={t("Actions")}
-                >⋯</button>
-              )}
               {/* Sender name — only for incoming messages, and only first in group */}
               {!isOut && !samePrev && (
                 <div style={{
@@ -969,7 +961,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 )}
                 {m.status === 'undecryptable' ? (
                   <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
-                    ⚠ {m.error || 'couldn\'t decrypt'}
+                    ⚠ {m.error ? t(m.error) : t('couldn\'t decrypt')}
                   </span>
                 ) : m.voice ? (
                   <VoicePlayer voice={m.voice} isOut={isOut} />
@@ -1160,7 +1152,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 padding: '6px 22px 14px',
                 color: '#A8A8B0', fontSize: 13, textAlign: 'center',
               }}>
-                Muted · {muted.formatMuteUntil(muteEntry.until)}
+                {tp('Muted · {0}', [muted.formatMuteUntil(muteEntry.until)])}
               </div>
               <button
                 onClick={unmuteGroup}
@@ -1243,7 +1235,7 @@ export default function GroupChat({ groupId, onNavigate }) {
               ? tp("🎤 Voice ({0})", [formatDuration(actionMessage.voice.duration_ms || 0)])
               : actionMessage.image
               ? (actionMessage.text
-                  ? `📷 Image · "${maskSpoilers(actionMessage.text).slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
+                  ? `${t('📷 Image')} · "${maskSpoilers(actionMessage.text).slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
                   : t('📷 Image'))
               : `"${maskSpoilers(actionMessage.text || '').slice(0, 80)}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
@@ -1571,7 +1563,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 cursor: (voiceBusy || sending || imageBusy) ? 'wait' : 'pointer',
                 flexShrink: 0,
               }}
-              title="Записати голосове"
+              title={t('Record a voice message')}
             >
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -1612,7 +1604,7 @@ export default function GroupChat({ groupId, onNavigate }) {
         >
           <img
             src={`data:${lightboxImage.mime};base64,${lightboxImage.data_b64}`}
-            alt="image"
+            alt={t('Image')}
             onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '100%', maxHeight: '100%',

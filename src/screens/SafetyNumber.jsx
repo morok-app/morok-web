@@ -10,7 +10,7 @@ import * as store from '../lib/storage.js';
 import * as convs from '../lib/conversations.js';
 import * as safety from '../lib/safety.js';
 import QRCode from 'qrcode';
-import { t } from '../lib/i18n.js';
+import { t, tp } from '../lib/i18n.js';
 
 export default function SafetyNumber({ peerPubkey, onNavigate }) {
   const conv = convs.getConversation(peerPubkey);
@@ -103,8 +103,7 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
 
       <div style={{ padding: '0 18px 32px' }}>
         <p style={{ color: '#A8AAB5', fontSize: 14, lineHeight: 1.5, marginTop: 0, marginBottom: 22 }}>
-          Compare these numbers with {peerLabel} — on a call, in person or through another
-          channel. If they match, your connection is secure and nobody has swapped the keys.
+          {tp('Compare these numbers with {0} — on a call, in person or through another channel. If they match, your connection is secure and nobody has swapped the keys.', [peerLabel])}
         </p>
 
         {sn ? (

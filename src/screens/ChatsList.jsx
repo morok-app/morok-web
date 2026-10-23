@@ -375,7 +375,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
             color: '#F5F5F7', lineHeight: 1,
             display: 'flex', alignItems: 'center', gap: 10,
           }}>
-            Chats
+            {t('Chats')}
             {stateBadge && (
               <span style={{
                 fontSize: 9.5, fontWeight: 600,
@@ -566,7 +566,7 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
           </div>
           <div style={{ fontSize: 13, color: '#A4A6B2', maxWidth: 280, lineHeight: 1.5 }}>
             {activeTab === 'requests'
-              ? 'Messages from people who aren\'t in your contacts land here'
+              ? t('Messages from people who aren\'t in your contacts land here')
               : t('Tap the button below to start a new chat or group')}
           </div>
         </div>
@@ -638,12 +638,12 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                     }}>
                       {isGroup && last && last.direction !== 'out'
                         ? `${formatPeerName({ username: last.sender_username, pubkey: last.sender_pubkey })}: `
-                        : (last?.direction === 'out' ? 'You: ' : '')}
+                        : (last?.direction === 'out' ? t('You: ') : '')}
                       {last?.voice
                         ? tp("🎤 Voice ({0})", [formatVoiceDuration(last.voice.duration_ms)])
                         : last?.image
                         ? (last.text ? `📷 ${maskSpoilers(last.text)}` : t('📷 Image'))
-                        : (maskSpoilers(last?.text || '') || (last?.status === 'undecryptable' ? '⚠ couldn\'t decrypt' : '...'))}
+                        : (maskSpoilers(last?.text || '') || (last?.status === 'undecryptable' ? t('⚠ couldn\'t decrypt') : '...'))}
                     </div>
                     {last?.ttl && (
                       <div style={{ fontSize: 12.5, color: '#9EA0AC', fontFamily: 'var(--mono, monospace)' }}>

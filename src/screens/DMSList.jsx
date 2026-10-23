@@ -200,7 +200,7 @@ export default function DMSList({ onNavigate }) {
                 }}>
                   <span>{dms.formatTriggerLabel(d.trigger_seconds)}</span>
                   {d.status === 'armed' && (
-                    <span>· triggers in {dms.formatRemainingTime(d.fires_at)}</span>
+                    <span>{tp('· triggers in {0}', [dms.formatRemainingTime(d.fires_at)])}</span>
                   )}
                 </div>
               </div>

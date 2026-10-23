@@ -78,7 +78,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
   async function addByUsername() {
     if (!addInput.trim() || !isAdmin) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Session expired.'); return; }
+    if (!seed) { alert(t('Session expired.')); return; }
 
     setBusy(true); setMessage(null);
     try {
@@ -199,7 +199,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
             fontFamily: 'var(--mono, monospace)',
             letterSpacing: '0.02em',
           }}>
-            {members.length} / {group.max_members} members
+            {tp('{0} / {1} members', [members.length, group.max_members])}
           </div>
         </div>
 
@@ -325,7 +325,7 @@ export default function GroupInfo({ groupId, onNavigate }) {
                         letterSpacing: '0.05em',
                         fontFamily: 'inherit',
                       }}>
-                        ADMIN
+                        {t('ADMIN')}
                       </span>
                     )}
                   </div>

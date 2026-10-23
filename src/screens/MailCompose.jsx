@@ -340,7 +340,7 @@ export default function MailCompose({ onNavigate, myPrimaryAddress }) {
           >
             {aliases.map((a) => (
               <option key={a.alias} value={a.alias}>
-                {a.alias}@{MAIL_DOMAIN}{a.primary ? ' (primary)' : ''}
+                {a.alias}@{MAIL_DOMAIN}{a.primary ? ` ${t('(primary)')}` : ''}
               </option>
             ))}
             <option value="">{t('Anonymously (no address)')}</option>

@@ -3,7 +3,7 @@ import * as vault from '../lib/vault.js';
 import * as store from '../lib/storage.js';
 import { mnemonicFromSeed } from '../lib/crypto.js';
 import { hapticSuccess, hapticWarning } from '../lib/haptics.js';
-import { t } from '../lib/i18n.js';
+import { t, tp } from '../lib/i18n.js';
 
 /*
  * Екран "Recovery key" — присвячений саме 24 словам.
@@ -42,7 +42,7 @@ export default function RecoveryKey(props) {
       vault.clearLockout();
       setOk(true);
     } catch {
-      setErr(pre.locked ? `Too many attempts. Wait ${pre.remaining_s}s.` : t('Wrong PIN'));
+      setErr(pre.locked ? tp('Too many attempts. Wait {0}s.', [pre.remaining_s]) : t('Wrong PIN'));
       setPin('');
     }
   }
@@ -50,7 +50,7 @@ export default function RecoveryKey(props) {
   return (
     <div className="screen" style={{ background: '#0A0A0B', padding: 24, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 14 }}>
       <div style={{ fontSize: 22, fontWeight: 800, color: '#F5F5F7' }}>{t('Recovery key')}</div>
-      <div style={{ fontSize: 13, color: '#A4A6B2' }}>Enter your PIN to show the 24 words</div>
+      <div style={{ fontSize: 13, color: '#A4A6B2' }}>{t('Enter your PIN to show the 24 words')}</div>
       <input
         type="password" inputMode="numeric" autoComplete="off" autoFocus
         value={pin} onChange={(e) => tryPin(e.target.value)} maxLength={6}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import * as api from '../lib/api.js';
 import * as store from '../lib/storage.js';
 import { validateUsername, minLengthForTier } from '../lib/username.js';
-import { t } from '../lib/i18n.js';
+import { t, tp } from '../lib/i18n.js';
 
 /**
  * ClaimUsername — Linear-style, optional step.
@@ -131,8 +131,7 @@ export default function ClaimUsername({ onNavigate }) {
         </div>
 
         <p style={{ fontSize: 12.5, color: '#9EA0AC', marginTop: 8, lineHeight: 1.5 }}>
-          {minLengthForTier(tier)}–20 characters, starts with a letter.
-          Only lowercase latin letters, digits and _
+          {tp('{0}–20 characters, starts with a letter. Only lowercase latin letters, digits and _', [minLengthForTier(tier)])}
         </p>
 
         {hint && (

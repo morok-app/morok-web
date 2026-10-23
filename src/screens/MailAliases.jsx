@@ -282,7 +282,7 @@ export default function MailAliases({ onNavigate }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 8 }}>
                 <span style={{ fontSize: 12, color: MUTED }}>
-                  emails received: {a.received ?? 0}
+                  {tp('emails received: {0}', [a.received ?? 0])}
                 </span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {a.status === 'active' && (

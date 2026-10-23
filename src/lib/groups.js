@@ -50,7 +50,8 @@ import { sanitizeIncomingUsername } from './display.js';
 import { sanitizeReplyTo } from './reply.js';
 import * as gsec from './group_sec.js';
 import * as inflight from './inflight.js';
-import { sanitizeFwd, parseEdit, TEXT_MAX } from './msgfx.js';
+import { sanitizeFwd, parseEdit, TEXT_MAX, sanitizeBurn } from './msgfx.js';
+import { getReadBurnSeconds } from './conversations.js';
 
 /** group_id від релею — канонічний UUID. Будь-що інше відкидаємо. */
 export function isGroupId(v) {
@@ -67,6 +68,12 @@ import { t, tp } from './i18n.js';
 // ────────────────────────────────────────────────────────────
 
 function nowSeconds() { return Math.floor(Date.now() / 1000); }
+
+// мій таймер «зникнення після прочитання» — учасники теж знищать після прочитання
+function groupBurnField() {
+  const b = getReadBurnSeconds();
+  return b > 0 ? { burn: b } : {};
+}
 
 function wrapGroupPayload(kind, data) {
   return JSON.stringify({ kind, ...data });
@@ -462,7 +469,7 @@ async function sendGroupMessage__impl({
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
   const fw = fwd ? sanitizeFwd(fwd) : null;
-  const payload = wrapGroupPayload('group_msg', { text, ...(reply ? { reply_to: reply } : {}), ...(fw ? { fwd: fw } : {}) });
+  const payload = wrapGroupPayload('group_msg', { text, ...(reply ? { reply_to: reply } : {}), ...(fw ? { fwd: fw } : {}), ...groupBurnField() });
   const blobB64 = crypto.encryptStringWithKey(groupKey, payload);
 
   const ts = nowSeconds();
@@ -565,6 +572,7 @@ async function sendGroupImage__impl({
   const fw = fwd ? sanitizeFwd(fwd) : null;
   const payload = wrapGroupPayload('image', {
     ...(fw ? { fwd: fw } : {}),
+    ...groupBurnField(),
     data_b64: compressed.data_b64,
     mime: compressed.mime,
     w: compressed.w,
@@ -657,6 +665,7 @@ async function sendGroupVoice__impl({
 
   const payload = wrapGroupPayload('voice', {
     ...(fw ? { fwd: fw } : {}),
+    ...groupBurnField(),
     data_b64,
     mime: mimeType || 'audio/webm',
     duration_ms: Math.max(0, Math.floor(durationMs || 0)),
@@ -933,6 +942,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed 
     if (reply) msg.reply_to = reply;
     const gf = sanitizeFwd(payload.fwd);
     if (gf) msg.fwd = gf;
+    const gb = sanitizeBurn(payload.burn);
+    if (gb) msg.burn = gb;
     gstore.appendMessage(groupId, msg);
     return msg;
   }
@@ -958,6 +969,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed 
     };
     const gf = sanitizeFwd(payload.fwd);
     if (gf) msg.fwd = gf;
+    const gb = sanitizeBurn(payload.burn);
+    if (gb) msg.burn = gb;
     gstore.appendMessage(groupId, msg);
     return msg;
   }
@@ -982,6 +995,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed 
     };
     const gf = sanitizeFwd(payload.fwd);
     if (gf) msg.fwd = gf;
+    const gb = sanitizeBurn(payload.burn);
+    if (gb) msg.burn = gb;
     gstore.appendMessage(groupId, msg);
     return msg;
   }

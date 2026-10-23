@@ -26,7 +26,7 @@
  */
 
 import { getReadBurnSeconds } from './conversations.js';
-import { applyEditTo } from './msgfx.js';
+import { applyEditTo, minBurn } from './msgfx.js';
 
 const K = 'morok.groups.v1';
 const HARD_CEILING_SECONDS = 30 * 86400;
@@ -347,7 +347,8 @@ export function markGroupRead(groupId) {
   for (const m of g.messages || []) {
     if (m.direction === 'in' && !m.read_at) {
       m.read_at = now;
-      if (burn > 0 && !m.read_burn_at) m.read_burn_at = now + burn;
+      const b = minBurn(burn, m.burn);   // мій таймер або автора
+      if (b > 0 && !m.read_burn_at) m.read_burn_at = now + b;
       changed = true;
     }
   }

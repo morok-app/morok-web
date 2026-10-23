@@ -124,7 +124,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     const toDelete = getSelectedMessages();
     if (!toDelete.length) return;
     const seed = getSeedBytes();
-    if (!seed) { alert('Session expired.'); return; }
+    if (!seed) { alert(t('Session expired.')); return; }
     exitSelectMode();
     let failed = 0;
     for (const m of toDelete) {
@@ -348,7 +348,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     setActionMessage(null);
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Session expired.');
+      alert(t('Session expired.'));
       return;
     }
     try {
@@ -381,7 +381,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Session expired.');
+      alert(t('Session expired.'));
       return;
     }
 
@@ -420,11 +420,11 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     if (!draft.trim() || sending) return;
     const seed = getSeedBytes();
     if (!seed) {
-      alert('Session expired. Reload the page.');
+      alert(t('Session expired. Reload the page.'));
       return;
     }
     if (!myPubkeyHex) {
-      alert('My pubkey not found.');
+      alert(t('My pubkey not found.'));
       return;
     }
     if (editMsg) {
@@ -479,12 +479,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   async function sendImageFile(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('That\'s not an image.');
+      alert(t('That\'s not an image.'));
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Session expired. Reload the page.');
+      alert(t('Session expired. Reload the page.'));
       return;
     }
     setImageBusy(true);
@@ -530,12 +530,12 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   async function startRecording() {
     if (recording || voiceBusy || sending || imageBusy) return;
     if (!voiceIsSupported()) {
-      alert('This browser doesn\'t support voice recording.');
+      alert(t('This browser doesn\'t support voice recording.'));
       return;
     }
     const seed = getSeedBytes();
     if (!seed || !myPubkeyHex) {
-      alert('Session expired. Reload the page.');
+      alert(t('Session expired. Reload the page.'));
       return;
     }
     const rec = new Recorder();
@@ -588,7 +588,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       }
       const seed = getSeedBytes();
       if (!seed || !myPubkeyHex) {
-        alert('Session expired.');
+        alert(t('Session expired.'));
         setVoiceBusy(false);
         return;
       }
@@ -676,9 +676,13 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   const displayTitle = isBurner
     ? (burnerMeta.label ? tp("Anonymous · {0}", [burnerMeta.label]) : t('Anonymous'))
     : `@${conv.peer_username || conv.peer_pubkey.slice(0, 12) + '…'}`;
+  // чинний таймер «зникнення після прочитання» (мій або співрозмовника)
+  const burnSec = convs.effectiveBurn(peerPubkey);
   const displaySubtitle = isBurner
     ? t('anonymous inbox')
-    : (conv.peer_home_relay || '');
+    : (burnSec > 0
+        ? tp('🔥 disappear {0} after reading', [burnSec < 60 ? tp('{0} s', [burnSec]) : burnSec < 3600 ? tp('{0} min', [Math.round(burnSec / 60)]) : tp('{0} h', [Math.round(burnSec / 3600)])])
+        : (conv.peer_home_relay || ''));
 
   // Compute peer color
   const peerHue = parseInt(conv.peer_pubkey.slice(0, 6), 16) % 360;
@@ -816,7 +820,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>✕</button>
           <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: '#F5F5F7', letterSpacing: '-0.01em' }}>
-            {selectedIds.size} selected
+            {tp('{0} selected', [selectedIds.size])}
           </div>
           <button onClick={batchDeleteForMe} disabled={!selectedIds.size} style={{
             padding: '8px 12px', borderRadius: 10,
@@ -959,13 +963,14 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 position: 'relative',
               }}
             >
-              {!selectMode && (
-                <button
-                  className={`msg-hover-btn${isOut ? ' out' : ' in'}`}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setActionMessage(m); }}
-                  title={t("Actions")}
-                >⋯</button>
+              {m.alarm && (
+                <div style={{
+                  fontSize: 11.5, lineHeight: 1.4, fontWeight: 700,
+                  color: '#FF8A94', background: 'rgba(255,90,100,0.14)',
+                  border: '1px solid rgba(255,90,100,0.45)', borderRadius: 8, padding: '6px 10px',
+                }}>
+                  {m.alarm_test ? t('🧪 Alarm signal test') : t('🚨 ALARM SIGNAL — sent automatically when the phone was unlocked under duress')}
+                </div>
               )}
               {m.dms_trigger && (
                 <div
@@ -1009,7 +1014,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 )}
                 {m.status === 'undecryptable' ? (
                   <span style={{ opacity: 0.7, fontStyle: 'italic', padding: m.image ? '8px 9px' : 0, display: 'block' }}>
-                    ⚠ {m.error || 'couldn\'t decrypt'}
+                    ⚠ {m.error ? t(m.error) : t('couldn\'t decrypt')}
                   </span>
                 ) : m.voice ? (
                   <VoicePlayer voice={m.voice} isOut={isOut} />
@@ -1196,7 +1201,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 padding: '6px 22px 14px',
                 color: '#A8A8B0', fontSize: 13, textAlign: 'center',
               }}>
-                Muted · {muted.formatMuteUntil(muteEntry.until)}
+                {tp('Muted · {0}', [muted.formatMuteUntil(muteEntry.until)])}
               </div>
               <button
                 onClick={unmuteChat}
@@ -1280,7 +1285,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
               ? tp("🎤 Voice ({0})", [formatDuration(actionMessage.voice.duration_ms || 0)])
               : actionMessage.image
               ? (actionMessage.text
-                  ? `📷 Image · "${maskSpoilers(actionMessage.text).slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
+                  ? `${t('📷 Image')} · "${maskSpoilers(actionMessage.text).slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
                   : t('📷 Image'))
               : `"${maskSpoilers(actionMessage.text || '').slice(0, 80)}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
@@ -1634,7 +1639,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
                 cursor: (voiceBusy || sending || imageBusy) ? 'wait' : 'pointer',
                 flexShrink: 0,
               }}
-              title="Записати голосове"
+              title={t('Record a voice message')}
             >
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -1674,7 +1679,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
         >
           <img
             src={`data:${lightboxImage.mime};base64,${lightboxImage.data_b64}`}
-            alt="image"
+            alt={t('Image')}
             onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '100%', maxHeight: '100%',

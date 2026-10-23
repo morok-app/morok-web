@@ -31,7 +31,7 @@ export function isSafeRelayUrl(url) {
 export function seg(value) {
   const v = String(value ?? '');
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(v)) {
-    const err = new Error('Некоректний ідентифікатор');
+    const err = new Error(t('Invalid identifier'));
     err.code = 'bad_id';
     throw err;
   }
@@ -90,7 +90,7 @@ export function getRelayUrl() { return _relayUrl; }
  */
 export function setRelayUrl(url) {
   const clean = String(url || '').trim().replace(/\/+$/, '');
-  if (!isSafeRelayUrl(clean)) throw new Error('Небезпечна адреса релею (потрібен https://)');
+  if (!isSafeRelayUrl(clean)) throw new Error(t('Unsafe relay address (https:// required)'));
   _relayUrl = clean;
   // БУВ БАГ: перевірявся лише Capacitor, тому у Tauri (Windows) вибір
   // релея читався на старті, але НЕ зберігався — після перезапуску
@@ -167,7 +167,7 @@ async function http(method, path, { body, auth, timeoutMs } = {}) {
   const pathOnly = String(path).split('?')[0];
   if (pathOnly.includes('#') || /%2e|%2f|%5c|\\/i.test(pathOnly) ||
       pathOnly.split('/').some((p) => p === '.' || p === '..')) {
-    const err = new Error('Некоректний шлях запиту');
+    const err = new Error(t('Invalid request path'));
     err.code = 'bad_path';
     throw err;
   }
@@ -461,13 +461,13 @@ export async function fetchBlob(envelopeId) {
   // йде в пам'ять і base64 — гігантська відповідь валила б вкладку.
   const declared = Number(resp.headers?.get?.('content-length') || 0);
   if (declared > MAX_BLOB_BYTES) {
-    const err = new Error('Завеликий конверт');
+    const err = new Error(t('Envelope too large'));
     err.status = 413;
     throw err;
   }
   const buf = await resp.arrayBuffer();
   if (buf.byteLength > MAX_BLOB_BYTES) {
-    const err = new Error('Завеликий конверт');
+    const err = new Error(t('Envelope too large'));
     err.status = 413;
     throw err;
   }
@@ -538,7 +538,7 @@ export async function sendSealedEnvelope(relayBase, body) {
   // home_relay приходить із lookup (тобто від релею) — без перевірки
   // підставний релей міг би направити sealed-конверти, delivery-токен і
   // нашу IP на будь-який хост.
-  if (!isSafeRelayUrl(base)) throw new Error('Некоректна адреса релею одержувача');
+  if (!isSafeRelayUrl(base)) throw new Error(t('Invalid recipient relay address'));
   const res = await fetch(`${base}/api/v1/messages/sealed`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -557,7 +557,7 @@ export async function sendSealedEnvelope(relayBase, body) {
 /** Видалення sealed-конверта пред'явленням delete-ключа (без auth). */
 export async function deleteSealedEnvelope(relayBase, envelopeId, deleteKeyHex) {
   const base = String(relayBase || '').trim().replace(/\/+$/, '');
-  if (!isSafeRelayUrl(base)) throw new Error('Некоректна адреса релею');
+  if (!isSafeRelayUrl(base)) throw new Error(t('Invalid relay address'));
   const res = await fetch(
     `${base}/api/v1/messages/sealed/${seg(envelopeId)}/delete`,
     {

@@ -90,8 +90,8 @@ export default function Settings({ onNavigate }) {
   const [autolock, setAutolock] = useState(() => String(store.getPreference('autolock', '15')));
   const AUTOLOCK_ORDER = ['15', '30', 'off', 'instant', '1', '5'];
   const AUTOLOCK_LABEL = {
-    off: t('Off'), instant: 'Одразу / Immediately',
-    1: '1 хв / min', 5: '5 хв / min', 15: '15 хв / min', 30: '30 хв / min',
+    off: t('Off'), instant: t('Immediately'),
+    1: tp('{0} min', [1]), 5: tp('{0} min', [5]), 15: tp('{0} min', [15]), 30: tp('{0} min', [30]),
   };
   function cycleAutolock() {
     const i = AUTOLOCK_ORDER.indexOf(autolock);
@@ -255,7 +255,7 @@ export default function Settings({ onNavigate }) {
     } catch { /* ignore */ }
     const p2 = window.prompt('Repeat the duress PIN:');
     if (p2 === null) return;
-    if (p2.trim() !== pin) { showToast('The codes don\'t match.', 'warn'); return; }
+    if (p2.trim() !== pin) { showToast(t('The codes don\'t match.'), 'warn'); return; }
     vault.setDuressPin(pin);
     setDuressOn(true);
     showToast(t('Duress PIN enabled. Test it BEFORE you actually need it.'), 'ok');
@@ -264,7 +264,7 @@ export default function Settings({ onNavigate }) {
   function setupPinClicked() { onNavigate('pin-setup-existing'); }
 
   async function removePinClicked() {
-    if (!confirm('Remove the PIN? You\'ll need to protect the account again after a reload.')) return;
+    if (!confirm(t('Remove the PIN? You\'ll need to protect the account again after a reload.'))) return;
     const seed = vault.getUnlockedSeed();
     if (!seed) {
       showToast(t('Session expired. Reload the page.'), 'warn');
@@ -272,7 +272,7 @@ export default function Settings({ onNavigate }) {
     }
     setBusy(true);
     try {
-      const pin = prompt('Enter the PIN again to remove protection:');
+      const pin = prompt(t('Enter the PIN again to remove protection:'));
       if (!pin || pin.length !== 6) { setBusy(false); return; }
       const lock = vault.getLockoutStatus();
       if (lock.locked) { showToast(tp("Too many attempts. Wait {0}s.", [lock.remaining_s]), 'warn'); setBusy(false); return; }
@@ -317,9 +317,9 @@ export default function Settings({ onNavigate }) {
       showToast(t('At least 12 characters.'), 'warn');
       return;
     }
-    const confirm2 = prompt('Enter the passphrase again:');
+    const confirm2 = prompt(t('Enter the passphrase again:'));
     if (confirm2 !== passphrase) {
-      showToast('Doesn\'t match.', 'warn');
+      showToast(t('Doesn\'t match.'), 'warn');
       return;
     }
     let seed = vault.getUnlockedSeed();
@@ -478,7 +478,7 @@ export default function Settings({ onNavigate }) {
             onClick={hasPin ? removePinClicked : setupPinClicked}
           />
           <LinRow
-            label="Duress-PIN"
+            label={t('Duress-PIN')}
             value={duressOn ? t('On') : t('Off')}
             valueColor={duressOn ? '#4ADE80' : '#A8A8B0'}
             onClick={() => {
@@ -527,7 +527,7 @@ export default function Settings({ onNavigate }) {
           />
           {(store.loadIdentity()?.encrypted) && (
             <LinRow
-              label="Автоблокування / Auto-lock"
+              label={t('Auto-lock')}
               value={AUTOLOCK_LABEL[autolock] || AUTOLOCK_LABEL['15']}
               valueColor={autolock === 'off' ? '#A8A8B0' : '#4ADE80'}
               onClick={cycleAutolock}
@@ -660,7 +660,7 @@ export default function Settings({ onNavigate }) {
           letterSpacing: '0.04em',
           fontWeight: 500,
         }}>
-          Morok · v0.4.1 · beta
+          Morok · v0.9.4 · beta
         </div>
       </div>
 

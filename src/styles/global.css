@@ -746,29 +746,3 @@ body.is-native .lin-primary-btn:not(:disabled):active { transform: scale(0.97); 
   }
 }
 
-/* ── Hover-кнопка "⋯" на повідомленні (десктоп) ── */
-.msg-hover-btn {
-  display: none;
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: #1E1E27;
-  border: 1px solid #32323E;
-  color: #C8C8D2;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  z-index: 5;
-}
-.msg-hover-btn.out { left: -38px; }
-.msg-hover-btn.in  { right: -38px; }
-
-@media (hover: hover) and (min-width: 900px) {
-  .msg-row:hover .msg-hover-btn { display: flex; }
-  .msg-hover-btn:hover { background: #2E2E3A; color: #FFF; border-color: #3E3E4C; }
-}
