@@ -12,6 +12,8 @@ import * as muted from '../lib/muted.js';
 import { t, tp } from '../lib/i18n.js';
 import { buildReplyTo } from '../lib/reply.js';
 import { ReplyBar, ReplyQuote, scrollToMessage } from '../components/Reply.jsx';
+import { RichText, ForwardLabel, EditBar, SearchBar, SearchButton, SpoilerButton, ForwardModal } from '../components/ChatExtras.jsx';
+import { canEdit, forwardableOf, stripSpoilers, toggleSpoiler, searchMessages, maskSpoilers } from '../lib/msgfx.js';
 
 // TTL must not exceed backend message_ttl_hard_seconds (86400 = 24h).
 const TTL_OPTIONS = [
@@ -64,6 +66,26 @@ export default function GroupChat({ groupId, onNavigate }) {
   const [flashId, setFlashId] = useState(null);     // підсвітка оригіналу після кліку по цитаті
   const flashTimer = useRef(null);
   const composerRef = useRef(null);
+  const [editMsg, setEditMsg] = useState(null);
+  const [forwardMsg, setForwardMsg] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [matchIdx, setMatchIdx] = useState(0);
+  const draftBeforeEdit = useRef('');
+  const editSeq = useRef(0);
+  const searchBlockRef = useRef(false);   // відкрите вікно/режим, де Ctrl+F лишаємо браузеру
+  // Ctrl+F / ⌘F — пошук у цьому чаті (повторне натискання — фокус у полі)
+  useEffect(() => {
+    function onKey(e) {
+      if (!((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А'))) return;
+      if (searchBlockRef.current) return;
+      e.preventDefault();
+      setSearchOpen(true);
+      setTimeout(() => { const el = document.querySelector('input[data-chat-search]'); if (el) { el.focus(); el.select(); } }, 0);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => () => clearTimeout(flashTimer.current), []);
 
   // ── Мультивиділення повідомлень ──
@@ -379,6 +401,27 @@ export default function GroupChat({ groupId, onNavigate }) {
     const seed = getSeedBytes();
     if (!seed) { alert('Session expired.'); return; }
     if (!myPubkeyHex) { alert('My pubkey not found.'); return; }
+    if (editMsg) {
+      const target = editMsg;
+      const mySeq = editSeq.current;
+      setSending(true);
+      try {
+        await groups.sendGroupEdit({ groupId, targetEnvelopeId: target.envelope_id, text: draft.trim(), ttlSeconds, seed, myPubkeyHex });
+        vault.refreshSession();
+        if (editSeq.current === mySeq) {
+          editSeq.current += 1;
+          setEditMsg(null);
+          setDraft(draftBeforeEdit.current || '');
+          draftBeforeEdit.current = '';
+        }
+      } catch (e) {
+        alert(e?.message === 'edit_window' ? t('Messages can be edited within 48 hours.') : tp('Could not edit: {0}', [e?.message || '']));
+      } finally {
+        setSending(false);
+        setGroup(gstore.getGroup(groupId));
+      }
+      return;
+    }
     setSending(true);
     const replyTo = replyMsg
       ? buildReplyTo(replyMsg)
@@ -613,7 +656,7 @@ export default function GroupChat({ groupId, onNavigate }) {
   // Автор цитати — з МОЄЇ копії оригіналу, не з того, що прислали.
   const authorOf = (orig) => (orig ? (orig.direction === 'out' ? t('You') : nameFor(orig.sender_pubkey)) : null);
   function startReply(x) {
-    if (!canReply(x)) return;
+    if (!canReply(x) || editMsg) return;
     // смужка відповіді з'їдає трохи висоти — якщо були внизу, лишаємось унизу
     const el = scrollerRef.current;
     const nearBottom = !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 140;
@@ -631,6 +674,58 @@ export default function GroupChat({ groupId, onNavigate }) {
     clearTimeout(flashTimer.current);
     setTimeout(() => setFlashId(orig.id), 20);
     flashTimer.current = setTimeout(() => setFlashId(null), 1700);
+  }
+  function flashMessage(id) {
+    scrollToMessage(scrollerRef.current, id);
+    setFlashId(null);
+    clearTimeout(flashTimer.current);
+    setTimeout(() => setFlashId(id), 20);
+    flashTimer.current = setTimeout(() => setFlashId(null), 1700);
+  }
+
+  searchBlockRef.current = !!(selectMode || lightboxImage || actionMessage || forwardMsg);
+  const matches = searchOpen ? searchMessages(messages, query) : [];
+  function onQuery(q) {
+    setQuery(q);
+    const found = searchMessages(messages, q);
+    if (found.length) { setMatchIdx(found.length - 1); flashMessage(found[found.length - 1]); }
+    else setMatchIdx(0);
+  }
+  function stepMatch(dir) {
+    if (!matches.length) return;
+    const i = (matchIdx + dir + matches.length) % matches.length;
+    setMatchIdx(i);
+    flashMessage(matches[i]);
+  }
+  function closeSearch() { setSearchOpen(false); setQuery(''); setMatchIdx(0); }
+
+  function startEdit(x) {
+    if (sending) return;
+    if (!editMsg) draftBeforeEdit.current = draft;
+    editSeq.current += 1;
+    if (!canEdit(x)) return;
+    setReplyMsg(null);
+    setEditMsg(x);
+    setDraft(x.text);
+    setTimeout(() => {
+      const el = composerRef.current;
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    }, 30);
+  }
+  function cancelEdit() {
+    if (sending) return;
+    editSeq.current += 1;
+    setEditMsg(null);
+    setDraft(draftBeforeEdit.current || '');
+    draftBeforeEdit.current = '';
+  }
+  function spoilerDraft() {
+    const el = composerRef.current;
+    const sel = el ? { start: el.selectionStart, end: el.selectionEnd } : { start: 0, end: 0 };
+    const r = toggleSpoiler(draft, sel);
+    if (r.text === draft) return;
+    setDraft(r.text);
+    setTimeout(() => { try { el?.focus(); el?.setSelectionRange(r.selection.start, r.selection.end); } catch { /* ignore */ } }, 0);
   }
 
   return (
@@ -700,8 +795,19 @@ export default function GroupChat({ groupId, onNavigate }) {
             }}>{t('For everyone')}</button>
           )}
         </div>
+      ) : searchOpen ? (
+        <SearchBar
+          query={query}
+          onChange={onQuery}
+          index={matchIdx}
+          total={matches.length}
+          onPrev={() => stepMatch(-1)}
+          onNext={() => stepMatch(1)}
+          onClose={closeSearch}
+        />
       ) : (
       <CompactHeader
+        onSearchClick={() => setSearchOpen(true)}
         title={group.name || t('Untitled group')}
         subtitle={tp("{0} members", [memberCount])}
         onBack={() => onNavigate('chats')}
@@ -850,6 +956,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                   overflow: 'hidden',
                 }}
               >
+                {m.status !== 'undecryptable' && <ForwardLabel fwd={m.fwd} out={isOut} pad={!!(m.image || m.voice)} />}
                 {m.reply_to && m.status !== 'undecryptable' && (
                   <div style={{ padding: (m.image || m.voice) ? '2px 2px 0' : 0 }}>
                     <ReplyQuote
@@ -883,11 +990,11 @@ export default function GroupChat({ groupId, onNavigate }) {
                     />
                     {m.text && (
                       <div style={{ padding: '6px 9px 2px', fontSize: 14, color: isOut ? '#FFF' : '#F5F5F7' }}>
-                        {m.text}
+                        <RichText key={m.text} text={m.text} out={isOut} />
                       </div>
                     )}
                   </>
-                ) : m.text}
+                ) : <RichText key={m.text} text={m.text} out={isOut} />}
               </div>
 
               {m.reactions && Object.keys(m.reactions).length > 0 && (
@@ -941,7 +1048,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 </div>
               )}
 
-              {!sameNext && (
+              {(!sameNext || m.edited) && (
                 <div style={{
                   fontSize: 12.5, color: '#9EA0AC',
                   fontFamily: 'var(--mono, monospace)',
@@ -950,6 +1057,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                   alignSelf: isOut ? 'flex-end' : 'flex-start',
                   letterSpacing: '0.02em',
                 }}>
+                  {m.edited && <span>{t('edited')} ·</span>}
                   <span>{fmtClock(m.ts)}</span>
                   {m.expires_at && (
                     <span>· ⏱ {fmtTTLLeft(m.expires_at)}</span>
@@ -1135,9 +1243,9 @@ export default function GroupChat({ groupId, onNavigate }) {
               ? tp("🎤 Voice ({0})", [formatDuration(actionMessage.voice.duration_ms || 0)])
               : actionMessage.image
               ? (actionMessage.text
-                  ? `📷 Image · "${actionMessage.text.slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
+                  ? `📷 Image · "${maskSpoilers(actionMessage.text).slice(0, 60)}${actionMessage.text.length > 60 ? '…' : ''}"`
                   : t('📷 Image'))
-              : `"${actionMessage.text?.slice(0, 80) || ''}${actionMessage.text?.length > 80 ? '…' : ''}"`}
+              : `"${maskSpoilers(actionMessage.text || '').slice(0, 80)}${actionMessage.text?.length > 80 ? '…' : ''}"`}
           </div>
           {canReply(actionMessage) && (
             <div
@@ -1152,6 +1260,24 @@ export default function GroupChat({ groupId, onNavigate }) {
                 <polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
               </svg>
               {t('Reply')}
+            </div>
+          )}
+          {canEdit(actionMessage) && (
+            <div
+              onClick={() => { const x = actionMessage; setActionMessage(null); startEdit(x); }}
+              style={{ padding: '14px 20px', cursor: 'pointer', color: '#F5F5F7', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 12 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              {t('Edit')}
+            </div>
+          )}
+          {!!forwardableOf(actionMessage) && (
+            <div
+              onClick={() => { const x = actionMessage; setActionMessage(null); setForwardMsg(x); }}
+              style={{ padding: '14px 20px', cursor: 'pointer', color: '#F5F5F7', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 12 }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 14 20 9 15 4" /><path d="M4 20v-7a4 4 0 0 1 4-4h12" /></svg>
+              {t('Forward')}
             </div>
           )}
           <div
@@ -1170,7 +1296,7 @@ export default function GroupChat({ groupId, onNavigate }) {
           {actionMessage.text && (
             <div
               onClick={() => {
-                navigator.clipboard?.writeText(actionMessage.text || '').catch(() => {});
+                navigator.clipboard?.writeText(stripSpoilers(actionMessage.text || '')).catch(() => {});
                 setActionMessage(null);
               }}
               style={{
@@ -1296,7 +1422,8 @@ export default function GroupChat({ groupId, onNavigate }) {
           </div>
         ) : (
         <div style={{ borderTop: '1px solid #1E1E27', background: '#0A0A0B' }}>
-        {replyMsg && (
+        {editMsg && <EditBar original={editMsg} onClose={cancelEdit} />}
+        {!editMsg && replyMsg && (
           <ReplyBar
             authorLabel={replyMsg.direction === 'out' ? t('yourself') : nameFor(replyMsg.sender_pubkey)}
             original={replyMsg}
@@ -1371,10 +1498,21 @@ export default function GroupChat({ groupId, onNavigate }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
+              if (e.key === 'Escape' && editMsg && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                e.stopPropagation();
+                cancelEdit();
+                return;
+              }
               if (e.key === 'Escape' && replyMsg && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 e.stopPropagation();
                 setReplyMsg(null);
+                return;
+              }
+              if (e.key === 'ArrowUp' && !draft && !editMsg && !e.nativeEvent.isComposing) {
+                const last = [...messages].reverse().find((x) => canEdit(x));
+                if (last) { e.preventDefault(); startEdit(last); }
                 return;
               }
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -1382,7 +1520,7 @@ export default function GroupChat({ groupId, onNavigate }) {
                 sendClicked();
               }
             }}
-            placeholder="Повідомлення..."
+            placeholder={editMsg ? t('New text…') : t('Message…')}
             rows={1}
             style={{
               flex: 1, minHeight: 38, maxHeight: 110,
@@ -1398,9 +1536,11 @@ export default function GroupChat({ groupId, onNavigate }) {
             onFocus={(e) => e.target.style.borderColor = '#3F3F50'}
             onBlur={(e) => e.target.style.borderColor = '#232329'}
           />
+          {draft.trim() && <SpoilerButton onClick={spoilerDraft} />}
           {draft.trim() ? (
             <button
               onClick={sendClicked}
+              title={editMsg ? t('Save') : t('Send')}
               disabled={!draft.trim() || sending}
               style={{
                 width: 38, height: 38, borderRadius: '50%',
@@ -1444,6 +1584,17 @@ export default function GroupChat({ groupId, onNavigate }) {
         </div>
         </div>
         )
+      )}
+
+      {forwardMsg && (
+        <ForwardModal
+          message={forwardMsg}
+          authorName={forwardMsg.fwd ? forwardMsg.fwd.name : (forwardMsg.direction === 'out'
+            ? (store.loadProfile()?.username ? `@${store.loadProfile().username}` : null)
+            : (forwardMsg.sender_username ? `@${forwardMsg.sender_username}` : null))}
+          onClose={() => setForwardMsg(null)}
+          onDone={(route) => { setForwardMsg(null); onNavigate(route); }}
+        />
       )}
 
       {/* Image lightbox */}
@@ -1498,7 +1649,7 @@ export default function GroupChat({ groupId, onNavigate }) {
 
 /* ─── Sub-components ─────────────────────────────────────── */
 
-function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isMuted }) {
+function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isMuted, onSearchClick }) {
   return (
     <div className="dt-chat-header" style={{
       padding: '14px 16px',
@@ -1568,6 +1719,7 @@ function CompactHeader({ title, subtitle, onBack, onTitleClick, onMenuClick, isM
         )}
       </div>
 
+      {typeof onSearchClick === 'function' && <SearchButton onClick={onSearchClick} />}
       {typeof onMenuClick === 'function' && (
         <button
           onClick={(e) => { e.stopPropagation(); onMenuClick(); }}

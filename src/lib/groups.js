@@ -50,6 +50,7 @@ import { sanitizeIncomingUsername } from './display.js';
 import { sanitizeReplyTo } from './reply.js';
 import * as gsec from './group_sec.js';
 import * as inflight from './inflight.js';
+import { sanitizeFwd, parseEdit, TEXT_MAX } from './msgfx.js';
 
 /** group_id від релею — канонічний UUID. Будь-що інше відкидаємо. */
 export function isGroupId(v) {
@@ -181,6 +182,7 @@ export async function sendGroupKeyDM({
   await msgs.sendDM({
     seed, myPubkeyHex, peerPubkeyHex,
     plaintext: payload,
+    control: true,
     ttlSeconds: 86400,
   });
 }
@@ -209,6 +211,7 @@ export async function sendGroupKeyRequestDM({
   await msgs.sendDM({
     seed, myPubkeyHex, peerPubkeyHex,
     plaintext: payload,
+    control: true,
     ttlSeconds: 86400,
   });
 }
@@ -449,7 +452,7 @@ export async function processIncomingGroupKeyRequest({
 
 async function sendGroupMessage__impl({
   groupId, text, ttlSeconds = 86400,
-  seed, myPubkeyHex, replyTo = null,
+  seed, myPubkeyHex, replyTo = null, fwd = null,
 }) {
   const reply = replyTo ? sanitizeReplyTo(replyTo) : null;
   const group = gstore.getGroup(groupId);
@@ -458,7 +461,8 @@ async function sendGroupMessage__impl({
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
-  const payload = wrapGroupPayload('group_msg', reply ? { text, reply_to: reply } : { text });
+  const fw = fwd ? sanitizeFwd(fwd) : null;
+  const payload = wrapGroupPayload('group_msg', { text, ...(reply ? { reply_to: reply } : {}), ...(fw ? { fwd: fw } : {}) });
   const blobB64 = crypto.encryptStringWithKey(groupKey, payload);
 
   const ts = nowSeconds();
@@ -482,6 +486,7 @@ async function sendGroupMessage__impl({
     status: 'sending',
   };
   if (reply) localMsg.reply_to = reply;
+  if (fw) localMsg.fwd = fw;
   gstore.appendMessage(groupId, localMsg);
 
   try {
@@ -508,6 +513,38 @@ async function sendGroupMessage__impl({
   }
 }
 
+/**
+ * Правка мого повідомлення в групі. Застосовується в мене одразу, при
+ * помилці — відкочується. Іде звичайним груповим конвертом (kind 'edit'):
+ * старі клієнти такий kind ігнорують.
+ */
+async function sendGroupEdit__impl({ groupId, targetEnvelopeId, text, ttlSeconds = 86400, seed, myPubkeyHex }) {
+  const body = String(text || '').slice(0, TEXT_MAX);
+  if (!targetEnvelopeId || !body.trim()) throw new Error('bad_edit');
+  const group = gstore.getGroup(groupId);
+  if (!group || !group.group_key_b64) throw new Error(t('No group key'));
+  const orig = (group.messages || []).find((x) => x.envelope_id === targetEnvelopeId);
+  if (!orig || orig.direction !== 'out') throw new Error('not_found');
+  const before = { text: orig.text, edited: !!orig.edited, edited_at: orig.edited_at };
+  const ts = Math.max(nowSeconds(), (orig.edited_at || orig.ts || 0) + 1);
+  // правка живе стільки ж, скільки лишилось оригіналу (не менше хвилини)
+  if (Number.isFinite(orig.expires_at)) ttlSeconds = Math.max(60, orig.expires_at - ts);
+  if (!gstore.applyEdit(groupId, targetEnvelopeId, { text: body, ts }, 'me')) {
+    if (orig.text === body) return { status: 'unchanged' };
+    throw new Error('edit_window');
+  }
+  try {
+    const groupKey = crypto.base64ToBytes(group.group_key_b64);
+    const blobB64 = crypto.encryptStringWithKey(groupKey, wrapGroupPayload('edit', { target_envelope_id: targetEnvelopeId, text: body }));
+    const sig = crypto.signEnvelope({ seed, fromHex: myPubkeyHex, toHex: groupId, ts, ttl: ttlSeconds, blobB64 });
+    const ack = await api.sendGroupMessage(groupId, { from: myPubkeyHex, to: groupId, ts, ttl: ttlSeconds, blob: blobB64, sig });
+    return { envelope_id: ack?.envelope_id, status: 'sent' };
+  } catch (e) {
+    gstore.applyEdit(groupId, targetEnvelopeId, before, 'me', { force: true, onlyIfTs: ts });
+    throw e;
+  }
+}
+
 // ────────────────────────────────────────────────────────────
 // Process incoming group envelope
 // ────────────────────────────────────────────────────────────
@@ -516,6 +553,7 @@ async function sendGroupImage__impl({
   groupId, file, caption = '',
   ttlSeconds = 86400,
   seed, myPubkeyHex,
+  preEncoded = null, fwd = null,
 }) {
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
@@ -523,8 +561,10 @@ async function sendGroupImage__impl({
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
-  const compressed = await compressImage(file);
+  const compressed = preEncoded?.data_b64 ? preEncoded : await compressImage(file);
+  const fw = fwd ? sanitizeFwd(fwd) : null;
   const payload = wrapGroupPayload('image', {
+    ...(fw ? { fwd: fw } : {}),
     data_b64: compressed.data_b64,
     mime: compressed.mime,
     w: compressed.w,
@@ -547,6 +587,7 @@ async function sendGroupImage__impl({
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
     sender_pubkey: myPubkeyHex,
+    ...(fw ? { fwd: fw } : {}),
     text: caption || '',
     image: {
       data_b64: compressed.data_b64,
@@ -593,6 +634,7 @@ async function sendGroupVoice__impl({
   groupId, audioBlob, mimeType, durationMs,
   ttlSeconds = 86400,
   seed, myPubkeyHex,
+  preEncoded = null, fwd = null,
 }) {
   const group = gstore.getGroup(groupId);
   if (!group || !group.group_key_b64) {
@@ -600,7 +642,12 @@ async function sendGroupVoice__impl({
   }
   const groupKey = crypto.base64ToBytes(group.group_key_b64);
 
-  const data_b64 = await blobToBase64(audioBlob);
+  if (preEncoded?.data_b64) {
+    mimeType = preEncoded.mime || mimeType;
+    durationMs = preEncoded.duration_ms ?? durationMs;
+  }
+  const data_b64 = preEncoded?.data_b64 || await blobToBase64(audioBlob);
+  const fw = fwd ? sanitizeFwd(fwd) : null;
   const rawSize = Math.floor(data_b64.length * 0.75);
   if (rawSize > 140 * 1024) {
     throw new Error(
@@ -609,6 +656,7 @@ async function sendGroupVoice__impl({
   }
 
   const payload = wrapGroupPayload('voice', {
+    ...(fw ? { fwd: fw } : {}),
     data_b64,
     mime: mimeType || 'audio/webm',
     duration_ms: Math.max(0, Math.floor(durationMs || 0)),
@@ -629,6 +677,7 @@ async function sendGroupVoice__impl({
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
     sender_pubkey: myPubkeyHex,
+    ...(fw ? { fwd: fw } : {}),
     text: '',
     voice: {
       data_b64,
@@ -860,6 +909,13 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed 
     return null;
   }
 
+  if (payload.kind === 'edit') {
+    // Правка: лише повідомлення ЦЬОГО ж автора (підписаний конверт).
+    const ed = parseEdit(payload, Number(envMeta.ts));
+    if (ed && gstore.applyEdit(groupId, ed.target, ed, senderPubkey)) return { __update: true, group_id: groupId };
+    return null;
+  }
+
   if (payload.kind === 'group_msg') {
     const msg = {
       id: `recv-${envelopeId.slice(0, 16)}`,
@@ -875,6 +931,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed 
     };
     const reply = sanitizeReplyTo(payload.reply_to);
     if (reply) msg.reply_to = reply;
+    const gf = sanitizeFwd(payload.fwd);
+    if (gf) msg.fwd = gf;
     gstore.appendMessage(groupId, msg);
     return msg;
   }
@@ -898,6 +956,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed 
       expires_at: envMeta.expires_at,
       status: 'received',
     };
+    const gf = sanitizeFwd(payload.fwd);
+    if (gf) msg.fwd = gf;
     gstore.appendMessage(groupId, msg);
     return msg;
   }
@@ -920,6 +980,8 @@ export async function processIncomingGroupEnvelope({ envMeta, myPubkeyHex, seed 
       expires_at: envMeta.expires_at,
       status: 'received',
     };
+    const gf = sanitizeFwd(payload.fwd);
+    if (gf) msg.fwd = gf;
     gstore.appendMessage(groupId, msg);
     return msg;
   }
@@ -1481,5 +1543,6 @@ export const sendGroupMessage = (...args) => inflight.track(() => sendGroupMessa
 export const sendGroupImage = (...args) => inflight.track(() => sendGroupImage__impl(...args));
 export const sendGroupVoice = (...args) => inflight.track(() => sendGroupVoice__impl(...args));
 export const sendGroupReaction = (...args) => inflight.track(() => sendGroupReaction__impl(...args));
+export const sendGroupEdit = (...args) => inflight.track(() => sendGroupEdit__impl(...args));
 export const createGroup = (...args) => inflight.track(() => createGroup__impl(...args));
 export const joinViaToken = (...args) => inflight.track(() => joinViaToken__impl(...args));

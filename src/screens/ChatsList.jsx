@@ -1,3 +1,4 @@
+import { maskSpoilers } from '../lib/msgfx.js';
 import { useEffect, useRef, useState } from 'react';
 import { hapticTap } from '../lib/haptics.js';
 import AvatarShared from '../components/Avatar.jsx';
@@ -641,8 +642,8 @@ export default function ChatsList({ onNavigate, activeChatId = null }) {
                       {last?.voice
                         ? tp("🎤 Voice ({0})", [formatVoiceDuration(last.voice.duration_ms)])
                         : last?.image
-                        ? (last.text ? `📷 ${last.text}` : t('📷 Image'))
-                        : (last?.text || (last?.status === 'undecryptable' ? '⚠ couldn\'t decrypt' : '...'))}
+                        ? (last.text ? `📷 ${maskSpoilers(last.text)}` : t('📷 Image'))
+                        : (maskSpoilers(last?.text || '') || (last?.status === 'undecryptable' ? '⚠ couldn\'t decrypt' : '...'))}
                     </div>
                     {last?.ttl && (
                       <div style={{ fontSize: 12.5, color: '#9EA0AC', fontFamily: 'var(--mono, monospace)' }}>

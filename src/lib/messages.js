@@ -17,6 +17,7 @@
  * kind=group_key_request) and dispatch to the groups module silently.
  */
 
+import { sanitizeFwd, parseEdit, TEXT_MAX } from './msgfx.js';
 import * as api from './api.js';
 import * as sealedTokens from './sealed_tokens.js';
 import * as crypto from './crypto.js';
@@ -33,7 +34,8 @@ const ZERO_SIG = '0'.repeat(128);
 // Kinds that are purely protocol signalling — never shown to the user
 // and never stored in conversation history. Everything else (raw text,
 // {kind:'image'}, future content kinds) is a real message.
-const CONTROL_KINDS = new Set(['group_key', 'group_key_request', 'reaction', 'sealed_token']);
+const WJ = '\u2060';   // див. sendDM: екранування тексту, схожого на службовий кадр
+const CONTROL_KINDS = new Set(['group_key', 'group_key_request', 'reaction', 'sealed_token', 'edit']);
 
 /**
  * Базовий URL домашнього релея контакта для прямого sealed-POST.
@@ -95,15 +97,23 @@ async function trySealedSend({ seed, myPubkeyHex, peerPubkeyHex, payload, ts, tt
   }
 }
 
-export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds, replyTo = null }) {
+export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlSeconds, replyTo = null, fwd = null, control = false }) {
   // Цитата їде лише в sealed-конверті (див. lib/reply.js).
   const reply = replyTo ? sanitizeReplyTo(replyTo) : null;
   const ts = Math.floor(Date.now() / 1000);
+  // Службовий кадр — ЛИШЕ коли викликач явно каже control:true (group_key,
+  // sealed_token…). Текст користувача, що випадково/зловмисно схожий на
+  // JSON із полем kind (напр. переслане чуже повідомлення), не має стати
+  // командою: у v1 перед ним невидимий WORD JOINER, і одержувач не
+  // розбере його як кадр (а новий клієнт цей символ прибирає).
+  const parsedCtl = control ? tryParseControl(plaintext) : null;
+  const isControl = !!(parsedCtl && CONTROL_KINDS.has(parsedCtl.kind));
+  const wirePlain = (!isControl && tryParseControl(plaintext)) ? `${WJ}${plaintext}` : plaintext;
   const blob = crypto.encryptForPeer({
     seed,
     myPubkeyHex,
     peerPubkeyHex,
-    plaintext,
+    plaintext: wirePlain,
   });
   const sig = crypto.signEnvelope({
     seed,
@@ -119,8 +129,6 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
   // touching conversations storage. Content payloads like {kind:'image'}
   // are NOT control — they're real messages that the sender must see
   // in their own UI.
-  const parsedCtl = tryParseControl(plaintext);
-  const isControl = !!(parsedCtl && CONTROL_KINDS.has(parsedCtl.kind));
   if (isControl) {
     const ack = await api.sendEnvelope({
       from: myPubkeyHex,
@@ -144,13 +152,15 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
     status: 'sending',
   };
   if (reply) localMsg.reply_to = reply;
+  const fw = fwd ? sanitizeFwd(fwd) : null;
+  if (fw) localMsg.fwd = fw;
   convs.appendMessage(peerPubkeyHex, localMsg);
 
   // ── Спроба SEALED (анонімно до релея) ──
   // Доставка важливіша за анонімність: null -> тихий fallback на v1.
   const sealedRes = await trySealedSend({
     seed, myPubkeyHex, peerPubkeyHex,
-    payload: reply ? { kind: 'text', text: plaintext, reply_to: reply } : { kind: 'text', text: plaintext },
+    payload: { kind: 'text', text: plaintext, ...(reply ? { reply_to: reply } : {}), ...(fw ? { fwd: fw } : {}) },
     ts, ttlSeconds,
   });
   if (sealedRes) {
@@ -182,6 +192,8 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
       status: 'sent',
       expires_at: ack.expires_at || (ts + ttlSeconds),
       ...(reply ? { reply_to: null } : {}),
+      // «Переслано» у v1 теж не доходить (голий текст)
+      ...(fw ? { fwd: null } : {}),
     });
     return { ...localMsg, envelope_id: ack.envelope_id, status: 'sent', reply_to: null };
   } catch (e) {
@@ -214,10 +226,14 @@ export async function sendDM({ seed, myPubkeyHex, peerPubkeyHex, plaintext, ttlS
 export async function sendDMImage({
   seed, myPubkeyHex, peerPubkeyHex,
   file, caption = '', ttlSeconds,
+  preEncoded = null,   // {data_b64,mime,w,h} — уже стиснене (пересилання)
+  fwd = null,
 }) {
-  const compressed = await compressImage(file);
+  const compressed = preEncoded?.data_b64 ? preEncoded : await compressImage(file);
+  const fw = fwd ? sanitizeFwd(fwd) : null;
   const payload = JSON.stringify({
     kind: 'image',
+    ...(fw ? { fwd: fw } : {}),
     data_b64: compressed.data_b64,
     mime: compressed.mime,
     w: compressed.w,
@@ -242,6 +258,7 @@ export async function sendDMImage({
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
     peer_pubkey: peerPubkeyHex,
+    ...(fw ? { fwd: fw } : {}),
     text: caption || '',
     image: {
       data_b64: compressed.data_b64,
@@ -261,6 +278,7 @@ export async function sendDMImage({
     seed, myPubkeyHex, peerPubkeyHex,
     payload: {
       kind: 'image',
+      ...(fw ? { fwd: fw } : {}),
       data_b64: compressed.data_b64,
       mime: compressed.mime,
       w: compressed.w,
@@ -327,8 +345,15 @@ function tryParseControl(plaintext) {
 export async function sendDMVoice({
   seed, myPubkeyHex, peerPubkeyHex,
   audioBlob, mimeType, durationMs, ttlSeconds,
+  preEncoded = null,   // {data_b64,mime,duration_ms} — пересилання
+  fwd = null,
 }) {
-  const data_b64 = await blobToBase64(audioBlob);
+  if (preEncoded?.data_b64) {
+    mimeType = preEncoded.mime || mimeType;
+    durationMs = preEncoded.duration_ms ?? durationMs;
+  }
+  const data_b64 = preEncoded?.data_b64 || await blobToBase64(audioBlob);
+  const fw = fwd ? sanitizeFwd(fwd) : null;
   const rawSize = Math.floor(data_b64.length * 0.75);
   if (rawSize > 140 * 1024) {
     throw new Error(
@@ -339,6 +364,7 @@ export async function sendDMVoice({
 
   const payload = JSON.stringify({
     kind: 'voice',
+    ...(fw ? { fwd: fw } : {}),
     data_b64,
     mime: mimeType || 'audio/webm',
     duration_ms: Math.max(0, Math.floor(durationMs || 0)),
@@ -361,6 +387,7 @@ export async function sendDMVoice({
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     direction: 'out',
     peer_pubkey: peerPubkeyHex,
+    ...(fw ? { fwd: fw } : {}),
     text: '',
     voice: {
       data_b64,
@@ -379,6 +406,7 @@ export async function sendDMVoice({
     seed, myPubkeyHex, peerPubkeyHex,
     payload: {
       kind: 'voice',
+      ...(fw ? { fwd: fw } : {}),
       data_b64,
       mime: mimeType || 'audio/webm',
       duration_ms: Math.max(0, Math.floor(durationMs || 0)),
@@ -496,6 +524,49 @@ export async function sendDMReaction({
     } else {
       convs.applyReaction(peerPubkeyHex, targetEnvelopeId, emoji, 'remove', myPubkeyHex);
     }
+    throw e;
+  }
+}
+
+/**
+ * Правка мого повідомлення (див. msgfx.js). Застосовується в мене одразу;
+ * якщо не вдалося надіслати — відкочується. Як і реакції, іде sealed, а
+ * якщо не вийшло — звичайним v1-конвертом із JSON.
+ */
+export async function sendDMEdit({
+  seed, myPubkeyHex, peerPubkeyHex,
+  targetEnvelopeId, text,
+  ttlSeconds = 86400,
+}) {
+  const body = String(text || '').slice(0, TEXT_MAX);
+  if (!targetEnvelopeId || !body.trim()) throw new Error('bad_edit');
+  const conv = convs.getConversation(peerPubkeyHex);
+  const orig = (conv?.messages || []).find((x) => x.envelope_id === targetEnvelopeId);
+  if (!orig || orig.direction !== 'out') throw new Error('not_found');
+  const before = { text: orig.text, edited: !!orig.edited, edited_at: orig.edited_at };
+
+  const ts = Math.max(Math.floor(Date.now() / 1000), (orig.edited_at || orig.ts || 0) + 1);
+  // правка живе не довше за оригінал (і не менше хвилини)
+  if (Number.isFinite(orig.expires_at)) ttlSeconds = Math.max(60, Math.min(ttlSeconds, orig.expires_at - ts));
+  if (!convs.applyEdit(peerPubkeyHex, targetEnvelopeId, { text: body, ts }, 'me')) {
+    if (orig.text === body) return { status: 'unchanged' };
+    throw new Error('edit_window');
+  }
+  const payloadObj = { kind: 'edit', target_envelope_id: targetEnvelopeId, text: body };
+
+  const sealedRes = await trySealedSend({
+    seed, myPubkeyHex, peerPubkeyHex, payload: payloadObj, ts, ttlSeconds,
+  });
+  if (sealedRes) return { envelope_id: sealedRes.envelope_id, status: 'sent', control: true, sealed: true };
+
+  try {
+    const plaintext = JSON.stringify(payloadObj);
+    const blob = crypto.encryptForPeer({ seed, myPubkeyHex, peerPubkeyHex, plaintext });
+    const sig = crypto.signEnvelope({ seed, fromHex: myPubkeyHex, toHex: peerPubkeyHex, ts, ttl: ttlSeconds, blobB64: blob });
+    const ack = await api.sendEnvelope({ from: myPubkeyHex, to: peerPubkeyHex, ts, ttl: ttlSeconds, blob, sig });
+    return { envelope_id: ack.envelope_id, status: 'sent', control: true };
+  } catch (e) {
+    convs.applyEdit(peerPubkeyHex, targetEnvelopeId, before, 'me', { force: true, onlyIfTs: ts });
     throw e;
   }
 }
@@ -682,6 +753,13 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       const op = sealedPayload.op === 'remove' ? 'remove' : 'add';
       const emoji = typeof sealedPayload.emoji === 'string' ? sealedPayload.emoji : '';
       if (target) convs.applyReaction(sealedPeer, target, emoji, op, sealedPeer);
+      return { __update: true, peer_pubkey: sealedPeer };
+    }
+
+    // ── Правка: змінює текст наявного повідомлення цього ж автора ──
+    if (sealedKind === 'edit') {
+      const ed = parseEdit(sealedPayload, sealedTs);
+      if (ed && convs.applyEdit(sealedPeer, ed.target, ed, sealedPeer)) return { __update: true, peer_pubkey: sealedPeer };
       return null;
     }
 
@@ -698,6 +776,8 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       status: 'received',
       sealed: true,
     };
+    const sealedFwd = sanitizeFwd(sealedPayload.fwd);
+    if (sealedFwd) msg.fwd = sealedFwd;
 
     if (sealedKind === 'image') {
       msg.text = typeof sealedPayload.caption === 'string' ? sealedPayload.caption : '';
@@ -905,6 +985,13 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       if (!target) return null;
       // Whitelist enforced inside applyReaction; bad input → null
       convs.applyReaction(peer, target, emoji, op, peer);
+      return { __update: true, peer_pubkey: peer };
+    }
+    if (control.kind === 'edit') {
+      // Правка: лише вхідного повідомлення ЦЬОГО ж відправника (перевіряє
+      // applyEdit), час — підписаний ts конверта.
+      const ed = parseEdit(control, Number(envMeta.ts));
+      if (ed && convs.applyEdit(peer, ed.target, ed, peer)) return { __update: true, peer_pubkey: peer };
       return null;
     }
     if (control.kind === 'image') {
@@ -927,6 +1014,8 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
         expires_at: envMeta.expires_at,
         status: 'received',
       };
+      const cf = sanitizeFwd(control.fwd);
+      if (cf) msg.fwd = cf;
       convs.appendMessage(peer, msg);
       return msg;
     }
@@ -948,6 +1037,8 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
         expires_at: envMeta.expires_at,
         status: 'received',
       };
+      const cf = sanitizeFwd(control.fwd);
+      if (cf) msg.fwd = cf;
       convs.appendMessage(peer, msg);
       return msg;
     }
@@ -959,7 +1050,8 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
     envelope_id: envelopeId,
     direction: 'in',
     peer_pubkey: peer,
-    text: plaintext,
+    // екранований відправником текст (див. sendDM) — прибираємо маркер
+    text: plaintext.startsWith(`${WJ}{`) ? plaintext.slice(1) : plaintext,
     ts: envMeta.timestamp || envMeta.ts || Math.floor(Date.now() / 1000),
     ttl: envMeta.ttl_seconds || envMeta.ttl,
     expires_at: envMeta.expires_at,
@@ -1004,6 +1096,7 @@ export async function maybeShareSealedToken({ seed, myPubkeyHex, peerPubkeyHex }
     await sendDM({
       seed, myPubkeyHex, peerPubkeyHex,
       plaintext: JSON.stringify({ kind: 'sealed_token', token: myToken }),
+      control: true,
       // Релей обмежує TTL конверта добою (le=86400). Токен оновлюється
       // при кожному відкритті чату, тож доба — більш ніж достатньо.
       ttlSeconds: 86400,

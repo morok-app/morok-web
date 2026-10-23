@@ -2,6 +2,8 @@
  * Local conversation cache in localStorage.
  */
 
+import { applyEditTo } from './msgfx.js';
+
 const K = 'morok.conv.v1';
 const K_BURN = 'morok.read_burn.v1';            // глобальне налаштування (сек) або 'off'
 const HARD_CEILING_SECONDS = 30 * 86400;
@@ -346,6 +348,33 @@ export function applyReaction(peerPubkey, targetEnvelopeId, emoji, op, fromPubke
  * Find which emoji (if any) the given user has placed on a message.
  * Returns the emoji string or null.
  */
+/**
+ * Правка повідомлення (див. msgfx.js). `fromPubkey` — хто прислав правку:
+ *   'me'  → лише моє вихідне (оптимістичне застосування / відкат);
+ *   peer  → лише його вхідне повідомлення.
+ * Повертає оновлене повідомлення або null.
+ */
+export function applyEdit(peerPubkey, targetEnvelopeId, edit, fromPubkey, { force = false, onlyIfTs = null } = {}) {
+  const state = load();
+  const conv = state[peerPubkey];
+  if (!conv || !targetEnvelopeId) return null;
+  const m = conv.messages.find((x) => x.envelope_id === targetEnvelopeId);
+  if (!m) return null;
+  if (fromPubkey === 'me' ? m.direction !== 'out' : (m.direction !== 'in' || fromPubkey !== peerPubkey)) return null;
+  if (force) {
+    // відкочуємо лише якщо поверх не лягла новіша правка
+    if (onlyIfTs !== null && m.edited_at !== onlyIfTs) return null;
+    // відкат моєї невдалої правки
+    m.text = edit.text; m.edited = !!edit.edited; m.edited_at = edit.edited_at;
+    if (!m.edited) { delete m.edited; delete m.edited_at; }
+    save(state);
+    return m;
+  }
+  if (!applyEditTo(m, edit)) return null;
+  save(state);
+  return m;
+}
+
 export function getMyReaction(peerPubkey, targetEnvelopeId, myPubkey) {
   const conv = getConversation(peerPubkey);
   if (!conv) return null;

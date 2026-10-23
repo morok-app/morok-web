@@ -11,6 +11,7 @@
  * notifications if BOTH (a) user toggled on in Settings AND
  * (b) browser permission is "granted".
  */
+import { maskSpoilers } from './msgfx.js';
 
 const PREF_KEY = 'morok.notif_enabled.v1';
 const SOUND_KEY = 'morok.notif_sound.v1';
@@ -102,6 +103,8 @@ export async function requestPermission() {
  *  - tab is not focused (don't notify while user is looking)
  */
 export function notify({ title, body, onClick, peerPubkey }) {
+  // прихований текст (||…||) у сповіщенні не показуємо
+  body = maskSpoilers(body || '');
   // Звук — незалежно від видимості вкладки (нове повідомлення може
   // прийти в ІНШИЙ чат, поки ти дивишся на цей). Троттл усередині.
   playMessageSound();

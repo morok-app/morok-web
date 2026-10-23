@@ -28,6 +28,7 @@
  */
 
 import { t } from './i18n.js';
+import { maskSpoilers } from './msgfx.js';
 
 const ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 export const SNIPPET_MAX = 140;
@@ -71,7 +72,7 @@ export function sanitizeReplyTo(r) {
 /** Текст цитати — тільки з локальної копії оригіналу. */
 export function quotePreview(original) {
   if (!original || original.status === 'undecryptable') return t('Message unavailable');
-  const tx = cleanSnippet(original.text || '');
+  const tx = cleanSnippet(maskSpoilers(original.text || ''));
   const kind = kindOf(original);
   if (kind === 'voice') return t('🎤 Voice message');
   if (kind === 'image') return tx ? `📷 ${tx}` : t('📷 Photo');

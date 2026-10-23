@@ -26,6 +26,7 @@
  */
 
 import { getReadBurnSeconds } from './conversations.js';
+import { applyEditTo } from './msgfx.js';
 
 const K = 'morok.groups.v1';
 const HARD_CEILING_SECONDS = 30 * 86400;
@@ -432,6 +433,30 @@ export function applyReaction(groupId, targetEnvelopeId, emoji, op, fromPubkey) 
     }
   }
 
+  save(state);
+  return m;
+}
+
+/**
+ * Правка повідомлення в групі (див. msgfx.js). `fromPubkey` — автор правки
+ * (підписаний конверт) або 'me' для мого вихідного. Правити можна лише своє.
+ */
+export function applyEdit(groupId, targetEnvelopeId, edit, fromPubkey, { force = false, onlyIfTs = null } = {}) {
+  const state = load();
+  const g = state[groupId];
+  if (!g || !targetEnvelopeId) return null;
+  const m = (g.messages || []).find((x) => x.envelope_id === targetEnvelopeId);
+  if (!m) return null;
+  if (fromPubkey === 'me' ? m.direction !== 'out' : (m.direction !== 'in' || m.sender_pubkey !== fromPubkey)) return null;
+  if (force) {
+    // відкочуємо лише якщо поверх не лягла новіша правка
+    if (onlyIfTs !== null && m.edited_at !== onlyIfTs) return null;
+    m.text = edit.text; m.edited = !!edit.edited; m.edited_at = edit.edited_at;
+    if (!m.edited) { delete m.edited; delete m.edited_at; }
+    save(state);
+    return m;
+  }
+  if (!applyEditTo(m, edit)) return null;
   save(state);
   return m;
 }

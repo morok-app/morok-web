@@ -395,6 +395,16 @@ export default function App() {
           }
           client.ack(env.envelope_id);
 
+          // Правка / реакція: не нове повідомлення — лише оновити відкритий чат
+          // (без звуку й сповіщення).
+          if (newMsg?.__update) {
+            try {
+              if (newMsg.peer_pubkey) window.dispatchEvent(new CustomEvent('morok-conv-update', { detail: { peerPubkey: newMsg.peer_pubkey } }));
+              else if (newMsg.group_id) window.dispatchEvent(new CustomEvent('morok-group-update', { detail: { groupId: newMsg.group_id } }));
+            } catch {}
+            return;
+          }
+
           // Tell the open chat/group view to refresh from store. Without
           // this, ChatRoom only re-renders on remount (navigate away & back)
           // because it listens to morok-conv-update.
