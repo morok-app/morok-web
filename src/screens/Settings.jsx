@@ -660,7 +660,7 @@ export default function Settings({ onNavigate }) {
           letterSpacing: '0.04em',
           fontWeight: 500,
         }}>
-          Morok · v0.9.4 · beta
+          Morok · v{__APP_VERSION__} · beta
         </div>
       </div>
 

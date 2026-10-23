@@ -154,7 +154,7 @@ export default function Welcome({ onNavigate }) {
           textAlign: 'center',
           fontWeight: 500,
         }}>
-          Morok · v0.9.4 · beta
+          Morok · v{__APP_VERSION__} · beta
         </div>
       </div>
     </div>

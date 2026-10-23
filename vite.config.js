@@ -1,4 +1,8 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+
+// Версія в інтерфейсі береться з package.json (одне джерело правди).
+const APP_VERSION = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 import react from '@vitejs/plugin-react';
 
 // `base` controls the public path prefix Vite stamps into index.html.
@@ -52,6 +56,7 @@ function webSecurityMeta(enabled) {
 export default defineConfig(({ mode }) => ({
   plugins: [react(), webSecurityMeta(mode !== 'mobile' && !process.env.TAURI_ENV_PLATFORM)],
   base: (mode === 'mobile' || process.env.TAURI_ENV_PLATFORM) ? './' : '/web/',
+  define: { __APP_VERSION__: JSON.stringify(APP_VERSION) },
   server: { port: 5173 },
   build: {
     outDir: 'dist',

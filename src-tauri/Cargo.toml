@@ -1,6 +1,6 @@
 [package]
 name = "morok-desktop"
-version = "0.9.3"
+version = "0.9.4"
 description = "Morok — приватний месенджер"
 authors = ["Morok"]
 edition = "2021"
