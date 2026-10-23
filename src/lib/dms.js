@@ -96,7 +96,38 @@ export async function getOne(dmsId) {
  * Check in. Returns the new last_check_in_at + fires_at.
  */
 export async function checkIn(dmsId) {
+  const r = await signedCheckIn();
+  // checked_in_count 0 — цей DMS не взведений: хай bearer-шлях поверне
+  // зрозумілу помилку (409), а не тихий «успіх»
+  if (r && r.checked_in_count > 0) return r;
+  // старий релей / нема ключа — bearer-шлях (поки релей його приймає)
   return await api.checkInDMS(dmsId);
+}
+
+/** Ключ акаунта для підпису: розблокований seed або відкритий (без PIN). */
+function signingSeed() {
+  let seed = getUnlockedSeed();
+  if (!seed) {
+    const id = loadIdentity();
+    if (id && id.encrypted !== true && /^[0-9a-f]{64}$/.test(id.seed_hex || '')) seed = hexToBytes(id.seed_hex);
+  }
+  return seed || null;
+}
+
+/**
+ * Один підписаний check-in для всіх взведених DMS.
+ * null — не вийшло (нема ключа, старий релей, мережа): тоді bearer-шлях.
+ */
+async function signedCheckIn() {
+  const seed = signingSeed();
+  const pubkeyHex = loadIdentity()?.pubkey_hex;
+  if (!seed || !pubkeyHex) return null;
+  try {
+    return await api.checkInDMSSigned({ seed, pubkeyHex });
+  } catch (e) {
+    console.warn('DMS signed check-in failed:', e?.message);
+    return null;
+  }
 }
 
 /**
@@ -104,13 +135,7 @@ export async function checkIn(dmsId) {
  */
 export async function cancel(dmsId) {
   // підпис ключем акаунта — щоб вкрадений токен не міг скасувати заповіт
-  let seed = getUnlockedSeed();
-  if (!seed) {
-    // акаунт без PIN: seed лежить відкрито
-    const id = loadIdentity();
-    if (id && id.encrypted !== true && /^[0-9a-f]{64}$/.test(id.seed_hex || '')) seed = hexToBytes(id.seed_hex);
-  }
-  return await api.cancelDMS(dmsId, { seed });
+  return await api.cancelDMS(dmsId, { seed: signingSeed() });
 }
 
 /**
@@ -123,6 +148,12 @@ export async function cancel(dmsId) {
  * Returns: { checkedIn, failed, total }
  */
 export async function checkInAllArmed() {
+  // Спершу підписаний check-in: один запит на всі DMS, і токен сесії
+  // сам по собі «живість» не підтверджує.
+  const r = await signedCheckIn();
+  if (r && Number.isInteger(r.checked_in_count)) {
+    return { checkedIn: r.checked_in_count, failed: 0, total: r.checked_in_count, signed: true };
+  }
   let list;
   try {
     list = await listAll();
@@ -135,7 +166,8 @@ export async function checkInAllArmed() {
   let checkedIn = 0, failed = 0;
   for (const d of armed) {
     try {
-      await checkIn(d.dms_id);
+      // напряму bearer: підписаний щойно не вдався, не повторюємо його N разів
+      await api.checkInDMS(d.dms_id);
       checkedIn++;
     } catch (e) {
       console.warn('DMS check-in failed for', d.dms_id, e?.message);

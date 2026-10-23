@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import * as mailStore from '../lib/mail_store.js';
 import * as backup from '../lib/mail_backup.js';
 import * as vault from '../lib/vault.js';
@@ -83,6 +83,21 @@ export default function Mail({ onNavigate }) {
     }
   }, []);
 
+  // Листи, прочитані тут раніше (до оновлення чи без мережі), — одним
+  // запитом позначити прочитаними й на релеї. Лише вхідні, лише ті, що ще
+  // можуть бути в черзі (8 діб). Раз на відкриття екрана.
+  const seenSynced = useRef(false);
+  useEffect(() => {
+    if (seenSynced.current || !all) return;
+    seenSynced.current = true;
+    const cutoff = Math.floor(Date.now() / 1000) - 8 * 86400;
+    const ids = all
+      .filter((m) => m.read && !m.email?.out && (m.ts || 0) > cutoff && /^[0-9a-f]{64}$/.test(m.envelope_id || ''))
+      .map((m) => m.envelope_id)
+      .slice(0, 200);
+    if (ids.length) api.markMailSeen(ids).catch(() => {});
+  }, [all]);
+
   useEffect(() => {
     reload();
     mailStore.sweepTombstones().catch(() => {});
@@ -121,10 +136,19 @@ export default function Mail({ onNavigate }) {
 
   async function handleOpen(msg) {
     setOpenId(msg.envelope_id);
-    if (!msg.read) { await mailStore.markRead(msg.envelope_id, true); reload(); }
+    if (!msg.read) {
+      await mailStore.markRead(msg.envelope_id, true);
+      reload();
+      // вхідний лист — прочитано і на релеї (не повернеться непрочитаним)
+      if (!msg.email?.out) api.markMailSeen([msg.envelope_id]).catch(() => {});
+    }
   }
   async function handleDelete(id) {
+    const rec = (all || []).find((m) => m.envelope_id === id);
     await mailStore.removeEmail(id);
+    // вхідний лист — прибрати і з черги релею, інакше після повторного
+    // входу (або на іншому пристрої) він повернеться
+    if (rec && !rec.email?.out) api.ackEnvelope(id).catch(() => {});
     if (openId === id) setOpenId(null);
     reload();
   }

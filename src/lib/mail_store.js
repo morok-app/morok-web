@@ -60,7 +60,7 @@ function reqAsPromise(req) {
   });
 }
 
-export async function addEmail({ envelopeId, ts, email }) {
+export async function addEmail({ envelopeId, ts, email, read = false }) {
   const db = await openDb();
   const store = tx(db, 'readwrite');
   const existing = await reqAsPromise(store.get(envelopeId));
@@ -68,7 +68,7 @@ export async function addEmail({ envelopeId, ts, email }) {
   await reqAsPromise(store.put({
     envelope_id: envelopeId,
     ts: ts || Math.floor(Date.now() / 1000),
-    read: false,
+    read: !!read,
     email,
   }));
   return true;

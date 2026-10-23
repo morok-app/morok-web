@@ -4,6 +4,7 @@ import * as gstore from '../lib/group_storage.js';
 import * as groups from '../lib/groups.js';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
+import { isUserLooking, onAttention } from '../lib/attention.js';
 import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
 import { formatBytes } from '../lib/images.js';
@@ -187,7 +188,7 @@ export default function GroupChat({ groupId, onNavigate }) {
     const hasPending = (group?.messages || []).some((m) => m.read_burn_at);
     if (!hasPending) return;
     const t = setInterval(() => {
-      gstore.markGroupRead(groupId);
+      if (isUserLooking()) gstore.markGroupRead(groupId);
       setGroup(gstore.getGroup(groupId));
     }, 1000);
     return () => clearInterval(t);
@@ -220,10 +221,18 @@ export default function GroupChat({ groupId, onNavigate }) {
   useEffect(() => {
     const id = setInterval(() => {
       setGroup(gstore.getGroup(groupId));
-      gstore.markGroupRead(groupId);
+      if (isUserLooking()) gstore.markGroupRead(groupId);
     }, 2000);
     return () => clearInterval(id);
   }, [groupId]);
+
+  // Повернулись до вікна з відкритою групою — нове справді прочитано.
+  useEffect(() => onAttention(() => {
+    gstore.markGroupRead(groupId);
+    setGroup(gstore.getGroup(groupId));
+    flushReadReceipts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [groupId]);
 
   // React immediately when InboxClient's onDeleted updates this group.
   useEffect(() => {
@@ -286,11 +295,13 @@ export default function GroupChat({ groupId, onNavigate }) {
 
   async function flushReadReceipts() {
     if (!store.getPreference('read_receipts', true)) return;
+    if (!isUserLooking()) return;
     const g = gstore.getGroup(groupId);
     if (!g) return;
     const toReport = (g.messages || []).filter(
       (m) =>
         m.direction === 'in' &&
+        m.read_at &&
         m.envelope_id &&
         m.sender_pubkey &&
         m.sender_pubkey !== myPubkeyHex &&

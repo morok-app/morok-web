@@ -4,6 +4,7 @@ import * as convs from '../lib/conversations.js';
 import * as msgs from '../lib/messages.js';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
+import { isUserLooking, onAttention } from '../lib/attention.js';
 import * as api from '../lib/api.js';
 import { hexToBytes } from '../lib/crypto.js';
 import { parseBurnerMeta } from '../lib/burner.js';
@@ -213,7 +214,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     const hasPending = (conv?.messages || []).some((m) => m.read_burn_at);
     if (!hasPending) return;
     const t = setInterval(() => {
-      convs.markConversationRead(peerPubkey);
+      if (isUserLooking()) convs.markConversationRead(peerPubkey);
       setConv(convs.getConversation(peerPubkey));
     }, 1000);
     return () => clearInterval(t);
@@ -247,14 +248,23 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
   useEffect(() => {
     function onUpdate(e) {
       if (e.detail?.peerPubkey === peerPubkey) {
-        const refreshed = convs.getConversation(peerPubkey);
-        setConv(refreshed);
-        convs.markConversationRead(peerPubkey);
+        // прочитано — лише коли людина справді дивиться (не фонова
+        // вкладка й не сховане в трей вікно)
+        if (isUserLooking()) convs.markConversationRead(peerPubkey);
+        setConv(convs.getConversation(peerPubkey));
       }
     }
     window.addEventListener('morok-conv-update', onUpdate);
     return () => window.removeEventListener('morok-conv-update', onUpdate);
   }, [peerPubkey]);
+
+  // Повернулись до вікна з відкритим чатом — тепер нове справді прочитано.
+  useEffect(() => onAttention(() => {
+    convs.markConversationRead(peerPubkey);
+    setConv(convs.getConversation(peerPubkey));
+    flushReadReceipts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [peerPubkey]);
 
   // Auto-scroll when new messages arrive (only if user was already at bottom)
   useEffect(() => {
@@ -279,11 +289,13 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
 
   async function flushReadReceipts() {
     if (!store.getPreference('read_receipts', true)) return;
+    if (!isUserLooking()) return;
     const c = convs.getConversation(peerPubkey);
     if (!c) return;
     const toReport = (c.messages || []).filter(
       (m) =>
         m.direction === 'in' &&
+        m.read_at &&
         m.envelope_id &&
         !m.read_sent &&
         m.status !== 'undecryptable',

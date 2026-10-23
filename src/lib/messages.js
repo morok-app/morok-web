@@ -666,7 +666,13 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       const have = await mailStore.getEmail(envelopeId);
       if (have) {
         // запис існує (лист або надгробок видаленого) — блоб не тягнемо,
-        // подію не шлемо як новий; надгробок лишає лист мертвим назавжди
+        // подію не шлемо як новий; надгробок лишає лист мертвим назавжди.
+        // Прочитано на іншому пристрої (mail_seen від релею) — синхронізуємо.
+        if (envMeta.mail_seen === true && !have.read && !have.deleted) {
+          await mailStore.markRead(envelopeId, true);
+        }
+        // видалений тут, а конверт досі в черзі (ack не дійшов) — ще раз
+        if (have.deleted) api.ackEnvelope(envelopeId).catch(() => {});
         return { __mail: true, envelope_id: envelopeId, isNew: false, email: have.email };
       }
     } catch { /* ignore */ }
@@ -715,15 +721,19 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
         email.from_verified = false;
       }
     }
+    // mail_seen — лист уже прочитаний (на іншому пристрої чи до виходу з
+    // акаунта): одразу «прочитано» і без звуку
+    const seen = envMeta.mail_seen === true;
     const isNew = await mailStore.addEmail({
       envelopeId,
       ts: envMeta.ts || Math.floor(Date.now() / 1000),
       email,
+      read: seen,
     });
     return {
       __mail: true,
       envelope_id: envelopeId,
-      isNew,        // false → дубль (повторний catchup), звук не грати
+      isNew: isNew && !seen,   // false → дубль або вже прочитаний: звук не грати
       email,
     };
   }

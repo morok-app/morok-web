@@ -11,6 +11,7 @@
  * notifications if BOTH (a) user toggled on in Settings AND
  * (b) browser permission is "granted".
  */
+import { isWindowActive } from './attention.js';
 import { maskSpoilers } from './msgfx.js';
 
 const PREF_KEY = 'morok.notif_enabled.v1';
@@ -112,8 +113,9 @@ export function notify({ title, body, onClick, peerPubkey }) {
   if (!isSupported()) return;
   if (Notification.permission !== 'granted') return;
   if (!isPreferenceEnabled()) return;
-  // Suppress when tab is focused — user already sees it
-  if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
+  // Людина й так бачить застосунок — сповіщення не потрібне. У Windows-версії
+  // вікно в треї часто лишається «visible», тому там дивимось ще й на фокус.
+  if (isWindowActive()) return;
 
   try {
     const n = new Notification(title, {

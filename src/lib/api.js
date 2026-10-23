@@ -481,6 +481,19 @@ export async function ackEnvelope(envelopeId) {
 }
 
 /**
+ * Пошта: позначити листи прочитаними на релеї (флаг у метаданих конверта).
+ * Після повторного входу / на іншому пристрої вони прийдуть уже прочитаними.
+ */
+export async function markMailSeen(envelopeIds) {
+  const ids = (envelopeIds || []).filter((x) => /^[0-9a-f]{64}$/.test(String(x)));
+  if (!ids.length) return { marked: 0 };
+  return http('POST', '/api/v1/messages/mail-seen', {
+    body: { envelope_ids: ids.slice(0, 200) },
+    auth: true,
+  });
+}
+
+/**
  * Send a batch of read receipts. `reads` is an array of
  * { envelope_id, sender_pubkey_hex, group_id? } objects. The relay
  * notifies each sender (locally via WS or via federation forward).
@@ -875,6 +888,27 @@ export async function cancelDMS(dmsId, { seed } = {}) {
   // перевіряє підпис — шлемо його, щоб потім увімкнути обов'язковість.
   const body = await sensitiveActionProof({ seed, action: 'dms_cancel', target: dmsId });
   return http('DELETE', `/api/v1/dms/${seg(dmsId)}`, { auth: true, body });
+}
+
+/**
+ * Підписаний «я живий» для ВСІХ взведених DMS одразу.
+ * На відміну від bearer-check-in, вкрадений токен сесії цього не підробить —
+ * потрібен ключ акаунта. Час — з /health релею (годинник телефона може
+ * відставати більше, ніж на вікно свіжості 5 хв).
+ * Повертає { checked_in_count, checked_in_at }.
+ */
+export async function checkInDMSSigned({ seed, pubkeyHex }) {
+  if (!seed || !/^[0-9a-f]{64}$/.test(pubkeyHex || '')) throw new Error('no_key');
+  let timestamp = Math.floor(Date.now() / 1000);
+  try {
+    const h = await http('GET', '/health');
+    if (Number.isInteger(h?.server_time)) timestamp = h.server_time;
+  } catch { /* ignore — спробуємо з локальним часом */ }
+  const msg = canonicalJson({ morok_dms_checkin: 'v1', pubkey: pubkeyHex, timestamp });
+  return http('POST', '/api/v1/dms/checkin-signed', {
+    auth: true,
+    body: { timestamp, signature_hex: sign(seed, msg) },
+  });
 }
 // ────────────────────────────────────────────────────────────
 // Burner inbox (Day 7)
