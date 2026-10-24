@@ -18,7 +18,8 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
   const myPubkey = store.loadIdentity()?.pubkey_hex || '';
 
   const sn = safety.safetyNumber(myPubkey, peerPubkey);
-  const qrPayload = safety.safetyQrPayload(myPubkey, peerPubkey);
+  // показуємо спрямований QR (див. safety.safetyQrPayloadFor)
+  const qrPayload = safety.safetyQrPayloadFor(myPubkey, peerPubkey);
   const [verified, setVerifiedState] = useState(() => safety.isVerified(peerPubkey));
   const [qrUrl, setQrUrl] = useState(null);
 
@@ -36,11 +37,12 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
     setVerifiedState(next);
   }
 
-  // ── QR-сканер (BarcodeDetector; без зовнішніх залежностей) ──
+  // ── QR-сканер: BarcodeDetector, а де його нема (Windows-версія, Firefox,
+  // Safari) — jsQR по кадрах із камери. Усе локально, кадри нікуди не йдуть.
   // Наводиш камеру на QR іншої сторони → payload порівнюється з нашим
   // qrPayload (він однаковий у обох, бо ключі відсортовані) → збіг =
   // ключі підтверджено автоматично; розбіжність = червоне попередження.
-  const scannerSupported = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+  const scannerSupported = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null); // 'match' | 'mismatch' | 'error'
   const videoRef = useRef(null);
@@ -56,7 +58,24 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
       const video = videoRef.current;
       video.srcObject = stream;
       await video.play();
-      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      let detect;
+      if ('BarcodeDetector' in window) {
+        const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+        detect = async () => (await detector.detect(video))[0]?.rawValue || null;
+      } else {
+        const { default: jsQR } = await import('jsqr');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        detect = async () => {
+          const w = video.videoWidth, h = video.videoHeight;
+          if (!w || !h) return null;
+          const k = Math.min(1, 800 / Math.max(w, h));
+          canvas.width = Math.round(w * k); canvas.height = Math.round(h * k);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          return jsQR(img.data, img.width, img.height, { inversionAttempts: 'attemptBoth' })?.data || null;
+        };
+      }
       let stopped = false;
       scanStopRef.current = () => {
         stopped = true;
@@ -65,12 +84,13 @@ export default function SafetyNumber({ peerPubkey, onNavigate }) {
       const tick = async () => {
         if (stopped) return;
         try {
-          const codes = await detector.detect(video);
-          const raw = codes[0]?.rawValue;
-          if (raw && raw.startsWith('morok-sn:')) {
+          const raw = await detect();
+          const res = raw ? safety.checkSafetyScan(raw, myPubkey, peerPubkey) : 'other';
+          // власний QR (напр. у дзеркалі чи на другому пристрої) — скануємо далі
+          if (res === 'match' || res === 'legacy' || res === 'mismatch') {
             scanStopRef.current?.();
             setScanning(false);
-            const ok = raw === qrPayload;
+            const ok = res !== 'mismatch';
             setScanResult(ok ? 'match' : 'mismatch');
             if (ok && !verified) {
               safety.setVerified(peerPubkey, true);

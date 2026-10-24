@@ -51,6 +51,7 @@ import Tools from './screens/Tools.jsx';
 import Mail from './screens/Mail.jsx';
 import MailAliases from './screens/MailAliases.jsx';
 import MailCompose from './screens/MailCompose.jsx';
+import Invites from './screens/Invites.jsx';
 
 const PENDING_KEY = 'morok.pending_route.v1';
 
@@ -277,7 +278,15 @@ export default function App() {
     const tid = setInterval(() => {
       dms.checkInAllArmed().catch((e) => console.warn('Periodic DMS check-in failed:', e));
     }, SIX_HOURS_MS);
-    return () => clearInterval(tid);
+    // одноразові запрошення: протерміновані токени знімаємо з релею вчасно,
+    // а не лише при наступному вході
+    const tid2 = setInterval(() => {
+      const seed = vault.getUnlockedSeed();
+      const pk = store.loadIdentity()?.pubkey_hex;
+      if (!seed || !pk) return;
+      import('./lib/invites.js').then((m) => m.pruneInvites({ seed, myPubkeyHex: pk })).catch(() => {});
+    }, 3600 * 1000);
+    return () => { clearInterval(tid); clearInterval(tid2); };
   }, []);
 
   async function loginAndRoute(seed, pubkeyHex) {
@@ -312,6 +321,10 @@ export default function App() {
     import('./lib/sealed_tokens.js')
       .then((m) => m.ensureLegacyToken())
       .catch(() => {});
+
+    // одноразові запрошення: повторити невдалі відповіді / мої кадри, зняти
+    // з релею токени використаних і протермінованих
+    import('./lib/invites.js').then((m) => m.pruneInvites({ seed, myPubkeyHex: pubkeyHex })).catch(() => {});
 
     // Auto check-in for any armed DMS (fire-and-forget — don't block login)
     dms.checkInAllArmed().then((r) => {
@@ -724,6 +737,7 @@ export default function App() {
     case 'mail-aliases': return <MailAliases onNavigate={navigate} />;
     case 'mail-compose': return <MailCompose onNavigate={navigate} myPrimaryAddress={mailPrimaryAddress} />;
     case 'tools': return <Tools onNavigate={navigate} />;
+    case 'invites': return <Invites onNavigate={navigate} />;
     default: return <Splash />;
   }
   }

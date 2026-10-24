@@ -29,7 +29,7 @@ const VERSION = 1;
 const LS_MERGE_MESSAGES = ['morok.conv.v1', 'morok.groups.v1'];
 const LS_MERGE_MAPS = [
   'morok.contacts.v1', 'morok.contacts_explicit.v1', 'morok.blocked.v1',
-  'morok.verified.v1', 'morok.profile.v1', 'morok.prefs.v1',
+  'morok.verified.v1', 'morok.profile.v1', 'morok.prefs.v1', 'morok.invites.v1',
   'morok.sealed.my_token.v1', 'morok.sealed.my_tokens.v2',
   'morok.sealed.peer_tokens.v1', 'morok.sealed.token_sent.v1',
 ];

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { hapticTap } from '../lib/haptics.js';
 import * as convs from '../lib/conversations.js';
+import * as trust from '../lib/trust.js';
 import * as msgs from '../lib/messages.js';
 import * as store from '../lib/storage.js';
 import * as vault from '../lib/vault.js';
@@ -641,6 +642,17 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // «Чи це та сама людина?» — той самий нік на іншому відомому ключі
+  // (див. lib/trust.js). Перераховуємо при зміні ніка й при поверненні
+  // до вікна (могли щойно звірити ключі).
+  const [trustTick, setTrustTick] = useState(0);
+  useEffect(() => onAttention(() => setTrustTick((n) => n + 1)), []);
+  const trustState = useMemo(
+    () => trust.trustInfo(peerPubkey, conv?.peer_username),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [peerPubkey, conv?.peer_username, trustTick],
+  );
+
   if (!conv) {
     return (
       <div className="screen" style={{ background: '#0A0A0B' }}>
@@ -861,7 +873,7 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
       ) : (
       <CompactHeader
         onSearchClick={() => setSearchOpen(true)}
-        title={displayTitle}
+        title={`${trustState.conflict ? '⚠ ' : ''}${displayTitle}${trustState.verified ? ' ✓' : ''}`}
         subtitle={displaySubtitle}
         isBurner={isBurner}
         peerHue={peerHue}
@@ -872,6 +884,34 @@ export default function ChatRoom({ peerPubkey, onNavigate }) {
         isMuted={!!muteEntry}
       />
       )}
+
+      {trustState.conflict && !isBurner && !selectMode && (() => {
+        const other = trustState.others[0];
+        // «відомий» — лише контакт або звірений ключ, а не інший незнайомець
+        const known = trustState.others.find((o) => o.verified || o.contact);
+        const otherRelay = other?.relay && conv.peer_home_relay && other.relay !== conv.peer_home_relay ? other.relay : null;
+        return (
+          <div style={{
+            margin: '10px 14px 0', padding: '12px 14px', borderRadius: 12,
+            background: 'rgba(255,180,84,0.10)', border: '1px solid rgba(255,180,84,0.40)',
+          }}>
+            <div style={{ color: '#FFB454', fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>
+              {tp('⚠ This is a different account from your @{0}', [trustState.nick])}
+            </div>
+            <div style={{ color: '#A8A8B0', fontSize: 12.5, lineHeight: 1.5 }}>
+              {other?.verified ? tp('You already have @{0} with another key (verified).', [trustState.nick])
+                : other?.contact ? tp('You already have @{0} with another key (in contacts).', [trustState.nick])
+                  : tp('You already have @{0} with another key.', [trustState.nick])}
+              {otherRelay ? ' ' + tp('That one is on another server ({0}).', [otherRelay]) : ''}
+              {' '}{t('The person may have created a new account, the nick may have been taken after it was released, or this is a fake. Don\'t write anything important until you verify the keys.')}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => onNavigate(`safety/${peerPubkey}`)} style={trustBtnStyle}>{t('Verify keys')}</button>
+              {known && <button type="button" onClick={() => onNavigate(`chat/${known.pubkey}`)} style={trustBtnStyle}>{t('Open the known chat')}</button>}
+            </div>
+          </div>
+        );
+      })()}
 
       <div
         ref={scrollerRef}
@@ -1966,3 +2006,8 @@ function VoicePlayer({ voice, isOut }) {
     </div>
   );
 }
+
+const trustBtnStyle = {
+  padding: '7px 12px', borderRadius: 8, background: 'transparent', cursor: 'pointer',
+  border: '1px solid rgba(255,180,84,0.45)', color: '#FFB454', fontSize: 12.5, fontWeight: 700,
+};

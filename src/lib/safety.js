@@ -50,6 +50,40 @@ export function safetyQrPayload(myPubkeyHex, peerPubkeyHex) {
   return `morok-sn:${first}:${second}`;
 }
 
+/**
+ * Спрямований QR: «показує <я>, для <співрозмовник>». На відміну від
+ * симетричного morok-sn: (однаковий у обох — тож збігся б і власний екран
+ * чи знімок, зроблений будь-ким із публічних ключів), сканер вимагає, щоб
+ * QR показував саме співрозмовник і саме для мене.
+ */
+export function safetyQrPayloadFor(myPubkeyHex, peerPubkeyHex) {
+  const a = String(myPubkeyHex || '').toLowerCase().trim();
+  const b = String(peerPubkeyHex || '').toLowerCase().trim();
+  if (!/^[0-9a-f]{64}$/.test(a) || !/^[0-9a-f]{64}$/.test(b)) return null;
+  return `morok-sn2:${a}:${b}`;
+}
+
+/**
+ * Перевірити відсканований QR.
+ *   'match'   — QR співрозмовника для мене (morok-sn2);
+ *   'legacy'  — старий симетричний QR зі збігом (старі версії застосунку);
+ *   'self'    — це мій власний QR;
+ *   'mismatch'— QR звірки, але ключі інші;
+ *   'other'   — не QR звірки взагалі.
+ */
+export function checkSafetyScan(raw, myPubkeyHex, peerPubkeyHex) {
+  const s = String(raw || '').trim().toLowerCase();
+  const me = String(myPubkeyHex || '').toLowerCase();
+  const peer = String(peerPubkeyHex || '').toLowerCase();
+  const m2 = s.match(/^morok-sn2:([0-9a-f]{64}):([0-9a-f]{64})$/);
+  if (m2) {
+    if (m2[1] === me) return 'self';
+    return m2[1] === peer && m2[2] === me ? 'match' : 'mismatch';
+  }
+  if (s.startsWith('morok-sn:')) return s === safetyQrPayload(me, peer) ? 'legacy' : 'mismatch';
+  return 'other';
+}
+
 // ── Статус «підтверджено» (локальний, per-peer) ──
 const K_VERIFIED = 'morok.verified.v1';
 

@@ -821,6 +821,51 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
       return { __update: true, peer_pubkey: sealedPeer };
     }
 
+    // ── Одноразове запрошення: хтось скористався моїм посиланням ──
+    // (див. lib/invites.js). Невидимий кадр; особа — з підпису конверта.
+    if (sealedKind === 'invite_claim') {
+      const invitesMod = await import('./invites.js');
+      const res = invitesMod.handleClaim({
+        peer: sealedPeer,
+        nonce: sealedPayload.nonce,
+        token: sealedPayload.token,
+        relay: sealedPayload.relay,
+      });
+      const fresh = res.status === 'accepted';
+      // повтор від того ж відправника — лише якщо моя відповідь ще не дійшла
+      if (!fresh && !(res.status === 'duplicate' && !res.replied)) return null;
+      if (fresh) {
+        const claimRelay = invitesMod.relayHost(sealedPayload.relay);
+        convs.ensureConversation({ peerPubkey: sealedPeer, ...(claimRelay && !cMod.getByPubkey(sealedPeer)?.home_relay ? { peerHomeRelay: claimRelay } : {}) });
+        // нік із кадру — лише якщо релей підтверджує, що він саме цього ключа
+        if (sealedPayload.u) {
+          invitesMod.verifiedNick(sealedPayload.u, sealedPeer, claimRelay).then((nick) => {
+            if (!nick) return;
+            cMod.upsert({ pubkey_hex: sealedPeer, username: nick });
+            convs.ensureConversation({ peerPubkey: sealedPeer, peerUsername: nick });
+            try { window.dispatchEvent?.(new CustomEvent('morok-conv-update', { detail: { peerPubkey: sealedPeer } })); } catch { /* RN */ }
+          }).catch(() => {});
+        }
+      }
+      // мій постійний токен для цієї людини; токен запрошення знімемо з
+      // релею, лише коли відповідь пішла (див. invites.replyToClaim)
+      setTimeout(() => { invitesMod.replyToClaim({ seed, myPubkeyHex, nonce: res.nonce }).catch(() => {}); }, 0);
+      return fresh ? { __update: true, peer_pubkey: sealedPeer, invite_accepted: true } : null;
+    }
+
+    // ── Мій контакт передав свій delivery-токен sealed-кадром ──
+    // (після одноразового запрошення: v1 між різними серверами без
+    // lookup не доходить)
+    if (sealedKind === 'sealed_token') {
+      if (typeof sealedPayload.token === 'string' && /^[0-9a-f]{64}$/.test(sealedPayload.token)) {
+        sealedTokens.setPeerToken(sealedPeer, sealedPayload.token);
+        // відповідь на моє одноразове запрошення прийшла — кадр не повторюємо
+        import('./invites.js').then((m) => m.clearPendingClaim(sealedPeer)).catch(() => {});
+      }
+      if (sealedPayload.burn !== undefined) convs.setPeerBurn(sealedPeer, sanitizeBurn(sealedPayload.burn));
+      return null;
+    }
+
     // ── Правка: змінює текст наявного повідомлення цього ж автора ──
     if (sealedKind === 'edit') {
       const ed = parseEdit(sealedPayload, sealedTs);
@@ -1155,6 +1200,32 @@ export async function processIncoming({ envMeta, seed, myPubkeyHex }) {
  * Тихо no-op, якщо релей не підтримує sealed (мій токен = null).
  */
 const SEALED_TOKEN_SENT_KEY = 'morok.sealed.token_sent.v1';
+
+/**
+ * Невидимий службовий кадр ЛИШЕ sealed-шляхом (без v1-запасного варіанту).
+ * Потрібен там, де v1 не дійде: перший контакт за одноразовим запрошенням
+ * (мій релей ще не знає співрозмовника, а нік може бути відсутній).
+ * Кидає помилку, якщо sealed недоступний або релей відхилив токен.
+ */
+export async function sendSealedControl({ seed, myPubkeyHex, peerPubkeyHex, payload, ttlSeconds = 86400, token = null, relayBase: relayOverride = null }) {
+  // token/relayBase — явні (кадр за одноразовим запрошенням: ще нічого не
+  // збережено); інакше — збережені для цього контакта
+  const peerToken = token || sealedTokens.getPeerToken(peerPubkeyHex);
+  const relayBase = relayOverride || await peerHomeRelayBase(peerPubkeyHex);
+  if (!peerToken || !relayBase) {
+    throw Object.assign(new Error('sealed_unavailable'), { code: 'sealed_unavailable' });
+  }
+  const ts = Math.floor(Date.now() / 1000);
+  const sealed = crypto.sealedEncrypt({ seed, myPubkeyHex, peerPubkeyHex, payload, to: peerPubkeyHex, ts });
+  return api.sendSealedEnvelope(relayBase, {
+    to: peerPubkeyHex,
+    ts,
+    ttl: Math.min(ttlSeconds, 86400),
+    blob: sealed.blobB64,
+    delivery_token: peerToken,
+    delete_key_hash: sealed.deleteKeyHashHex,
+  });
+}
 
 export async function maybeShareSealedToken({ seed, myPubkeyHex, peerPubkeyHex }) {
   try {

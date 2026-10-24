@@ -6,6 +6,18 @@ import * as store from '../lib/storage.js';
 import { parseAddress } from '../lib/addr.js';
 import { formatPeerName } from '../lib/display.js';
 import { t, tp } from '../lib/i18n.js';
+import * as invites from '../lib/invites.js';
+import * as trust from '../lib/trust.js';
+import * as vault from '../lib/vault.js';
+import { hexToBytes } from '../lib/crypto.js';
+
+function seedForSigning() {
+  const v = vault.getUnlockedSeed();
+  if (v) return v;
+  const id = store.loadIdentity();
+  if (id && id.encrypted !== true && /^[0-9a-f]{64}$/.test(id.seed_hex || '')) return hexToBytes(id.seed_hex);
+  return null;
+}
 
 // Відповідь lookup приходить від релею — можливо, чужого федеративного.
 // Ключ — лише 64 hex; home_relay — лише голий хост або https-origin
@@ -28,10 +40,54 @@ export default function NewChat({ onNavigate, routeArg }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [hint, setHint] = useState(null);
+  // одноразове запрошення з посилання (lib/invites.js)
+  const [invite, setInvite] = useState(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  // нік із посилання показуємо лише після перевірки на релеї:
+  // undefined — перевіряємо; null — не підтвердився / нема; рядок — ок
+  const [inviteNick, setInviteNick] = useState(undefined);
+  useEffect(() => {
+    if (!invite) return;
+    let alive = true;
+    setInviteNick(invite.username ? undefined : null);
+    if (invite.username) {
+      invites.verifiedNick(invite.username, invite.pubkey, invite.relay).then((n) => { if (alive) setInviteNick(n); });
+    }
+    return () => { alive = false; };
+  }, [invite]);
+
+  async function acceptInvite() {
+    if (!invite || inviteBusy) return;
+    const seed = seedForSigning();
+    if (!seed || !me?.pubkey_hex) { setError(t('Unlock your account')); return; }
+    setInviteBusy(true);
+    setError(null);
+    try {
+      const r = await invites.acceptInvite({ seed, myPubkeyHex: me.pubkey_hex, myUsername: me.username || null, invite });
+      // r.existing — це вже ваш контакт: нічого не змінено, просто відкриваємо чат
+      onNavigate(`chat/${r.pubkey}`);
+    } catch (e) {
+      if (e?.code === 'self') setError(t('This link points to your own account.'));
+      else if (e?.code === 'dead') setError(t('This invite has already been used, revoked or has expired. Ask for a new one.'));
+      else if (e?.code === 'network') setError(t('Server unavailable. Try again later.'));
+      else setError(tp('Could not accept the invite. {0}', [e?.message || '']));
+    } finally {
+      setInviteBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!routeArg) return;
     const raw = String(routeArg);
+
+    // одноразове запрошення — НЕ відкриваємо чат автоматично: людина бачить,
+    // від кого запрошення, і тисне сама
+    if (/(^|&)i=/.test(raw)) {
+      const inv = invites.parseInviteParams(raw);
+      if (inv) { setInvite(inv); return; }
+      setError(t('The invite link is damaged.'));
+      return;
+    }
 
     const mUser = raw.match(/^u=([\w.@-]+)$/);
     if (mUser) {
@@ -50,6 +106,21 @@ export default function NewChat({ onNavigate, routeArg }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeArg]);
+
+  // вставили посилання-запрошення (Windows-версія не відкриває посилання
+  // сама — його копіюють сюди): розбираємо ДО фільтра символів
+  function onPaste(e) {
+    const text = e.clipboardData?.getData('text') || '';
+    if (!/newchat\?/.test(text)) return;
+    e.preventDefault();
+    const inv = /(^|[?&])i=/.test(text) ? invites.parseInviteParams(text.trim()) : null;
+    if (inv) { setInvite(inv); setError(null); setHint(null); return; }
+    const mUser = text.match(/[?&]u=([a-z0-9_]{1,32})(?:&|$)/i);
+    const mPub = text.match(/[?&]p=([0-9a-f]{64})(?:&|$)/i);
+    if (mUser) setValue(mUser[1].toLowerCase());
+    else if (mPub) openAnonChat(mPub[1].toLowerCase());
+    else setError(t('The invite link is damaged.'));
+  }
 
   function onInput(e) {
     let v = e.target.value.toLowerCase().replace(/[^a-z0-9_@.-]/g, '');
@@ -195,6 +266,34 @@ export default function NewChat({ onNavigate, routeArg }) {
 
       <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+        {invite && (
+          <div style={{ padding: 16, borderRadius: 12, background: '#13131A', border: '1px solid #5A6FE0' }}>
+            <div style={{ color: '#F5F5F7', fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{t('One-time invite')}</div>
+            <div style={{ color: '#A8A8B0', fontSize: 13, lineHeight: 1.5 }}>
+              {tp('From {0} · {1}', [inviteNick ? `@${inviteNick}` : `${t('key')} ${invite.pubkey.slice(0, 12)}…`, invite.relay])}
+              {invite.username && inviteNick === undefined && <><br />{t('Checking the nick on the server…')}</>}
+              {inviteNick && trust.trustInfo(invite.pubkey, inviteNick).conflict && (
+                <><br /><span style={{ color: '#FFB454' }}>{tp('⚠ You already have @{0} with another key. This is a different account — verify keys before writing anything important.', [inviteNick])}</span></>
+              )}
+              {contacts.isInContacts(invite.pubkey) && <><br />{t('This is already your contact — we will just open the chat without changing anything.')}</>}
+              {invite.username && inviteNick === null && (
+                <><br /><span style={{ color: '#FFB454' }}>{tp('The link says @{0}, but the server does not confirm this nick for this key — it won\'t be shown.', [invite.username])}</span></>
+              )}
+              <br />{t('Works for one person. Once accepted, you land in each other\'s contacts instead of «Requests».')}
+            </div>
+            <button
+              type="button"
+              disabled={inviteBusy}
+              onClick={acceptInvite}
+              style={{
+                marginTop: 12, width: '100%', padding: '12px 14px', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg, #7B96FF 0%, #5A6FE0 100%)', color: '#fff',
+                fontSize: 14.5, fontWeight: 700, cursor: inviteBusy ? 'default' : 'pointer', opacity: inviteBusy ? 0.6 : 1,
+              }}
+            >{inviteBusy ? t('Accepting…') : t('Accept and write')}</button>
+          </div>
+        )}
+
         <div style={{
           fontSize: 12, color: '#9EA0AC',
           marginBottom: -4,
@@ -207,6 +306,7 @@ export default function NewChat({ onNavigate, routeArg }) {
           placeholder="@username[@relay]"
           value={value}
           onChange={onInput}
+          onPaste={onPaste}
           onKeyDown={(e) => e.key === 'Enter' && findClicked()}
           spellCheck={false}
           autoCapitalize="none"

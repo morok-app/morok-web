@@ -205,6 +205,21 @@ export default function Profile({ onNavigate }) {
           </button>
         </div>
 
+        <button
+          onClick={() => onNavigate('invites')}
+          style={{
+            width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 14,
+            background: '#13131A', border: '1px solid #232329', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left', fontFamily: 'inherit',
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ color: '#F5F5F7', fontSize: 14, fontWeight: 600 }}>{t('One-time invite')}</div>
+            <div style={{ color: '#8A8C96', fontSize: 12, marginTop: 2 }}>{t('A link for one person — then it stops working')}</div>
+          </div>
+          <span style={{ color: '#6B6B72', fontSize: 20 }}>›</span>
+        </button>
+
         {/* Mnemonic */}
         {mnemonic && (
           <>

@@ -9,6 +9,7 @@ import * as gstore from '../lib/group_storage.js';
 import * as muted from '../lib/muted.js';
 import * as contacts from '../lib/contacts.js';
 import { formatPeerName } from '../lib/display.js';
+import * as trust from '../lib/trust.js';
 import * as groupsLib from '../lib/groups.js';
 import { t, tp } from '../lib/i18n.js';
 
@@ -80,6 +81,7 @@ function useInboxState() {
  */
 function buildMixedList(contactsOnly) {
   const items = [];
+  const othersFor = trust.buildNickIndex();
 
   for (const c of convs.listConversations()) {
     // Drop conversations with blocked peers — they shouldn't surface anywhere.
@@ -102,7 +104,8 @@ function buildMixedList(contactsOnly) {
     items.push({
       kind: 'dm',
       id: c.peer_pubkey,
-      title: `@${formatPeerName({ username: c.peer_username, pubkey: c.peer_pubkey })}`,
+      // той самий нік на іншому відомому ключі, а цей не звірено — ⚠ (lib/trust.js)
+      title: `${trust.trustInfo(c.peer_pubkey, c.peer_username, othersFor).conflict ? '⚠ ' : ''}@${formatPeerName({ username: c.peer_username, pubkey: c.peer_pubkey })}`,
       pubkey: c.peer_pubkey,
       username: c.peer_username,
       last,
